@@ -16,9 +16,11 @@ services:
       retries: 3
       start_period: 10s
     volumes:
-      - ./testnet/celestia-validator:/home/celestia
-    command: >
-      start --force-no-bbr --home /home/celestia
+      - ./testnet/celestia-validator:/setup
+      - ./.tmp/celestia-validator:/home/celestia/.celestia-appd
+    # override the default entrypoint to cp -R default chain state
+    entrypoint: >
+      sh -c "cp -R /setup/* /home/celestia/.celestia-appd && celestia-appd start --force-no-bbr"
     networks:
       - celestia-zkevm-net
 
