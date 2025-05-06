@@ -1,0 +1,35 @@
+services:
+  celestia-validator:
+    image: ghcr.io/celestiaorg/celestia-app-standalone:02ff9af
+    container_name: celestia-validator
+    ports:
+      - "26656:26656"
+      - "26657:26657"
+      - "9090:9090"
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "BLOCK_HEIGHT=$(curl -sf http://localhost:26657/status | jq -r '.result.sync_info.latest_block_height'); \
+        if [ \"$$BLOCK_HEIGHT\" -gt 1 ]; then \
+          exit 0; \
+        else \
+          echo \"Block height too low: $$BLOCK_HEIGHT\"; \
+          exit 1; \
+        fi"
+      ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - ./testnet/celestia-validator:/setup
+      - ./.tmp/celestia-validator:/home/celestia/.celestia-appd
+    # override the default entrypoint to cp -R default chain state
+    entrypoint: >
+      sh -c "cp -R /setup/* /home/celestia/.celestia-appd && celestia-appd start --force-no-bbr"
+    networks:
+      - celestia-zkevm-net
+
+networks:
+  celestia-zkevm-net:
+    driver: bridge
