@@ -18,7 +18,7 @@ services:
     healthcheck:
       test: [
         "CMD-SHELL",
-        "bh=$(curl -sf http://localhost:26657/status | jq -r '.result.sync_info.latest_block_height'); [ \"$bh\" -gt 1 ]"
+        "bh=$(curl -sf http://localhost:26657/status | jq -r '.result.sync_info.latest_block_height'); if [ \"$$bh\" -ge 1 ]; then exit 0; else exit 1; fi"
       ]
       interval: 30s
       timeout: 5s
