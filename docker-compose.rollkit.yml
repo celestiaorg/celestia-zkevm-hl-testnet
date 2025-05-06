@@ -13,7 +13,7 @@ services:
       - EVM_BLOCK_TIME=1s
       - EVM_SIGNER_PASSPHRASE=secret
       - ROLLKIT_DA_ADDRESS=http://celestia-network-bridge:26658
-      - ROLLKIT_DA_AUTH_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiXX0.7sk4xYiawCcs_VyKTm4rMdBtJ54Z6kYBLy8p0jmQ1l4
+      - ROLLKIT_DA_AUTH_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiLCJhZG1pbiJdfQ.qxoN_a-k7aZZE77VSpfgyvI_0eNvJ_OgBsT35zxUQnQ
       - ROLLKIT_DA_NAMESPACE=00000000000000000000000000000000000000b7b24d9321578eb83626
     depends_on:
       celestia-network-validator:
