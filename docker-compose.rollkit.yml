@@ -1,6 +1,6 @@
 services:
   rollkit-evm-single:
-    image: ghcr.io/rollkit/rollkit-evm-single:v0.1.2
+    image: ghcr.io/rollkit/rollkit-evm-single:v0.1.3
     container_name: rollkit-evm-single
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -12,9 +12,9 @@ services:
       - EVM_GENESIS_HASH=0x0a962a0d163416829894c89cb604ae422323bcdf02d7ea08b94d68d3e026a380
       - EVM_BLOCK_TIME=1s
       - EVM_SIGNER_PASSPHRASE=secret
-      - ROLLKIT_DA_ADDRESS=http://celestia-network-bridge:26658
-      - ROLLKIT_DA_AUTH_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiLCJhZG1pbiJdfQ.qxoN_a-k7aZZE77VSpfgyvI_0eNvJ_OgBsT35zxUQnQ
-      - ROLLKIT_DA_NAMESPACE=00000000000000000000000000000000000000b7b24d9321578eb83626
+      - DA_ADDRESS=http://celestia-network-bridge:26658
+      - DA_AUTH_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiLCJhZG1pbiJdfQ.qxoN_a-k7aZZE77VSpfgyvI_0eNvJ_OgBsT35zxUQnQ
+      - DA_NAMESPACE=00000000000000000000000000000000000000b7b24d9321578eb83626
     depends_on:
       celestia-network-validator:
         condition: service_healthy
