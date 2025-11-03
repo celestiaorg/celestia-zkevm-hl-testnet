@@ -192,6 +192,7 @@ pub async fn start_server(config: Config) -> Result<()> {
             .await?;
         let result = try_join!(block_handle, message_handle, block_range_handle);
         result?;
+        // todo: if any task fails, re-initialize with a fresh instance of the mpsc channels
     }
 
     #[cfg(feature = "combined")]
