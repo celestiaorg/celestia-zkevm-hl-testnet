@@ -101,12 +101,11 @@ async fn main() {
 }
 
 async fn write_proof_inputs(stdin: &mut SP1Stdin, args: &Args) -> Result<()> {
-    let message_storage_path = dirs::home_dir()
+    let storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(".ev-prover")
-        .join("data")
-        .join("messages.db");
-    let message_db = HyperlaneMessageStore::new(message_storage_path).expect("Failed to create message database");
+        .join("data");
+    let message_db = HyperlaneMessageStore::new(storage_path).expect("Failed to create message database");
     let mut messages = Vec::new();
     // insert messages into local database
     for height in args.start_height..=args.target_height {

@@ -66,7 +66,7 @@ pub async fn start_server(config: Config) -> Result<()> {
     debug!("Successfully got trusted state from ism: {}", trusted_state);
 
     // Initialize RocksDB storage in the default data directory
-    let storage_path = Config::storage_path().join("proofs.db");
+    let storage_path = Config::storage_path();
     let storage = Arc::new(RocksDbProofStorage::new(storage_path)?);
     // shared resources
     let config = ClientConfig::from_env()?;
@@ -126,10 +126,9 @@ pub async fn start_server(config: Config) -> Result<()> {
         let ism_id = env::var("CELESTIA_ISM_ID").expect("CELESTIA_ISM_ID must be set");
         let mailbox_address = env::var("MAILBOX_ADDRESS").expect("MAILBOX_ADDRESS must be set");
         let merkle_tree_address = env::var("MERKLE_TREE_ADDRESS").expect("MERKLE_TREE_ADDRESS must be set");
-        let message_storage_path = Config::storage_path().join("messages.db");
-        let snapshot_storage_path = Config::storage_path().join("snapshots.db");
-        let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
-        let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
+        let storage_path = Config::storage_path();
+        let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(&storage_path).unwrap());
+        let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(&storage_path, None).unwrap());
 
         let ctx = MessageAppContext {
             evm_rpc: reth_rpc_url.clone(),

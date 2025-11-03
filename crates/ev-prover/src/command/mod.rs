@@ -43,7 +43,7 @@ pub async fn start() -> Result<()> {
 }
 
 pub fn unsafe_reset_db() -> Result<()> {
-    let storage_path = Config::storage_path().join("proofs.db");
+    let storage_path = Config::storage_path();
     info!("resetting db state at {}", storage_path.display());
 
     let mut storage = RocksDbProofStorage::new(storage_path)?;

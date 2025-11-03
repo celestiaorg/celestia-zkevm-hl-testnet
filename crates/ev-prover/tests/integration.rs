@@ -29,24 +29,13 @@ async fn test_run_message_prover() {
     let filter = EnvFilter::new("ev-prover=debug,sp1_core=warn,sp1_runtime=warn,sp1_sdk=warn,sp1_vm=warn");
     tracing_subscriber::fmt().with_env_filter(filter).init();
     let tmp = TempDir::new().expect("cannot create temp directory");
-    let snapshot_storage_path = dirs::home_dir()
+    let storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(&tmp)
-        .join("data")
-        .join("snapshots.db");
-    let message_storage_path = dirs::home_dir()
-        .expect("cannot find home directory")
-        .join(&tmp)
-        .join("data")
-        .join("messages.db");
-    let proof_storage_path = dirs::home_dir()
-        .expect("cannot find home directory")
-        .join(&tmp)
-        .join("data")
-        .join("proofs.db");
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
-    let proof_store = Arc::new(RocksDbProofStorage::new(proof_storage_path).unwrap());
+        .join("data");
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(&storage_path).unwrap());
+    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(&storage_path, None).unwrap());
+    let proof_store = Arc::new(RocksDbProofStorage::new(&storage_path).unwrap());
 
     hyperlane_message_store.reset_db().unwrap();
     hyperlane_snapshot_store.reset_db().unwrap();
