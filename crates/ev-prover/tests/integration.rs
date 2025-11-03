@@ -22,7 +22,11 @@ async fn test_run_message_prover() {
     dotenvy::dotenv().ok();
     let ism_id = std::env::var("CELESTIA_ISM_ID").expect("CELESTIA_ISM_ID must be set");
     let mailbox_address = std::env::var("MAILBOX_ADDRESS").expect("MAILBOX_ADDRESS must be set");
+    let celestia_mailbox_address =
+        std::env::var("CELESTIA_MAILBOX_ADDRESS").expect("CELESTIA_MAILBOX_ADDRESS must be set");
     let merkle_tree_address = std::env::var("MERKLE_TREE_ADDRESS").expect("MERKLE_TREE_ADDRESS must be set");
+    let reth_rpc_url = std::env::var("RETH_RPC_URL").expect("RETH_RPC_URL must be set");
+    let reth_ws_url = std::env::var("RETH_WS_URL").expect("RETH_WS_URL must be set");
     let config = ClientConfig::from_env().unwrap();
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await.unwrap());
     // Configure logging for ev-prover
@@ -52,24 +56,26 @@ async fn test_run_message_prover() {
     hyperlane_snapshot_store.reset_db().unwrap();
 
     let app = AppContext {
-        evm_rpc: "http://127.0.0.1:8545".to_string(),
-        evm_ws: "ws://127.0.0.1:8546".to_string(),
+        evm_rpc: reth_rpc_url.clone(),
+        evm_ws: reth_ws_url,
         mailbox_address: Address::from_str(&mailbox_address).unwrap(),
+        celestia_mailbox_address,
         merkle_tree_address: Address::from_str(&merkle_tree_address).unwrap(),
         ism_id,
     };
 
-    let evm_provider: DefaultProvider =
-        ProviderBuilder::new().connect_http(Url::from_str("http://127.0.0.1:8545").unwrap());
+    let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&reth_rpc_url).unwrap());
 
     let (_tx, rx) = mpsc::channel(256);
-    let prover = HyperlaneMessageProver::new(
-        app,
-        hyperlane_message_store,
-        hyperlane_snapshot_store,
-        proof_store,
-        Arc::new(MockStateQueryProvider::new(evm_provider)),
-    )
-    .unwrap();
+    let prover = Arc::new(
+        HyperlaneMessageProver::new(
+            app,
+            hyperlane_message_store,
+            hyperlane_snapshot_store,
+            proof_store,
+            Arc::new(MockStateQueryProvider::new(evm_provider)),
+        )
+        .unwrap(),
+    );
     prover.run(rx, ism_client, MessageProofSync::shared()).await.unwrap();
 }

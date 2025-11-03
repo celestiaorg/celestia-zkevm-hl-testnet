@@ -190,7 +190,7 @@ impl EvCombinedProver {
     }
 
     /// Starts the batched prover loop.
-    pub async fn run(self, message_sync: Arc<MessageProofSync>) -> Result<()> {
+    pub async fn run(self: Arc<Self>, message_sync: Arc<MessageProofSync>) -> Result<()> {
         let mut batch_size = BATCH_SIZE;
         let mut scan_head: Option<u64> = None;
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
