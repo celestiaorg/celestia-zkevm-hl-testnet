@@ -205,7 +205,7 @@ impl EvCombinedProver {
                 scan_head = Some(status.trusted_celestia_height + 1);
             }
 
-            let scan_start = scan_head.unwrap();
+            let scan_start = scan_head.ok_or_else(|| anyhow!("Scan head is not set"))?;
             if scan_start < status.celestia_head {
                 batch_size = self
                     .calculate_batch_size(

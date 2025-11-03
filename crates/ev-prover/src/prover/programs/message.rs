@@ -179,14 +179,13 @@ impl HyperlaneMessageProver {
                 None => message_sync.begin().await,
             };
 
+            let keys: Vec<FixedBytes<32>> = HYPERLANE_MERKLE_TREE_KEYS
+                .iter()
+                .map(|k| FixedBytes::from_hex(k).map_err(|e| anyhow::anyhow!("Failed to parse fixed bytes: {e}")))
+                .collect::<Result<Vec<_>>>()?;
+
             let merkle_proof = evm_provider
-                .get_proof(
-                    self.ctx.merkle_tree_address,
-                    HYPERLANE_MERKLE_TREE_KEYS
-                        .iter()
-                        .map(|k| FixedBytes::from_hex(k).expect("Failed to parse fixed bytes"))
-                        .collect(),
-                )
+                .get_proof(self.ctx.merkle_tree_address, keys)
                 .block_id(committed_height.into())
                 .await?;
 
