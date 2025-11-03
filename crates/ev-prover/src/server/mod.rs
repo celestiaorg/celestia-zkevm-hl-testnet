@@ -241,13 +241,13 @@ fn prepare_message_prover(
         ism_id,
     };
     let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&reth_rpc_url).unwrap());
-    Ok(HyperlaneMessageProver::new(
+    HyperlaneMessageProver::new(
         ctx,
         hyperlane_message_store,
         hyperlane_snapshot_store,
         storage.clone(),
         Arc::new(MockStateQueryProvider::new(evm_provider)),
-    )?)
+    )
 }
 
 // TODO: Use from config file when we can have a reproducible key in docker-compose.
