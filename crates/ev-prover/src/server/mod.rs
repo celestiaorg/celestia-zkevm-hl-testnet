@@ -19,7 +19,6 @@ use storage::proofs::RocksDbProofStorage;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio::try_join;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server as TonicServer;
 use tonic_reflection::server::Builder as ReflectionBuilder;
@@ -41,10 +40,13 @@ use crate::prover::{
     BlockProofCommitted,
 };
 
-#[cfg(feature = "combined")]
-use crate::prover::programs::combined::{AppContext as CombinedAppContext, EvCombinedProver};
 use crate::prover::programs::message::AppContext as MessageAppContext;
 use storage::proofs::ProofStorage;
+#[cfg(feature = "combined")]
+use {
+    crate::prover::programs::combined::{AppContext as CombinedAppContext, EvCombinedProver},
+    std::time::Duration,
+};
 
 struct Server {
     pub message_prover: Arc<HyperlaneMessageProver>,
@@ -163,13 +165,13 @@ pub async fn start_server(config: Config) -> Result<()> {
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
-    let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-    let message_sync = MessageProofSync::shared();
     #[cfg(not(feature = "combined"))]
     {
+        let message_sync = MessageProofSync::shared();
         let batch_size = config_clone.batch_size;
         let concurrency = config_clone.concurrency;
         let queue_capacity = config_clone.queue_capacity;
+        let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
         let (tx_block, rx_block) = mpsc::channel::<BlockProofCommitted>(256);
         let block_prover = BlockExecProver::new(
             AppContext::new(config_clone.clone(), trusted_state)?,
@@ -185,27 +187,98 @@ pub async fn start_server(config: Config) -> Result<()> {
             Arc::new(block_prover),
             Arc::new(block_range_prover),
         );
-        let block_handle = server.start_block_prover().await?;
-        let message_handle = server.start_message_prover(rx_range, ism_client, message_sync).await?;
-        let block_range_handle = server
+        let mut block_handle = server.start_block_prover().await?;
+        let mut message_handle = server.start_message_prover(rx_range, ism_client, message_sync).await?;
+        let mut block_range_handle = server
             .start_block_range_prover(client, storage.clone(), rx_block, tx_range, batch_size)
             .await?;
-        let result = try_join!(block_handle, message_handle, block_range_handle);
-        result?;
+        tokio::select! {
+            r = &mut block_handle => {
+                error!("block prover stopped: {:?}", r);
+                message_handle.abort();
+                block_range_handle.abort();
+            }
+            r = &mut message_handle => {
+                error!("message prover stopped: {:?}", r);
+                block_handle.abort();
+                block_range_handle.abort();
+            }
+            r = &mut block_range_handle => {
+                error!("block range prover stopped: {:?}", r);
+                block_handle.abort();
+                message_handle.abort();
+            }
+        }
     }
 
     #[cfg(feature = "combined")]
     {
-        let combined_context = CombinedAppContext::from_config(&config_clone, Arc::clone(&ism_client)).await?;
-        let combined_prover = EvCombinedProver::new(combined_context, tx_range.clone())?;
-        let message_prover = prepare_message_prover(reth_rpc_url, reth_ws_url, storage.clone())?;
-        let server = Server::new(Arc::new(message_prover), Arc::new(combined_prover));
-        let combined_handle = server.start_combined_prover(message_sync.clone()).await?;
-        let message_handle = server.start_message_prover(rx_range, ism_client, message_sync).await?;
-        let result = try_join!(combined_handle, message_handle);
-        result?;
-        // todo: if any task fails, re-initialize with a fresh instance of the mpsc channel,
-        // ideally solve this by gracefully handling all errors in all tasks.
+        let storage_clone: Arc<dyn ProofStorage> = storage.clone();
+        let message_sync = MessageProofSync::shared();
+        let ism_client_clone = Arc::clone(&ism_client);
+
+        // spawn a wrapper task that re-initializes the prover tasks if either fails
+        let wrapper_handle = tokio::spawn(async move {
+            loop {
+                let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
+                let combined_context =
+                    match CombinedAppContext::from_config(&config_clone, Arc::clone(&ism_client_clone)).await {
+                        Ok(context) => context,
+                        Err(e) => {
+                            error!("Failed to create combined context: {e:?}");
+                            continue;
+                        }
+                    };
+                let combined_prover = match EvCombinedProver::new(combined_context, tx_range) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create combined prover: {e:?}");
+                        continue;
+                    }
+                };
+                let message_prover =
+                    match prepare_message_prover(reth_rpc_url.clone(), reth_ws_url.clone(), storage_clone.clone()) {
+                        Ok(prover) => prover,
+                        Err(e) => {
+                            error!("Failed to create message prover: {e:?}");
+                            continue;
+                        }
+                    };
+                let server = Arc::new(Server::new(Arc::new(message_prover), Arc::new(combined_prover)));
+
+                let mut combined_handle = match server.start_combined_prover(Arc::clone(&message_sync)).await {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        error!("Failed to start combined prover: {e:?}");
+                        continue;
+                    }
+                };
+                let mut message_handle = match server
+                    .start_message_prover(rx_range, Arc::clone(&ism_client_clone), Arc::clone(&message_sync))
+                    .await
+                {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        error!("Failed to start message prover: {e:?}");
+                        continue;
+                    }
+                };
+
+                tokio::select! {
+                    r = &mut combined_handle => {
+                        error!("combined prover stopped: {:?}", r);
+                        message_handle.abort();
+                    }
+                    r = &mut message_handle => {
+                        error!("message prover stopped: {:?}", r);
+                        combined_handle.abort();
+                    }
+                }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        });
+
+        wrapper_handle.await?;
     }
 
     let prover_service = ProverService::new(storage)?;
