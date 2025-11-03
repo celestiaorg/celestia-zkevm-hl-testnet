@@ -204,6 +204,7 @@ pub async fn start_server(config: Config) -> Result<()> {
         let message_handle = server.start_message_prover(rx_range, ism_client, message_sync).await?;
         let result = try_join!(combined_handle, message_handle);
         result?;
+        // todo: if any task fails, re-initialize with a fresh instance of the mpsc channel
     }
 
     let prover_service = ProverService::new(storage)?;
