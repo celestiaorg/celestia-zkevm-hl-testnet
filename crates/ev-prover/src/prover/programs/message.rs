@@ -219,7 +219,7 @@ impl HyperlaneMessageProver {
     }
 
     async fn run_inner(
-        self: &Self,
+        &self,
         evm_provider: &DefaultProvider,
         indexer: &mut HyperlaneIndexer,
         height: u64,
