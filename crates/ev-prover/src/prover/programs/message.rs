@@ -287,10 +287,18 @@ impl HyperlaneMessageProver {
             ism_client.signer_address().to_string(),
         );
 
+        // store the unfinalized snapshot
+        snapshot.height = height;
+        let snapshot_index = self.snapshot_store.current_index()? + 1;
+        self.snapshot_store.insert_snapshot(snapshot_index, snapshot)?;
         info!("Submitting Hyperlane tree proof to ZKISM...");
         let response = ism_client.send_tx(message_proof_msg).await?;
 
-        assert!(response.success);
+        if !response.success {
+            error!("Failed to submit Hyperlane tree proof to ZKISM: {:?}", response);
+            return Err(anyhow::anyhow!("Failed to submit Hyperlane tree proof to ZKISM"));
+        }
+
         info!("[Done] ZKISM was updated successfully");
 
         info!("Relaying verified Hyperlane messages to Celestia...");
@@ -305,7 +313,10 @@ impl HyperlaneMessageProver {
                 message_hex,
             );
             let response = ism_client.send_tx(msg).await?;
-            assert!(response.success);
+            if !response.success {
+                error!("Failed to relay Hyperlane message to Celestia: {:?}", response);
+                return Err(anyhow::anyhow!("Failed to relay Hyperlane message to Celestia"));
+            }
         }
         info!("[Done] Tia was bridged back to Celestia");
 
@@ -313,10 +324,7 @@ impl HyperlaneMessageProver {
             .store_membership_proof(height, &message_proof.0, &message_proof.1)
             .await?;
 
-        snapshot.height = height;
-        self.snapshot_store
-            .insert_snapshot(self.snapshot_store.current_index()? + 1, snapshot)?;
-
+        self.snapshot_store.finalize_snapshot(snapshot_index)?;
         Ok(())
     }
 }

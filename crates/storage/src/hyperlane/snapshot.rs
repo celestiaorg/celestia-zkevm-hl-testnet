@@ -13,10 +13,18 @@ use std::sync::{Arc, RwLock};
 pub struct HyperlaneSnapshot {
     pub height: u64,
     pub tree: MerkleTree,
+    pub finalized: bool,
 }
 impl HyperlaneSnapshot {
     pub fn new(height: u64, tree: MerkleTree) -> HyperlaneSnapshot {
-        HyperlaneSnapshot { height, tree }
+        HyperlaneSnapshot {
+            height,
+            tree,
+            finalized: false,
+        }
+    }
+    pub fn finalize(&mut self) {
+        self.finalized = true;
     }
 }
 
@@ -88,6 +96,41 @@ impl HyperlaneSnapshotStore {
         Ok(snapshot)
     }
 
+    pub fn get_pending_snapshot(&self) -> Result<Option<(u64, HyperlaneSnapshot)>> {
+        let read_lock = self
+            .db
+            .read()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire read lock: {e}"))?;
+        let cf = read_lock.cf_handle("snapshots").context("Missing CF")?;
+        let mut iter = read_lock.iterator_cf(cf, IteratorMode::End);
+        while let Some(Ok((k, v))) = iter.next() {
+            if k.len() != 8 {
+                continue;
+            }
+            let mut buf = [0u8; 8];
+            buf.copy_from_slice(&k);
+            let index = u64::from_be_bytes(buf);
+            let mut snapshot: HyperlaneSnapshot = bincode::deserialize(&v).context("Failed to deserialize snapshot")?;
+            for h in snapshot.tree.branch.iter_mut() {
+                if h.is_empty() {
+                    *h = ZERO_BYTES.to_string();
+                }
+            }
+            if !snapshot.finalized {
+                return Ok(Some((index, snapshot)));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn finalize_snapshot(&self, index: u64) -> Result<()> {
+        let mut snapshot = self
+            .get_snapshot(index)
+            .with_context(|| format!("Snapshot at index {index} not found"))?;
+        snapshot.finalized = true;
+        self.insert_snapshot(index, snapshot)
+    }
+
     pub fn current_index(&self) -> Result<u64> {
         let read_lock = self
             .db
@@ -113,5 +156,48 @@ impl HyperlaneSnapshotStore {
         let opts = Options::default();
         write_lock.create_cf("snapshots", &opts)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_insert_snapshot() {
+        let store = HyperlaneSnapshotStore::new(tempfile::tempdir().unwrap(), None).unwrap();
+        let snapshot = HyperlaneSnapshot::new(0, MerkleTree::default());
+        store.insert_snapshot(0, snapshot).unwrap();
+    }
+    #[test]
+    fn test_get_snapshot() {
+        let store = HyperlaneSnapshotStore::new(tempfile::tempdir().unwrap(), None).unwrap();
+        let snapshot = HyperlaneSnapshot::new(0, MerkleTree::default());
+        store.insert_snapshot(0, snapshot.clone()).unwrap();
+        let retrieved_snapshot = store.get_snapshot(0).unwrap();
+        assert_eq!(retrieved_snapshot, snapshot);
+    }
+    #[test]
+    fn test_get_pending_snapshot() {
+        let store = HyperlaneSnapshotStore::new(tempfile::tempdir().unwrap(), None).unwrap();
+        let first_snapshot = HyperlaneSnapshot::new(0, MerkleTree::default());
+        let second_snapshot = HyperlaneSnapshot::new(1, MerkleTree::default());
+        let third_snapshot = HyperlaneSnapshot::new(2, MerkleTree::default());
+        store.insert_snapshot(0, first_snapshot.clone()).unwrap();
+        store.insert_snapshot(1, second_snapshot.clone()).unwrap();
+        store.insert_snapshot(2, third_snapshot.clone()).unwrap();
+        store.finalize_snapshot(0).unwrap();
+        store.finalize_snapshot(1).unwrap();
+        let retrieved_snapshot = store.get_pending_snapshot().unwrap();
+        assert_eq!(retrieved_snapshot, Some((2, third_snapshot)));
+    }
+    #[test]
+    fn test_finalize_snapshot() {
+        let store = HyperlaneSnapshotStore::new(tempfile::tempdir().unwrap(), None).unwrap();
+        let snapshot = HyperlaneSnapshot::new(0, MerkleTree::default());
+        store.insert_snapshot(0, snapshot.clone()).unwrap();
+        store.finalize_snapshot(0).unwrap();
+        let retrieved_snapshot = store.get_snapshot(0).unwrap();
+        assert_eq!(retrieved_snapshot.finalized, true);
     }
 }
