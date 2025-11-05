@@ -157,8 +157,6 @@ pub async fn start_server(config: Config) -> Result<()> {
     debug!("Successfully got pubkey from evnode: {}", config_clone.pub_key);
     let client_config = ClientConfig::from_env()?;
     let client = CelestiaIsmClient::new(client_config).await?;
-    let trusted_state = get_trusted_state(&client).await?;
-    debug!("Successfully got trusted state from ism: {}", trusted_state);
     // Initialize RocksDB storage in the default data directory
     let storage_path = Config::storage_path().join("proofs.db");
     let storage = Arc::new(RocksDbProofStorage::new(storage_path)?);
@@ -167,50 +165,104 @@ pub async fn start_server(config: Config) -> Result<()> {
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
     #[cfg(not(feature = "combined"))]
     {
-        let message_sync = MessageProofSync::shared();
-        let batch_size = config_clone.batch_size;
-        let concurrency = config_clone.concurrency;
-        let queue_capacity = config_clone.queue_capacity;
-        let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-        let (tx_block, rx_block) = mpsc::channel::<BlockProofCommitted>(256);
-        let block_prover = BlockExecProver::new(
-            AppContext::new(config_clone.clone(), trusted_state)?,
-            tx_block,
-            storage.clone(),
-            queue_capacity,
-            concurrency,
-        );
-        let block_range_prover = BlockRangeExecProver::new()?;
-        let message_prover = prepare_message_prover(reth_rpc_url, reth_ws_url, storage.clone())?;
-        let server = Server::new(
-            Arc::new(message_prover),
-            Arc::new(block_prover),
-            Arc::new(block_range_prover),
-        );
-        let mut block_handle = server.start_block_prover().await?;
-        let mut message_handle = server.start_message_prover(rx_range, ism_client, message_sync).await?;
-        let mut block_range_handle = server
-            .start_block_range_prover(client, storage.clone(), rx_block, tx_range, batch_size)
-            .await?;
-        tokio::select! {
-            r = &mut block_handle => {
-                error!("block prover stopped: {:?}", r);
-                message_handle.abort();
-                block_range_handle.abort();
+        let storage_clone: Arc<dyn ProofStorage> = storage.clone();
+        tokio::spawn(async move {
+            loop {
+                let trusted_state = match get_trusted_state(&client).await {
+                    Ok(state) => state,
+                    Err(e) => {
+                        error!("Failed to get trusted state: {e:?}");
+                        continue;
+                    }
+                };
+                debug!("Successfully got trusted state from ism: {}", trusted_state);
+                let message_sync = MessageProofSync::shared();
+                let batch_size = config_clone.batch_size;
+                let concurrency = config_clone.concurrency;
+                let queue_capacity = config_clone.queue_capacity;
+                let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
+                let (tx_block, rx_block) = mpsc::channel::<BlockProofCommitted>(256);
+                let app_context = match AppContext::new(config_clone.clone(), trusted_state) {
+                    Ok(context) => context,
+                    Err(e) => {
+                        error!("Failed to create app context: {e:?}");
+                        continue;
+                    }
+                };
+                let block_prover = BlockExecProver::new(
+                    app_context,
+                    tx_block,
+                    storage_clone.clone(),
+                    queue_capacity,
+                    concurrency,
+                );
+                let block_range_prover = match BlockRangeExecProver::new() {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create block range prover: {e:?}");
+                        continue;
+                    }
+                };
+                let message_prover =
+                    match prepare_message_prover(reth_rpc_url.clone(), reth_ws_url.clone(), storage_clone.clone()) {
+                        Ok(prover) => prover,
+                        Err(e) => {
+                            error!("Failed to create message prover: {e:?}");
+                            continue;
+                        }
+                    };
+                let server = Server::new(
+                    Arc::new(message_prover),
+                    Arc::new(block_prover),
+                    Arc::new(block_range_prover),
+                );
+                let mut block_handle = match server.start_block_prover().await {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        error!("Failed to start block prover: {e:?}");
+                        continue;
+                    }
+                };
+                let mut message_handle = match server
+                    .start_message_prover(rx_range, ism_client.clone(), message_sync)
+                    .await
+                {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        error!("Failed to start message prover: {e:?}");
+                        continue;
+                    }
+                };
+                let mut block_range_handle = match server
+                    .start_block_range_prover(client.clone(), storage_clone.clone(), rx_block, tx_range, batch_size)
+                    .await
+                {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        error!("Failed to start block range prover: {e:?}");
+                        continue;
+                    }
+                };
+                tokio::select! {
+                    r = &mut block_handle => {
+                        error!("block prover stopped: {:?}", r);
+                        message_handle.abort();
+                        block_range_handle.abort();
+                    }
+                    r = &mut message_handle => {
+                        error!("message prover stopped: {:?}", r);
+                        block_handle.abort();
+                        block_range_handle.abort();
+                    }
+                    r = &mut block_range_handle => {
+                        error!("block range prover stopped: {:?}", r);
+                        block_handle.abort();
+                        message_handle.abort();
+                    }
+                }
             }
-            r = &mut message_handle => {
-                error!("message prover stopped: {:?}", r);
-                block_handle.abort();
-                block_range_handle.abort();
-            }
-            r = &mut block_range_handle => {
-                error!("block range prover stopped: {:?}", r);
-                block_handle.abort();
-                message_handle.abort();
-            }
-        }
+        });
     }
-
     #[cfg(feature = "combined")]
     {
         let storage_clone: Arc<dyn ProofStorage> = storage.clone();
