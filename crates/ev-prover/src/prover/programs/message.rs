@@ -299,8 +299,12 @@ impl HyperlaneMessageProver {
             error!("Failed to submit Hyperlane tree proof to ZKISM: {:?}", response);
             return Err(anyhow::anyhow!("Failed to submit Hyperlane tree proof to ZKISM"));
         }
-
         info!("[Done] ZKISM was updated successfully");
+        self.proof_store
+            .store_membership_proof(height, &message_proof.0, &message_proof.1)
+            .await?;
+
+        self.snapshot_store.finalize_snapshot(trusted_snapshot_index)?;
 
         info!("Relaying verified Hyperlane messages to Celestia...");
         // submit all now verified messages to hyperlane
@@ -321,11 +325,6 @@ impl HyperlaneMessageProver {
         }
         info!("[Done] Tia was bridged back to Celestia");
 
-        self.proof_store
-            .store_membership_proof(height, &message_proof.0, &message_proof.1)
-            .await?;
-
-        self.snapshot_store.finalize_snapshot(trusted_snapshot_index)?;
         Ok(())
     }
 }
