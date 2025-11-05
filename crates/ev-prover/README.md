@@ -119,7 +119,8 @@ buf lint
 
 ```mermaid
     sequenceDiagram;
-        Alice->>John: Hello John, how are you?;
-        John-->>Alice: Great!;
-        Alice-)John: See you later!;
+        Reth->>MessageProver: Transactions;
+        SnapshotStore->>MessageProver: Trusted Snapshot finalized==false;
+        MessageProver->>SnapshotStore: New Snapshot after Inserts finalized==false;
+        MessageProver->>SnapshotStore: Trusted Snapshot finalized==true;
 ```
