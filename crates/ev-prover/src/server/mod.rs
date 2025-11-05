@@ -217,8 +217,7 @@ pub async fn start_server(config: Config) -> Result<()> {
         let message_sync = MessageProofSync::shared();
         let ism_client_clone = Arc::clone(&ism_client);
 
-        // spawn a wrapper task that re-initializes the prover tasks if either fails
-        let wrapper_handle = tokio::spawn(async move {
+        tokio::spawn(async move {
             loop {
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
                 let combined_context =
@@ -277,8 +276,6 @@ pub async fn start_server(config: Config) -> Result<()> {
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         });
-
-        wrapper_handle.await?;
     }
 
     let prover_service = ProverService::new(storage)?;
