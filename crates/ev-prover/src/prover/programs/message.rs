@@ -228,7 +228,8 @@ impl HyperlaneMessageProver {
     ) -> Result<()> {
         // generate a new proof for all messages that occurred since the last trusted height, inserting into the last snapshot
         // then save new snapshot
-        let mut snapshot = self.snapshot_store.get_snapshot(self.snapshot_store.current_index()?)?;
+        let trusted_snapshot_index = self.snapshot_store.current_index()?;
+        let mut snapshot = self.snapshot_store.get_snapshot(trusted_snapshot_index)?;
         if snapshot.height == height {
             debug!("No new ev blocks so no new messages to prove");
             return Ok(());
@@ -324,7 +325,7 @@ impl HyperlaneMessageProver {
             .store_membership_proof(height, &message_proof.0, &message_proof.1)
             .await?;
 
-        self.snapshot_store.finalize_snapshot(snapshot_index)?;
+        self.snapshot_store.finalize_snapshot(trusted_snapshot_index)?;
         Ok(())
     }
 }
