@@ -198,6 +198,6 @@ mod tests {
         store.insert_snapshot(0, snapshot.clone()).unwrap();
         store.finalize_snapshot(0).unwrap();
         let retrieved_snapshot = store.get_snapshot(0).unwrap();
-        assert_eq!(retrieved_snapshot.finalized, true);
+        assert!(retrieved_snapshot.finalized);
     }
 }
