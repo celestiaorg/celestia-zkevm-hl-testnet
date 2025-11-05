@@ -114,3 +114,12 @@ To lint the Protobuf definitions:
 cd crates/ev-prover/proto
 buf lint
 ```
+
+## Hyperlane Message Finality
+
+```mermaid
+    sequenceDiagram;
+        Alice->>John: Hello John, how are you?;
+        John-->>Alice: Great!;
+        Alice-)John: See you later!;
+```
