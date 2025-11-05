@@ -155,17 +155,18 @@ pub async fn start_server(config: Config) -> Result<()> {
     let mut config_clone = config.clone();
     config_clone.pub_key = public_key(sequencer_rpc_url).await?;
     debug!("Successfully got pubkey from evnode: {}", config_clone.pub_key);
-    let client_config = ClientConfig::from_env()?;
-    let client = CelestiaIsmClient::new(client_config).await?;
     // Initialize RocksDB storage in the default data directory
     let storage_path = Config::storage_path().join("proofs.db");
     let storage = Arc::new(RocksDbProofStorage::new(storage_path)?);
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
+
     #[cfg(not(feature = "combined"))]
-    {
+    let wrapper_task = Some({
         let storage_clone: Arc<dyn ProofStorage> = storage.clone();
+        let client_config = ClientConfig::from_env()?;
+        let client = CelestiaIsmClient::new(client_config).await?;
         tokio::spawn(async move {
             loop {
                 let trusted_state = match get_trusted_state(&client).await {
@@ -261,10 +262,11 @@ pub async fn start_server(config: Config) -> Result<()> {
                     }
                 }
             }
-        });
-    }
+        })
+    });
+
     #[cfg(feature = "combined")]
-    {
+    let wrapper_task = Some({
         let storage_clone: Arc<dyn ProofStorage> = storage.clone();
         let message_sync = MessageProofSync::shared();
         let ism_client_clone = Arc::clone(&ism_client);
@@ -327,16 +329,35 @@ pub async fn start_server(config: Config) -> Result<()> {
                 }
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
-        });
-    }
+        })
+    });
 
     let prover_service = ProverService::new(storage)?;
+    let server_task = tokio::spawn(async move {
+        TonicServer::builder()
+            .add_service(reflection_service)
+            .add_service(ProverServer::new(prover_service))
+            .serve_with_incoming(TcpListenerStream::new(listener))
+            .await
+    });
 
-    TonicServer::builder()
-        .add_service(reflection_service)
-        .add_service(ProverServer::new(prover_service))
-        .serve_with_incoming(TcpListenerStream::new(listener))
-        .await?;
+    if let Some(mut wrapper_task) = wrapper_task {
+        tokio::select! {
+            r = &mut wrapper_task => {
+                error!("Prover wrapper task stopped: {:?}", r);
+            }
+            r = server_task => {
+                match r {
+                    Ok(Ok(())) => debug!("gRPC server stopped gracefully"),
+                    Ok(Err(e)) => error!("gRPC server failed: {e:?}"),
+                    Err(e) => error!("gRPC server task panicked: {e:?}"),
+                }
+                wrapper_task.abort();
+            }
+        }
+    } else {
+        panic!("Prover service did not start as expected, no wrapper task found");
+    }
 
     Ok(())
 }
