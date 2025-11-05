@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HyperlaneSnapshot {
-    // the trusted EVM height in the ZKISM
+    // the trusted EV height in the ZKISM
     pub height: u64,
     // the Hyperlane Message Tree e.g. Snapshot
     pub tree: MerkleTree,
