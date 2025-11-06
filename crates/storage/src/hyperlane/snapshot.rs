@@ -134,6 +134,11 @@ impl HyperlaneSnapshotStore {
         let mut snapshot = self
             .get_snapshot(index)
             .with_context(|| format!("Snapshot at index {index} not found"))?;
+        if snapshot.finalized {
+            return Err(anyhow::anyhow!(
+                "Tried to finalize a finalized snapshot at index {index}"
+            ));
+        }
         snapshot.finalized = true;
         self.insert_snapshot(index, snapshot)
     }
