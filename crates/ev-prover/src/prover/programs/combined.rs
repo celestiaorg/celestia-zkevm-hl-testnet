@@ -289,7 +289,7 @@ impl EvCombinedProver {
         }
 
         let namespace = self.app.namespace;
-        for height in scan_start..latest_head {
+        for height in scan_start..=latest_head {
             if !self.is_empty_block(height, namespace).await? {
                 // Ensure batch size stays within allowed range
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
