@@ -289,7 +289,7 @@ impl EvCombinedProver {
         }
 
         let namespace = self.app.namespace;
-        for height in scan_start..latest_head {
+        for height in scan_start..=latest_head {
             if !self.is_empty_block(height, namespace).await? {
                 // Ensure batch size stays within allowed range
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
@@ -323,10 +323,13 @@ impl EvCombinedProver {
         let msg = MsgUpdateZkExecutionIsm::new(id, proof.bytes(), public_values, signer);
 
         info!("Updating ZKISM on Celestia...");
-        let res = self.app.ism_client.send_tx(msg).await?;
-        assert!(res.success);
+        let response = self.app.ism_client.send_tx(msg).await?;
+        if !response.success {
+            error!("Failed to submit state transition proof to ZKISM: {:?}", response);
+            return Err(anyhow::anyhow!("Failed to submit state transition proof to ZKISM"));
+        }
 
-        info!("[Done] Proof tx submitted to ism with hash: {}", res.tx_hash);
+        info!("[Done] Proof tx submitted to ism with hash: {}", response.tx_hash);
 
         Ok(())
     }

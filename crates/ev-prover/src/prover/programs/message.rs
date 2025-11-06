@@ -221,15 +221,16 @@ impl HyperlaneMessageProver {
         &self,
         evm_provider: &DefaultProvider,
         indexer: &mut HyperlaneIndexer,
-        height: u64,
+        committed_height: u64,
         proof: EIP1186AccountProofResponse,
         state_root: FixedBytes<32>,
         ism_client: &CelestiaIsmClient,
     ) -> Result<()> {
         // generate a new proof for all messages that occurred since the last trusted height, inserting into the last snapshot
         // then save new snapshot
-        let mut snapshot = self.snapshot_store.get_snapshot(self.snapshot_store.current_index()?)?;
-        if snapshot.height == height {
+        let trusted_snapshot_index = self.snapshot_store.current_index()?;
+        let mut snapshot = self.snapshot_store.get_snapshot(trusted_snapshot_index)?;
+        if snapshot.height == committed_height {
             debug!("No new ev blocks so no new messages to prove");
             return Ok(());
         }
@@ -239,7 +240,7 @@ impl HyperlaneMessageProver {
             .address(indexer.contract_address)
             .event(&Dispatch::id())
             .from_block(start_height)
-            .to_block(height);
+            .to_block(committed_height);
 
         // run the indexer to get all messages that occurred since the last trusted height
         indexer
@@ -247,7 +248,7 @@ impl HyperlaneMessageProver {
             .await?;
 
         let mut messages: Vec<StoredHyperlaneMessage> = Vec::new();
-        for block in start_height..=height {
+        for block in start_height..=committed_height {
             messages.extend(self.message_store.get_by_block(block)?);
         }
 
@@ -281,17 +282,29 @@ impl HyperlaneMessageProver {
 
         let message_proof_msg = MsgSubmitMessages::new(
             self.ctx.ism_id.clone(),
-            height,
+            committed_height,
             message_proof.0.bytes(),
             message_proof.0.public_values.as_slice().to_vec(),
             ism_client.signer_address().to_string(),
         );
 
+        // store the unfinalized snapshot
+        snapshot.height = committed_height;
+        let snapshot_index = self.snapshot_store.current_index()? + 1;
+        self.snapshot_store.insert_snapshot(snapshot_index, snapshot)?;
         info!("Submitting Hyperlane tree proof to ZKISM...");
         let response = ism_client.send_tx(message_proof_msg).await?;
 
-        assert!(response.success);
+        if !response.success {
+            error!("Failed to submit Hyperlane tree proof to ZKISM: {:?}", response);
+            return Err(anyhow::anyhow!("Failed to submit Hyperlane tree proof to ZKISM"));
+        }
         info!("[Done] ZKISM was updated successfully");
+        self.proof_store
+            .store_membership_proof(committed_height, &message_proof.0, &message_proof.1)
+            .await?;
+
+        self.snapshot_store.finalize_snapshot(trusted_snapshot_index)?;
 
         info!("Relaying verified Hyperlane messages to Celestia...");
         // submit all now verified messages to hyperlane
@@ -305,17 +318,12 @@ impl HyperlaneMessageProver {
                 message_hex,
             );
             let response = ism_client.send_tx(msg).await?;
-            assert!(response.success);
+            if !response.success {
+                error!("Failed to relay Hyperlane message to Celestia: {:?}", response);
+                return Err(anyhow::anyhow!("Failed to relay Hyperlane message to Celestia"));
+            }
         }
         info!("[Done] Tia was bridged back to Celestia");
-
-        self.proof_store
-            .store_membership_proof(height, &message_proof.0, &message_proof.1)
-            .await?;
-
-        snapshot.height = height;
-        self.snapshot_store
-            .insert_snapshot(self.snapshot_store.current_index()? + 1, snapshot)?;
 
         Ok(())
     }
