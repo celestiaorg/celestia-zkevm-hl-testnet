@@ -64,6 +64,7 @@ impl HyperlaneSnapshotStore {
         Ok(vec![ColumnFamilyDescriptor::new("snapshots", Options::default())])
     }
 
+    /// Insert a Hyperlane Snapshot into the database
     pub fn insert_snapshot(&self, index: u64, snapshot: HyperlaneSnapshot) -> Result<()> {
         // Serialize outside the lock to minimize lock duration
         let serialized = bincode::serialize(&snapshot).context("Failed to serialize snapshot")?;
@@ -81,6 +82,7 @@ impl HyperlaneSnapshotStore {
         Ok(())
     }
 
+    /// Get a Hyperlane Snapshot by index
     pub fn get_snapshot(&self, index: u64) -> Result<HyperlaneSnapshot> {
         let read_lock = self.db.read().map_err(|e| anyhow::anyhow!("lock error: {e}"))?;
         let cf = read_lock.cf_handle("snapshots").context("Missing CF")?;
@@ -99,6 +101,7 @@ impl HyperlaneSnapshotStore {
         Ok(snapshot)
     }
 
+    /// Get the latest pending snapshot, we expect only the most recent snapshot to be unfinalized
     pub fn get_pending_snapshot(&self) -> Result<Option<(u64, HyperlaneSnapshot)>> {
         let read_lock = self
             .db
@@ -126,6 +129,7 @@ impl HyperlaneSnapshotStore {
         Ok(None)
     }
 
+    /// Finalize a Hyperlane Snapshot after successful proof submission
     pub fn finalize_snapshot(&self, index: u64) -> Result<()> {
         let mut snapshot = self
             .get_snapshot(index)
@@ -134,6 +138,7 @@ impl HyperlaneSnapshotStore {
         self.insert_snapshot(index, snapshot)
     }
 
+    /// Get the next insert index for the Hyperlane Snapshot store
     pub fn current_index(&self) -> Result<u64> {
         let read_lock = self
             .db
@@ -150,6 +155,7 @@ impl HyperlaneSnapshotStore {
         }
     }
 
+    /// Reset the database by dropping the snapshots column family and creating a new one
     pub fn reset_db(&self) -> Result<()> {
         let mut write_lock = self
             .db
