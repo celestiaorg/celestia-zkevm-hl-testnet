@@ -5,7 +5,7 @@ use alloy_provider::ProviderBuilder;
 use celestia_grpc_client::{types::ClientConfig, CelestiaIsmClient};
 use ev_prover::prover::{
     programs::message::{AppContext, HyperlaneMessageProver},
-    MessageProofSync,
+    prover_from_env, MessageProofSync,
 };
 use ev_state_queries::{DefaultProvider, MockStateQueryProvider};
 use reqwest::Url;
