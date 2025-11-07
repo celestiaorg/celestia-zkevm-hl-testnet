@@ -8,7 +8,7 @@ sleep 5
 # Create default evnode config if missing
 # TODO: The --evnode.signer.path flag is not respected: https://github.com/evstack/ev-node/issues/2603
 if [ ! -f "$HOME/.evm-single/config/signer.json" ]; then
-  ./evm-single init --evnode.node.aggregator=true --evnode.signer.path $EVM_SIGNER_PATH --evnode.signer.passphrase $EVM_SIGNER_PASSPHRASE
+  ./evm-single init --evnode.node.aggregator=true --evnode.signer.passphrase_file "/config/passphrase.txt"
 fi
 
 # Conditionally add --evnode.da.address if DA_ADDRESS is set
@@ -35,15 +35,14 @@ if [ -n "$DA_DATA_NAMESPACE" ]; then
 fi
 
 exec ./evm-single start \
-  --evm.jwt-secret $EVM_JWT_SECRET \
+  --evm.jwt-secret-file "/config/jwt.hex" \
   --evm.genesis-hash $EVM_GENESIS_HASH \
   --evm.engine-url $EVM_ENGINE_URL \
   --evm.eth-url $EVM_ETH_URL \
   --evnode.node.block_time $EVM_BLOCK_TIME \
   --evnode.node.aggregator=true \
   --evnode.rpc.address "0.0.0.0:7331" \
-  --evnode.signer.path $EVM_SIGNER_PATH \
-  --evnode.signer.passphrase $EVM_SIGNER_PASSPHRASE \
+  --evnode.signer.passphrase_file "/config/passphrase.txt"\
   $da_flag \
   $da_auth_token_flag \
   $da_header_namespace_flag \
