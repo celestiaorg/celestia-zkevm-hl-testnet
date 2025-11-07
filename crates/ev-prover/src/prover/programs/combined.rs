@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::prover::SP1Prover;
 use crate::{
     generate_client_executor_input,
     prover::{
@@ -30,7 +31,6 @@ use tracing::{debug, error, info, warn};
 
 use crate::config::Config;
 use crate::prover::ProgramProver;
-use crate::prover::{prover_from_env, SP1Prover};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const EV_COMBINED_ELF: &[u8] = include_elf!("ev-combined-program");
@@ -171,8 +171,7 @@ impl ProgramProver for EvCombinedProver {
 
 impl EvCombinedProver {
     /// Creates a new prover instance.
-    pub fn new(app: AppContext, range_tx: mpsc::Sender<MessageProofRequest>) -> Result<Self> {
-        let prover = prover_from_env();
+    pub fn new(app: AppContext, range_tx: mpsc::Sender<MessageProofRequest>, prover: Arc<SP1Prover>) -> Result<Self> {
         let config = EvCombinedProver::default_config(prover.as_ref());
 
         Ok(Self {

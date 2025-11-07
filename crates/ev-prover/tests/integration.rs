@@ -67,6 +67,7 @@ async fn test_run_message_prover() {
     let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&reth_rpc_url).unwrap());
 
     let (_tx, rx) = mpsc::channel(256);
+    let prover = Arc::new(prover_from_env());
     let prover = Arc::new(
         HyperlaneMessageProver::new(
             app,
@@ -74,6 +75,7 @@ async fn test_run_message_prover() {
             hyperlane_snapshot_store,
             proof_store,
             Arc::new(MockStateQueryProvider::new(evm_provider)),
+            Arc::clone(&prover),
         )
         .unwrap(),
     );

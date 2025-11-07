@@ -2,7 +2,7 @@
 //! two given heights against a given EVM block height.
 
 #![allow(dead_code)]
-use crate::prover::{prover_from_env, MessageProofRequest, MessageProofSync, RangeProofCommitted, SP1Prover};
+use crate::prover::{MessageProofRequest, MessageProofSync, RangeProofCommitted, SP1Prover};
 use crate::prover::{ProgramProver, ProverConfig};
 use alloy::hex::FromHex;
 use alloy_primitives::{Address, FixedBytes};
@@ -134,8 +134,8 @@ impl HyperlaneMessageProver {
         snapshot_store: Arc<HyperlaneSnapshotStore>,
         proof_store: Arc<dyn ProofStorage>,
         state_query_provider: Arc<dyn StateQueryProvider>,
+        prover: Arc<SP1Prover>,
     ) -> Result<Self> {
-        let prover = prover_from_env();
         let config = HyperlaneMessageProver::default_config(prover.as_ref());
 
         Ok(Self {

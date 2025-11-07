@@ -1,6 +1,7 @@
 use std::env;
 use std::sync::Arc;
 
+use crate::prover::SP1Prover;
 use alloy_primitives::Address;
 use alloy_primitives::FixedBytes;
 use alloy_provider::ProviderBuilder;
@@ -12,6 +13,7 @@ use ev_types::v1::get_block_request::Identifier;
 use ev_types::v1::store_service_client::StoreServiceClient;
 use ev_types::v1::GetBlockRequest;
 use reqwest::Url;
+use sp1_sdk::prover;
 use std::str::FromStr;
 use storage::hyperlane::message::HyperlaneMessageStore;
 use storage::hyperlane::snapshot::HyperlaneSnapshotStore;
@@ -28,6 +30,7 @@ use crate::config::Config;
 use crate::proto::celestia::prover::v1::prover_server::ProverServer;
 use crate::prover::programs::block::TrustedState;
 use crate::prover::programs::message::HyperlaneMessageProver;
+use crate::prover::prover_from_env;
 use crate::prover::service::ProverService;
 use crate::prover::{MessageProofRequest, MessageProofSync};
 
@@ -161,6 +164,7 @@ pub async fn start_server(config: Config) -> Result<()> {
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
+    let prover = Arc::new(prover_from_env());
 
     #[cfg(not(feature = "combined"))]
     let wrapper_task = Some({
@@ -282,21 +286,25 @@ pub async fn start_server(config: Config) -> Result<()> {
                             continue;
                         }
                     };
-                let combined_prover = match EvCombinedProver::new(combined_context, tx_range) {
+                let combined_prover = match EvCombinedProver::new(combined_context, tx_range, Arc::clone(&prover)) {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create combined prover: {e:?}");
                         continue;
                     }
                 };
-                let message_prover =
-                    match prepare_message_prover(reth_rpc_url.clone(), reth_ws_url.clone(), storage_clone.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
+                let message_prover = match prepare_message_prover(
+                    reth_rpc_url.clone(),
+                    reth_ws_url.clone(),
+                    storage_clone.clone(),
+                    Arc::clone(&prover),
+                ) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
                 let server = Arc::new(Server::new(Arc::new(message_prover), Arc::new(combined_prover)));
 
                 let mut combined_handle = match server.start_combined_prover(Arc::clone(&message_sync)).await {
@@ -366,6 +374,7 @@ fn prepare_message_prover(
     reth_rpc_url: String,
     reth_ws_url: String,
     storage: Arc<dyn ProofStorage>,
+    prover: Arc<SP1Prover>,
 ) -> Result<HyperlaneMessageProver> {
     let ism_id = env::var("CELESTIA_ISM_ID").expect("CELESTIA_ISM_ID must be set");
     let mailbox_address = env::var("MAILBOX_ADDRESS").expect("MAILBOX_ADDRESS must be set");
@@ -390,6 +399,7 @@ fn prepare_message_prover(
         hyperlane_snapshot_store,
         storage.clone(),
         Arc::new(MockStateQueryProvider::new(evm_provider)),
+        Arc::clone(&prover),
     )
 }
 
