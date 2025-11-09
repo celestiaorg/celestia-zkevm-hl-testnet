@@ -30,7 +30,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Init {} => commands::command::init()?,
         Commands::Start {} => commands::command::start().await?,
         Commands::Version {} => commands::command::version(),
-        Commands::CreateIsm {} => commands::command::create_ism().await?,
+        Commands::CreateZkIsm {} => {
+            // Call hyp-cli's create_ism with ZK type
+            hyp_cli::create_ism(hyp_cli::IsmType::Zk, None, None).await?
+        }
     }
 
     Ok(())

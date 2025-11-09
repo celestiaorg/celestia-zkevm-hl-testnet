@@ -4,6 +4,7 @@ members = [
     "crates/ev-prover",
     "crates/ev-state-queries",
     "crates/ev-zkevm-types",
+    "crates/hyp-cli",
     "crates/sp1/ev-exec/program",
     "crates/sp1/ev-exec/script",
     "crates/sp1/ev-hyperlane/program",

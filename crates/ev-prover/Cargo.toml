@@ -23,6 +23,7 @@ ev-state-queries = { workspace = true }
 ev-types = { workspace = true, features = ["grpc"] }
 ev-zkevm-types = { workspace = true }
 hex = { workspace = true }
+hyp-cli = { path = "../hyp-cli" }
 jsonrpsee-core = { workspace = true }
 nmt-rs = { workspace = true }
 prost = { workspace = true }
