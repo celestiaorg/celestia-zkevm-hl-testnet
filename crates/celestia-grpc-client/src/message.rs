@@ -10,6 +10,7 @@ pub type HyperlaneMessage = MsgProcessMessage;
 
 impl MsgCreateZkExecutionIsm {
     /// Create a new ZK execution ISM update message
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         creator: String,
         state_root: Vec<u8>,
