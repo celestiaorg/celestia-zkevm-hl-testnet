@@ -6,19 +6,40 @@
 
 pub mod client;
 pub mod error;
-pub mod hyperlane_messages;
 pub mod message;
 pub mod proto;
+pub mod proto_ext;
 pub mod types;
 
 pub use client::CelestiaIsmClient;
 pub use error::{IsmClientError, Result};
-pub use hyperlane_messages::*;
 pub use message::{StateInclusionProofMsg, StateTransitionProofMsg};
+
+// Re-export Celestia zkism messages
 pub use proto::celestia::zkism::v1::{
     MsgCreateZkExecutionIsm, MsgSubmitMessages, MsgSubmitMessagesResponse, MsgUpdateZkExecutionIsm,
     MsgUpdateZkExecutionIsmResponse, QueryIsmRequest,
 };
-pub use proto::hyperlane::core::v1::MsgProcessMessage;
-pub use proto::hyperlane::warp::v1::MsgRemoteTransfer;
+
+// Re-export Hyperlane core messages
+pub use proto::hyperlane::core::interchain_security::v1::{
+    MsgAnnounceValidator, MsgAnnounceValidatorResponse, MsgCreateMerkleRootMultisigIsm,
+    MsgCreateMerkleRootMultisigIsmResponse, MsgCreateNoopIsm, MsgCreateNoopIsmResponse,
+};
+pub use proto::hyperlane::core::post_dispatch::v1::{
+    MsgCreateMerkleTreeHook, MsgCreateMerkleTreeHookResponse, MsgCreateNoopHook,
+    MsgCreateNoopHookResponse,
+};
+pub use proto::hyperlane::core::v1::{
+    MsgCreateMailbox, MsgCreateMailboxResponse, MsgProcessMessage, MsgSetMailbox,
+    MsgSetMailboxResponse,
+};
+
+// Re-export Hyperlane warp messages
+pub use proto::hyperlane::warp::v1::{
+    MsgCreateCollateralToken, MsgCreateCollateralTokenResponse, MsgEnrollRemoteRouter,
+    MsgEnrollRemoteRouterResponse, MsgRemoteTransfer, MsgSetToken, MsgSetTokenResponse,
+    RemoteRouter,
+};
+
 pub use types::TxResponse;

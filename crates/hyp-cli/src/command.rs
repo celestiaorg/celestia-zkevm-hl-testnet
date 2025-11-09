@@ -211,8 +211,8 @@ pub async fn create_mailbox(
         owner: signer_address,
         default_ism: ism_id,
         local_domain,
-        default_hook,
-        required_hook,
+        default_hook: default_hook.unwrap_or_default(),
+        required_hook: required_hook.unwrap_or_default(),
     };
 
     let res = client.send_tx(msg).await?;
