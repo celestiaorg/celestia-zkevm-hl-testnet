@@ -4,8 +4,8 @@ use anyhow::{anyhow, bail, Result};
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::{
     CelestiaIsmClient, MsgAnnounceValidator, MsgCreateCollateralToken, MsgCreateMailbox,
-    MsgCreateMerkleRootMultisigIsm, MsgCreateMerkleTreeHook, MsgCreateNoopHook,
-    MsgCreateNoopIsm, MsgCreateZkExecutionIsm, MsgEnrollRemoteRouter, RemoteRouter,
+    MsgCreateMerkleRootMultisigIsm, MsgCreateMerkleTreeHook, MsgCreateNoopHook, MsgCreateNoopIsm,
+    MsgCreateZkExecutionIsm, MsgEnrollRemoteRouter, RemoteRouter,
 };
 use celestia_rpc::{client::Client as CelestiaClient, HeaderClient};
 use celestia_types::nmt::Namespace;
@@ -24,11 +24,7 @@ pub fn version() {
     println!("version: {VERSION}");
 }
 
-pub async fn create_ism(
-    ism_type: IsmType,
-    validators: Option<Vec<String>>,
-    threshold: Option<u32>,
-) -> Result<()> {
+pub async fn create_ism(ism_type: IsmType, validators: Option<Vec<String>>, threshold: Option<u32>) -> Result<()> {
     let client_config = ClientConfig::from_env()?;
     let client = CelestiaIsmClient::new(client_config).await?;
     let signer_address = client.signer_address().to_string();
@@ -52,7 +48,11 @@ pub async fn create_ism(
             let threshold = threshold.ok_or_else(|| anyhow!("Threshold required for multisig ISM"))?;
 
             if threshold as usize > validators.len() {
-                bail!("Threshold ({}) cannot be greater than number of validators ({})", threshold, validators.len());
+                bail!(
+                    "Threshold ({}) cannot be greater than number of validators ({})",
+                    threshold,
+                    validators.len()
+                );
             }
 
             // Sort validators in ascending order (required by the chain)
@@ -65,7 +65,10 @@ pub async fn create_ism(
                 threshold,
             };
             let res = client.send_tx(msg).await?;
-            info!("Successfully created Merkle Root Multisig ISM, tx hash: {}", res.tx_hash);
+            info!(
+                "Successfully created Merkle Root Multisig ISM, tx hash: {}",
+                res.tx_hash
+            );
         }
     }
 
@@ -174,9 +177,7 @@ pub async fn create_hook(hook_type: HookType, mailbox_id: Option<String>) -> Res
     match hook_type {
         HookType::Noop => {
             info!("Creating Noop Hook");
-            let msg = MsgCreateNoopHook {
-                owner: signer_address,
-            };
+            let msg = MsgCreateNoopHook { owner: signer_address };
             let res = client.send_tx(msg).await?;
             info!("Successfully created Noop Hook, tx hash: {}", res.tx_hash);
         }
@@ -247,7 +248,10 @@ pub async fn enroll_router(token_id: String, remote_domain: u32, remote_contract
     let client = CelestiaIsmClient::new(client_config).await?;
     let signer_address = client.signer_address().to_string();
 
-    info!("Enrolling remote router for token {} on domain {}", token_id, remote_domain);
+    info!(
+        "Enrolling remote router for token {} on domain {}",
+        token_id, remote_domain
+    );
     let msg = MsgEnrollRemoteRouter {
         owner: signer_address,
         token_id,

@@ -14,9 +14,7 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
 
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
     let cli = Cli::parse();
@@ -32,10 +30,7 @@ async fn main() -> Result<()> {
         } => {
             command::create_ism(ism_type, validators, threshold).await?;
         }
-        Commands::CreateHook {
-            hook_type,
-            mailbox_id,
-        } => {
+        Commands::CreateHook { hook_type, mailbox_id } => {
             command::create_hook(hook_type, mailbox_id).await?;
         }
         Commands::CreateMailbox {

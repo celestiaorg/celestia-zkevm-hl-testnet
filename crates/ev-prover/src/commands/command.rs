@@ -4,9 +4,7 @@ use anyhow::{bail, Result};
 use tracing::info;
 
 use crate::commands::cli::VERSION;
-use crate::config::config::{
-    Config, APP_HOME, CONFIG_DIR, CONFIG_FILE, DEFAULT_GENESIS_JSON, GENESIS_FILE,
-};
+use crate::config::config::{Config, APP_HOME, CONFIG_DIR, CONFIG_FILE, DEFAULT_GENESIS_JSON, GENESIS_FILE};
 use crate::server::start_server;
 
 pub fn init() -> Result<()> {

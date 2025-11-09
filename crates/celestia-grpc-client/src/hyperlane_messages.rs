@@ -215,7 +215,8 @@ pub struct MsgEnrollRemoteRouterResponse {}
 // ============================================================================
 
 pub const MSG_CREATE_NOOP_ISM_TYPE_URL: &str = "/hyperlane.core.interchain_security.v1.MsgCreateNoopIsm";
-pub const MSG_CREATE_MERKLE_ROOT_MULTISIG_ISM_TYPE_URL: &str = "/hyperlane.core.interchain_security.v1.MsgCreateMerkleRootMultisigIsm";
+pub const MSG_CREATE_MERKLE_ROOT_MULTISIG_ISM_TYPE_URL: &str =
+    "/hyperlane.core.interchain_security.v1.MsgCreateMerkleRootMultisigIsm";
 pub const MSG_ANNOUNCE_VALIDATOR_TYPE_URL: &str = "/hyperlane.core.interchain_security.v1.MsgAnnounceValidator";
 pub const MSG_CREATE_NOOP_HOOK_TYPE_URL: &str = "/hyperlane.core.post_dispatch.v1.MsgCreateNoopHook";
 pub const MSG_CREATE_MERKLE_TREE_HOOK_TYPE_URL: &str = "/hyperlane.core.post_dispatch.v1.MsgCreateMerkleTreeHook";
