@@ -114,3 +114,19 @@ To lint the Protobuf definitions:
 cd crates/ev-prover/proto
 buf lint
 ```
+
+## Hyperlane Message Finality
+
+```mermaid
+    sequenceDiagram;
+        Reth->>MessageProver: Transactions;
+        SnapshotStore->>MessageProver: Trusted Snapshot finalized==false;
+        MessageProver->>SnapshotStore: New Snapshot after Inserts finalized==false;
+        MessageProver->>SnapshotStore: Trusted Snapshot finalized==true;
+```
+
+Finality serves two distinct purposes. Firstly, it can be used to expose the status of message proofs to the user. However the primary purpose is such that errors can be detected when the finalization status is not updated for a snapshot. Currently this will not break the system, as new messages will be proven from the next snapshot onwards, but messages could get lost until a proper retry mechanism is implemented. 
+
+So long as the finality status of all snapshots flips to `true` there is nothing to worry about. All snapshots, except for the most recent one, should be finalized at all times. Gaps in finalization indicate that message proof submission was unsuccessful, or that the DB corrupted post submission. 
+
+Note that the message prover always takes the last known snapshot, which is expected to be unfinalized, but no such check is enforced and generates a proof using all messages that occurred from the height of the trusted snapshot + 1 all the way to the trusted EV height in ZKISM, aka `committed_height`.
