@@ -464,7 +464,7 @@ impl BlockExecProver {
     async fn prove_and_store(self: Arc<Self>, scheduled: ScheduledProofJob) -> Result<()> {
         let extended_header = &scheduled.job.extended_header;
 
-        let inputs = BlockExecInput {
+        /*let inputs = BlockExecInput {
             header_raw: serde_cbor::to_vec(&extended_header.header)?,
             dah: extended_header.dah.clone(),
             blobs_raw: serde_cbor::to_vec(&scheduled.job.blobs)?,
@@ -495,7 +495,7 @@ impl BlockExecProver {
             scheduled.job.height, outputs,
         );
 
-        self.tx.send(BlockProofCommitted(scheduled.job.height)).await?;
+        self.tx.send(BlockProofCommitted(scheduled.job.height)).await?;*/
 
         Ok(())
     }

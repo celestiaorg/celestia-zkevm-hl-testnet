@@ -1,15 +1,18 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::{
-    generate_client_executor_input,
-    prover::{
-        config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
-        MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
-    },
+#[cfg(feature = "succinct-rsp")]
+use crate::generate_client_executor_input_sp1 as generate_client_executor_input;
+#[cfg(not(feature = "succinct-rsp"))]
+use crate::generate_client_executor_input_zeth as generate_client_executor_input;
+use crate::prover::{
+    config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
+    MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
 };
 use alloy_primitives::FixedBytes;
 use alloy_provider::{Provider, ProviderBuilder};
+#[cfg(not(feature = "succinct-rsp"))]
+use alloy_rpc_types::BlockId;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use celestia_grpc_client::{CelestiaIsmClient, MsgUpdateZkExecutionIsm, QueryIsmRequest};
@@ -27,13 +30,17 @@ use rsp_primitives::genesis::Genesis;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
+use zeth_core::EthEvmConfig;
 
 use crate::config::Config;
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
+#[cfg(feature = "succinct-rsp")]
 pub const EV_COMBINED_ELF: &[u8] = include_elf!("ev-combined-program");
+#[cfg(not(feature = "succinct-rsp"))]
+pub use methods::{EV_COMBINED_ELF, EV_COMBINED_ID};
 
 /// ProverStatus of the latest Celestia state relevant to the prover loop.
 ///
@@ -235,21 +242,53 @@ impl EvCombinedProver {
             let input = self.build_proof_inputs(start_height, &status, batch_size).await?;
 
             let start_time = Instant::now();
-            let (proof, output) = self.prove(input).await?;
-            info!("Proof generation time: {}", start_time.elapsed().as_millis());
+            #[cfg(feature = "succinct-rsp")]
+            {
+                let (proof, output) = self.prove(input).await?;
+                info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            if let Err(e) = self.submit_proof_msg(&proof).await {
-                error!(?e, "failed to submit tx to ism");
+                if let Err(e) = self.submit_proof_msg(&proof).await {
+                    error!(?e, "failed to submit tx to ism");
+                }
+            }
+            #[cfg(not(feature = "succinct-rsp"))]
+            {
+                use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, ReceiptKind};
+
+                let (proof_bytes, public_values) = {
+                    let env = ExecutorEnv::builder().write(&input).unwrap().build().unwrap();
+                    let prover = default_prover();
+                    let opts = ProverOpts::groth16();
+                    let prove_info = prover.prove_with_opts(env, EV_COMBINED_ELF, &opts).unwrap();
+                    let receipt = prove_info.receipt;
+                    let _output: BlockRangeExecOutput = receipt.journal.decode().unwrap();
+
+                    // Extract raw Groth16 proof bytes and public values (journal bytes)
+                    let mut proof_bytes = Vec::with_capacity(4 + receipt.inner.groth16().unwrap().seal.len());
+                    // prefix 4 arbitrary bytes for using the SP1 verifier in the ISM
+                    proof_bytes.extend_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
+                    proof_bytes.extend_from_slice(receipt.inner.groth16().unwrap().seal.as_slice());
+
+                    let public_values = receipt.journal.bytes.to_vec();
+
+                    (proof_bytes, public_values)
+                };
+
+                info!("Proof generation time: {}", start_time.elapsed().as_millis());
+
+                if let Err(e) = self.submit_proof_msg(proof_bytes, public_values).await {
+                    error!(?e, "failed to submit tx to ism");
+                }
             }
 
             // reset batch size and fast forward checkpoints
             batch_size = BATCH_SIZE;
             scan_head = Some(status.celestia_head + 1);
 
-            let permit = message_sync.begin().await;
-            let commit = RangeProofCommitted::new(output.new_height, output.new_state_root);
-            let request = MessageProofRequest::with_permit(commit, permit);
-            self.range_tx.send(request).await?;
+            //let permit = message_sync.begin().await;
+            //let commit = RangeProofCommitted::new(output.new_height, output.new_state_root);
+            //let request = MessageProofRequest::with_permit(commit, permit);
+            //self.range_tx.send(request).await?;
         }
     }
 
@@ -315,12 +354,11 @@ impl EvCombinedProver {
     }
 
     /// Submits a state transition proof msg to the zk verifier on-chain.
-    async fn submit_proof_msg(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
+    async fn submit_proof_msg(&self, proof_bytes: Vec<u8>, public_values: Vec<u8>) -> Result<()> {
         let id = self.app.ism_client.ism_id().to_string();
-        let public_values = proof.public_values.as_slice().to_vec();
         let signer = self.app.ism_client.signer_address().to_string();
 
-        let msg = MsgUpdateZkExecutionIsm::new(id, proof.bytes(), public_values, signer);
+        let msg = MsgUpdateZkExecutionIsm::new(id, proof_bytes, public_values, signer);
 
         info!("Updating ZKISM on Celestia...");
         let response = self.app.ism_client.send_tx(msg).await?;
@@ -375,8 +413,8 @@ impl EvCombinedProver {
         namespace: Namespace,
         trusted_height: &mut u64,
         trusted_root: &mut FixedBytes<32>,
-        chain_spec: Arc<ChainSpec>,
-        genesis: Genesis,
+        _chain_spec: Arc<ChainSpec>,
+        _genesis: Genesis,
     ) -> Result<BlockExecInput> {
         let blobs: Vec<Blob> = self
             .app
@@ -398,7 +436,10 @@ impl EvCombinedProver {
         }
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 
+        #[cfg(feature = "succinct-rsp")]
         let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();
+        #[cfg(not(feature = "succinct-rsp"))]
+        let mut executor_inputs: Vec<zeth_core::Input> = Vec::new();
         if blobs.is_empty() {
             debug!(
                 "No blobs for Celestia height {}, keeping trusted_height={} and trusted_root unchanged",
@@ -427,9 +468,11 @@ impl EvCombinedProver {
             let height = data.metadata.ok_or_else(|| anyhow!("Metadata not found"))?.height;
             last_height = height;
             debug!("Got SignedData for EVM block {height}");
-
+            #[cfg(feature = "succinct-rsp")]
             let client_executor_input =
                 generate_client_executor_input(&self.app.evm_rpc, height, chain_spec.clone(), genesis.clone()).await?;
+            #[cfg(not(feature = "succinct-rsp"))]
+            let client_executor_input = generate_client_executor_input(&self.app.evm_rpc, height).await?;
             executor_inputs.push(client_executor_input);
         }
 
