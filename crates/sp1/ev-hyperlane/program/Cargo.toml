@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 alloy-primitives = { workspace = true }
-ev-zkevm-types = { workspace = true }
+ev-zkevm-types = { workspace = true, features = ["succinct"] }
 sp1-zkvm = { workspace = true }

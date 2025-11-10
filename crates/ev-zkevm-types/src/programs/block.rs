@@ -6,13 +6,12 @@ use celestia_types::{
     nmt::{Namespace, NamespaceProof},
 };
 use hex::encode;
-use rsp_client_executor::io::EthClientExecutorInput;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::HashSet;
 use std::error::Error;
-use std::sync::Arc;
+use zeth_core::{EthEvmConfig, ExecutionWitness};
 
-use alloy_consensus::{BlockHeader, proofs};
+use alloy_consensus::proofs;
 use alloy_primitives::B256;
 use alloy_rlp::Decodable;
 use bytes::Bytes;
@@ -23,10 +22,17 @@ use ev_types::v1::{Data, SignedData};
 use nmt_rs::NamespacedSha2Hasher;
 use prost::Message;
 use reth_primitives::TransactionSigned;
-use rsp_client_executor::{executor::EthClientExecutor, io::WitnessInput};
 use tendermint::block::Header;
+#[cfg(feature = "succinct")]
+use {
+    alloy_consensus::BlockHeader,
+    rsp_client_executor::io::EthClientExecutorInput,
+    rsp_client_executor::{executor::EthClientExecutor, io::WitnessInput},
+    std::sync::Arc,
+};
 
 /// BlockExecInput is the input for the BlockExec circuit.
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BlockExecInput {
     pub header_raw: Vec<u8>,
@@ -35,7 +41,10 @@ pub struct BlockExecInput {
     pub pub_key: Vec<u8>,
     pub namespace: Namespace,
     pub proofs: Vec<NamespaceProof>,
+    #[cfg(feature = "succinct")]
     pub executor_inputs: Vec<EthClientExecutorInput>,
+    #[cfg(not(feature = "succinct"))]
+    pub executor_inputs: Vec<zeth_core::Input>,
     pub trusted_height: u64,
     pub trusted_root: FixedBytes<32>,
 }
@@ -268,28 +277,58 @@ impl BlockVerifier {
         }
 
         let mut headers = Vec::with_capacity(input.executor_inputs.len());
+        let mut zeth_state_roots: Vec<B256> = Vec::new();
         if headers.capacity() != 0 {
             let first_input = input.executor_inputs.first().unwrap();
 
+            #[cfg(feature = "succinct")]
             assert_eq!(
                 input.trusted_root,
                 first_input.state_anchor(),
                 "State anchor must be equal to trusted root"
             );
+            #[cfg(not(feature = "succinct"))]
+            assert_eq!(
+                input.trusted_root, first_input.block.header.parent_hash,
+                "State anchor must be equal to trusted root"
+            );
 
+            #[cfg(feature = "succinct")]
             assert!(
                 input.trusted_height <= first_input.parent_header().number(),
                 "Trusted height must be less than or equal to parent header height",
             );
+            #[cfg(not(feature = "succinct"))]
+            assert!(
+                input.trusted_height <= first_input.block.header.number - 1,
+                "Trusted height must be less than or equal to parent header height",
+            );
 
+            #[cfg(feature = "succinct")]
             let executor = EthClientExecutor::eth(
                 Arc::new((&first_input.genesis).try_into().expect("invalid genesis block")),
                 first_input.custom_beneficiary,
             );
 
             for input in &input.executor_inputs {
-                let header = executor.execute(input.clone()).expect("EVM block execution failed");
-                headers.push(header);
+                let zeth_config = EthEvmConfig::new((*zeth_chainspec::MAINNET).clone());
+                let zeth_input = zeth_core::Input {
+                    #[cfg(feature = "succinct")]
+                    block: input.current_block.clone(),
+                    #[cfg(not(feature = "succinct"))]
+                    block: input.block.clone(),
+                    signers: vec![],
+                    witness: ExecutionWitness::default(),
+                };
+
+                let zeth_state_root = zeth_core::validate_block(zeth_input.clone(), zeth_config).unwrap();
+                zeth_state_roots.push(zeth_state_root);
+                headers.push(zeth_input.block.header);
+                #[cfg(feature = "succinct")]
+                {
+                    let header = executor.execute(input.clone()).expect("EVM block execution failed");
+                    headers.push(header);
+                }
             }
         }
 
@@ -335,6 +374,7 @@ impl BlockVerifier {
             }
 
             let root = proofs::calculate_transaction_root(&txs);
+
             assert_eq!(
                 root, header.transactions_root,
                 "Calculated root must be equal to header transactions root"

@@ -12,7 +12,7 @@ bincode = { workspace = true }
 celestia-types = { workspace = true }
 ed25519-dalek = { workspace = true }
 ev-types = { workspace = true }
-ev-zkevm-types = { workspace = true }
+ev-zkevm-types = { workspace = true, features = ["succinct"] }
 hex = { workspace = true }
 nmt-rs = "*"
 prost = { workspace = true }

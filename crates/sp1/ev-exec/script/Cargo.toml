@@ -29,7 +29,7 @@ celestia-types = { workspace = true }
 clap = { version = "4.0", features = ["cargo", "derive", "env"] }
 dotenvy = { workspace = true }
 ev-types = { workspace = true, features = ["grpc"] }
-ev-zkevm-types = { workspace = true }
+ev-zkevm-types = { workspace = true, features = ["succinct"] }
 eyre = "0.6.12"
 hashbrown = "0.14.5"
 hex = { workspace = true }

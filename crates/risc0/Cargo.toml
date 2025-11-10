@@ -1,0 +1,15 @@
+[workspace]
+members = ["ev-combined/host", "ev-combined/methods"]
+
+# Always optimize; building and running the guest takes much longer without optimization.
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+debug = 1
+lto = true
+
+[workspace.dependencies]
+risc0-zkvm = { version = "3.0.3" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = "1.0"
