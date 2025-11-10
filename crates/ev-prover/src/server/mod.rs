@@ -207,14 +207,18 @@ pub async fn start_server(config: Config) -> Result<()> {
                         continue;
                     }
                 };
-                let message_prover =
-                    match prepare_message_prover(reth_rpc_url.clone(), reth_ws_url.clone(), storage_clone.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
+                let message_prover = match prepare_message_prover(
+                    reth_rpc_url.clone(),
+                    reth_ws_url.clone(),
+                    storage_clone.clone(),
+                    Arc::clone(&prover),
+                ) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
                 let server = Server::new(
                     Arc::new(message_prover),
                     Arc::new(block_prover),
