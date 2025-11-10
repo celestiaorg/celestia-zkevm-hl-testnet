@@ -37,10 +37,10 @@ use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-#[cfg(feature = "succinct-rsp")]
+//#[cfg(feature = "succinct-rsp")]
 pub const EV_COMBINED_ELF: &[u8] = include_elf!("ev-combined-program");
 #[cfg(not(feature = "succinct-rsp"))]
-pub use methods::{EV_COMBINED_ELF, EV_COMBINED_ID};
+use methods::{EV_COMBINED_ELF as EV_COMBINED_ELF_RISC0, EV_COMBINED_ID as EV_COMBINED_ID_RISC0};
 
 /// ProverStatus of the latest Celestia state relevant to the prover loop.
 ///
@@ -259,7 +259,7 @@ impl EvCombinedProver {
                     let env = ExecutorEnv::builder().write(&input).unwrap().build().unwrap();
                     let prover = default_prover();
                     let opts = ProverOpts::groth16();
-                    let prove_info = prover.prove_with_opts(env, EV_COMBINED_ELF, &opts).unwrap();
+                    let prove_info = prover.prove_with_opts(env, EV_COMBINED_ELF_RISC0, &opts).unwrap();
                     let receipt = prove_info.receipt;
                     let _output: BlockRangeExecOutput = receipt.journal.decode().unwrap();
 

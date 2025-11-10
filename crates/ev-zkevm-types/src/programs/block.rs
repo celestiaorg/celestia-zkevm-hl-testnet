@@ -23,7 +23,7 @@ use nmt_rs::NamespacedSha2Hasher;
 use prost::Message;
 use reth_primitives::TransactionSigned;
 use tendermint::block::Header;
-#[cfg(feature = "succinct")]
+#[cfg(feature = "succinct-rsp")]
 use {
     alloy_consensus::BlockHeader,
     rsp_client_executor::io::EthClientExecutorInput,
@@ -41,9 +41,9 @@ pub struct BlockExecInput {
     pub pub_key: Vec<u8>,
     pub namespace: Namespace,
     pub proofs: Vec<NamespaceProof>,
-    #[cfg(feature = "succinct")]
+    #[cfg(feature = "succinct-rsp")]
     pub executor_inputs: Vec<EthClientExecutorInput>,
-    #[cfg(not(feature = "succinct"))]
+    #[cfg(not(feature = "succinct-rsp"))]
     pub executor_inputs: Vec<zeth_core::Input>,
     pub trusted_height: u64,
     pub trusted_root: FixedBytes<32>,
@@ -281,30 +281,30 @@ impl BlockVerifier {
         if headers.capacity() != 0 {
             let first_input = input.executor_inputs.first().unwrap();
 
-            #[cfg(feature = "succinct")]
+            #[cfg(feature = "succinct-rsp")]
             assert_eq!(
                 input.trusted_root,
                 first_input.state_anchor(),
                 "State anchor must be equal to trusted root"
             );
-            #[cfg(not(feature = "succinct"))]
+            #[cfg(not(feature = "succinct-rsp"))]
             assert_eq!(
                 input.trusted_root, first_input.block.header.parent_hash,
                 "State anchor must be equal to trusted root"
             );
 
-            #[cfg(feature = "succinct")]
+            #[cfg(feature = "succinct-rsp")]
             assert!(
                 input.trusted_height <= first_input.parent_header().number(),
                 "Trusted height must be less than or equal to parent header height",
             );
-            #[cfg(not(feature = "succinct"))]
+            #[cfg(not(feature = "succinct-rsp"))]
             assert!(
                 input.trusted_height <= first_input.block.header.number - 1,
                 "Trusted height must be less than or equal to parent header height",
             );
 
-            #[cfg(feature = "succinct")]
+            #[cfg(feature = "succinct-rsp")]
             let executor = EthClientExecutor::eth(
                 Arc::new((&first_input.genesis).try_into().expect("invalid genesis block")),
                 first_input.custom_beneficiary,
@@ -313,9 +313,9 @@ impl BlockVerifier {
             for input in &input.executor_inputs {
                 let zeth_config = EthEvmConfig::new((*zeth_chainspec::MAINNET).clone());
                 let zeth_input = zeth_core::Input {
-                    #[cfg(feature = "succinct")]
+                    #[cfg(feature = "succinct-rsp")]
                     block: input.current_block.clone(),
-                    #[cfg(not(feature = "succinct"))]
+                    #[cfg(not(feature = "succinct-rsp"))]
                     block: input.block.clone(),
                     signers: vec![],
                     witness: ExecutionWitness::default(),
@@ -324,7 +324,7 @@ impl BlockVerifier {
                 let zeth_state_root = zeth_core::validate_block(zeth_input.clone(), zeth_config).unwrap();
                 zeth_state_roots.push(zeth_state_root);
                 headers.push(zeth_input.block.header);
-                #[cfg(feature = "succinct")]
+                #[cfg(feature = "succinct-rsp")]
                 {
                     let header = executor.execute(input.clone()).expect("EVM block execution failed");
                     headers.push(header);
