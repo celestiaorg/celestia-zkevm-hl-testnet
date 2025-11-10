@@ -234,6 +234,8 @@ impl EvCombinedProver {
             let input = self.build_proof_inputs(start_height, &status, batch_size).await?;
 
             let start_time = Instant::now();
+            let combined_elf = std::fs::read("elfs/ev-combined-elf").expect("Failed to read ELF");
+            let _ = self.prover.setup(&combined_elf);
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 

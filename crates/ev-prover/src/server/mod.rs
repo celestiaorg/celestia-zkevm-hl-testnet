@@ -13,7 +13,6 @@ use ev_types::v1::get_block_request::Identifier;
 use ev_types::v1::store_service_client::StoreServiceClient;
 use ev_types::v1::GetBlockRequest;
 use reqwest::Url;
-use sp1_sdk::prover;
 use std::str::FromStr;
 use storage::hyperlane::message::HyperlaneMessageStore;
 use storage::hyperlane::snapshot::HyperlaneSnapshotStore;

@@ -277,6 +277,10 @@ impl HyperlaneMessageProver {
         );
 
         // Prove messages against trusted root
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&input);
+        let hyperlane_elf = std::fs::read("elfs/ev-hyperlane-elf").expect("Failed to read ELF");
+        let _ = self.prover.setup(&hyperlane_elf);
         let message_proof = self.prove(input).await?;
         info!("Message proof generated successfully");
 
