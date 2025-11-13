@@ -55,11 +55,7 @@ pub async fn create_zkism() -> Result<()> {
     let config = Config::load()?;
     let ism_client = CelestiaIsmClient::new(ClientConfig::from_env()?).await?;
 
-    let auth_token = if config.rpc.celestia_auth_token.is_empty() {
-        None
-    } else {
-        Some(config.rpc.celestia_auth_token.as_str())
-    };
+    let auth_token = config.rpc.celestia_auth_token.as_deref();
     let celestia_client = Client::new(&config.rpc.celestia_rpc, auth_token).await?;
     let namespace = config.namespace;
 

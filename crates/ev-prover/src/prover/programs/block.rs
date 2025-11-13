@@ -81,6 +81,7 @@ pub struct AppContext {
     pub genesis: Genesis,
     pub namespace: Namespace,
     pub celestia_rpc: String,
+    pub celestia_auth_token: Option<String>,
     pub evm_rpc: String,
     pub pub_key: Vec<u8>,
     pub trusted_state: RwLock<TrustedState>,
@@ -124,6 +125,7 @@ impl AppContext {
             genesis,
             namespace,
             celestia_rpc: config.rpc.celestia_rpc,
+            celestia_auth_token: config.rpc.celestia_auth_token,
             evm_rpc: config.rpc.evreth_rpc,
             pub_key,
             trusted_state,
@@ -242,7 +244,8 @@ impl BlockExecProver {
 
     async fn connect_and_subscribe(&self) -> Result<(Arc<Client>, Subscription<BlobsAtHeight>)> {
         let addr = format!("ws://{}", self.app.celestia_rpc);
-        let client = Arc::new(Client::new(&addr, None).await.context("celestia ws connect")?);
+        let auth_token = self.app.celestia_auth_token.as_deref();
+        let client = Arc::new(Client::new(&addr, auth_token).await.context("celestia ws connect")?);
         let subscription = client
             .blob_subscribe(self.app.namespace)
             .await

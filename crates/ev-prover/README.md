@@ -12,23 +12,12 @@ when using the succinct prover network, because in default mode the base fee wil
     make start
     ```
 
-2. Initialize a new `ev-prover` home directory and configuration file with defaults:
-    ```shell
-    ev-prover init
-    ```
-
-3. (Optional) In case you have auth enabled on celestia node, you need to create an auth token and set it to the config:
-    ```shell
-    CELESTIA_NODE_AUTH_TOKEN=$(celestia bridge auth read | tail -n 1)
-    sed -i "s|celestia_auth_token: .*|celestia_auth_token: '${CELESTIA_NODE_AUTH_TOKEN}'|" ~/.ev-prover/config/config.yaml
-    ```
-
-4. Deploy the ZKISM
+2. Deploy the ZKISM
     ```shell
     make deploy-ism
     ```
 
-4 Update the ISM used by Hyperlane to the new ZKISM 
+3. Update the ISM used by Hyperlane to the new ZKISM
     ```shell
     make update-ism
     ```
@@ -40,12 +29,30 @@ Run the following commands from the root of the repository.
     cargo install --path ./crates/ev-prover --features combined
     ```
 
-<!-- 2. Initialize a new `ev-prover` home directory and configuration file with defaults:
+2. Initialize a new `ev-prover` home directory and configuration file with defaults:
     ```shell
     ev-prover init
-    ``` -->
+    ```
 
-3. Start the `ev-prover` application binary using:
+3. (Optional) If you have authentication enabled on your Celestia node, you need to set the auth token in the config file.
+
+   First, retrieve your auth token:
+    ```shell
+    celestia bridge auth read
+    # Or if using docker:
+    # docker compose exec celestia-bridge celestia bridge auth read
+    ```
+
+   Then, edit `~/.ev-prover/config/config.yaml` and add the `celestia_auth_token` field under `rpc`:
+    ```yaml
+    rpc:
+      celestia_rpc: "http://localhost:26658"
+      celestia_auth_token: YOUR_AUTH_TOKEN_HERE
+      evnode_rpc: "http://localhost:7331"
+      evreth_rpc: "http://localhost:8545"
+    ```
+
+4. Start the `ev-prover` application binary using:
 
     ```shell
     RUST_LOG="ev_prover=debug" ev-prover start

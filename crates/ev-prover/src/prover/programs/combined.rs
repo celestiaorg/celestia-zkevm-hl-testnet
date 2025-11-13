@@ -79,7 +79,8 @@ pub struct AppContext {
 
 impl AppContext {
     pub async fn from_config(config: &Config, ism_client: Arc<CelestiaIsmClient>) -> Result<Self> {
-        let celestia_client = Client::new(&config.rpc.celestia_rpc, None).await?;
+        let auth_token = config.rpc.celestia_auth_token.as_deref();
+        let celestia_client = Client::new(&config.rpc.celestia_rpc, auth_token).await?;
         let genesis = Config::load_genesis()?;
         let chain_spec = Self::chain_spec_from_genesis(&genesis)?;
         let pub_key = hex::decode(config.pub_key.clone())?;
