@@ -111,3 +111,33 @@ update-ism:
 	@echo "--> Updating ISM"
 	@RUST_LOG="ev_prover=info" cargo run -p ev-prover update 0x726f757465725f69736d000000000000000000000000002a0000000000000001 0x726f757465725f61707000000000000000000000000000010000000000000000
 .PHONY: update-ism
+
+## deploy-native-warp: Deploy HypNative warp route for native token bridging.
+deploy-native-warp:
+	@echo "--> Deploying native warp route"
+	@./scripts/deploy-native-warp-route.sh
+.PHONY: deploy-native-warp
+
+## test-native-to-celestia: Test native token transfer from EVM to Celestia.
+test-native-to-celestia:
+	@echo "--> Testing native transfer to Celestia"
+	@./scripts/test-warp-transfer.sh to-celestia
+.PHONY: test-native-to-celestia
+
+## test-native-to-evm: Test token transfer from Celestia back to EVM.
+test-native-to-evm:
+	@echo "--> Testing transfer to EVM"
+	@./scripts/test-warp-transfer.sh to-evm
+.PHONY: test-native-to-evm
+
+## test-native-query: Query native token balances on both chains.
+test-native-query:
+	@echo "--> Querying balances"
+	@./scripts/test-warp-transfer.sh query-evm
+	@./scripts/test-warp-transfer.sh query-celestia
+.PHONY: test-native-query
+
+## test-native: Run full native mint end-to-end test (deploy + transfer).
+test-native: deploy-native-warp test-native-to-celestia test-native-query
+	@echo "--> Native mint test complete"
+.PHONY: test-native
