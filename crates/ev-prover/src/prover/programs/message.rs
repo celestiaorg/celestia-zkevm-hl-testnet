@@ -5,6 +5,7 @@
 use crate::prover::{prover_from_env, MessageProofRequest, MessageProofSync, RangeProofCommitted, SP1Prover};
 use crate::prover::{ProgramProver, ProverConfig};
 use alloy::hex::FromHex;
+use alloy::sol;
 use alloy_primitives::{Address, FixedBytes};
 use alloy_provider::{Provider, ProviderBuilder, WsConnect};
 use alloy_rpc_types::{EIP1186AccountProofResponse, Filter};
@@ -25,6 +26,13 @@ use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnap
 use storage::proofs::ProofStorage;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info};
+
+sol! {
+    #[sol(rpc)]
+    contract MailboxContract {
+        function nonce() public view returns (uint32);
+    }
+}
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const EV_HYPERLANE_ELF: &[u8] = include_elf!("ev-hyperlane-program");
@@ -165,9 +173,16 @@ impl HyperlaneMessageProver {
         let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&self.ctx.evm_rpc)?);
         let socket = WsConnect::new(&self.ctx.evm_ws);
         let contract_address = self.ctx.mailbox_address;
+        let mailbox = MailboxContract::new(contract_address, evm_provider.clone());
+        let mut mailbox_nonce = mailbox.nonce().call().await?;
         let filter = Filter::new().address(contract_address).event(&Dispatch::id());
         let mut indexer = HyperlaneIndexer::new(socket, contract_address, filter.clone());
         while let Some(request) = range_rx.recv().await {
+            let current_mailbox_nonce = mailbox.nonce().call().await?;
+            if mailbox_nonce >= current_mailbox_nonce {
+                debug!("No new mailbox messages found, skipping message proof step");
+                return Ok(());
+            }
             let commit_message: RangeProofCommitted = request.commit;
             info!("Received commit message: {:?}", commit_message);
 
@@ -212,8 +227,8 @@ impl HyperlaneMessageProver {
                     )
                 );
             }
+            mailbox_nonce = current_mailbox_nonce;
         }
-
         Ok(())
     }
 
@@ -304,10 +319,14 @@ impl HyperlaneMessageProver {
             .store_membership_proof(committed_height, &message_proof.0, &message_proof.1)
             .await?;
 
+        // TODO: check for unfinalized shapshots and retry
+        // this is a necessary mainnet optimization
         self.snapshot_store.finalize_snapshot(trusted_snapshot_index)?;
 
         info!("Relaying verified Hyperlane messages to Celestia...");
         // submit all now verified messages to hyperlane
+        // TODO: add a finality flag to each message and retry
+        // this is a necessary mainnet optimization
         for message in messages.clone() {
             let message_hex = alloy::hex::encode(encode_hyperlane_message(&message.message)?);
             let msg = MsgProcessMessage::new(
