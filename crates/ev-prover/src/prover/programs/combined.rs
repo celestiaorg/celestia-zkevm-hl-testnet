@@ -376,7 +376,7 @@ impl EvCombinedProver {
         for block_number in start_height..=end_height {
             let input = self
                 .build_block_input(
-                    &evm_provider,
+                    evm_provider,
                     block_number,
                     namespace,
                     &mut current_height,
@@ -395,6 +395,7 @@ impl EvCombinedProver {
     }
 
     /// Builds a single block prover input for the given height.
+    #[allow(clippy::too_many_arguments)]
     async fn build_block_input(
         &self,
         provider: &DefaultProvider,
