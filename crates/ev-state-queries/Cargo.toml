@@ -19,6 +19,7 @@ serde_json = { workspace = true }
 storage = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { version = "0.1.17", default-features = false }
+tracing = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]

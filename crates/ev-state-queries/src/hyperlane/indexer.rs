@@ -13,6 +13,7 @@ use ev_zkevm_types::{
 };
 use std::{env, str::FromStr, sync::Arc};
 use storage::hyperlane::{StoredHyperlaneMessage, message::HyperlaneMessageStore};
+use tracing::debug;
 
 /// HyperlaneIndexer is a service that indexes Hyperlane messages from the Dispatch event emitted from the Mailbox contract.
 pub struct HyperlaneIndexer {
@@ -57,10 +58,10 @@ impl HyperlaneIndexer {
                         decode_hyperlane_message(&dispatch_event.message).expect("Failed to decode Hyperlane message");
                     let stored_message = StoredHyperlaneMessage::new(hyperlane_message, log.block_number);
                     message_store.insert_message(current_index, stored_message).unwrap();
-                    println!("Inserted Hyperlane Message at index: {current_index}");
+                    debug!("Inserted Hyperlane Message at index: {current_index}");
                 }
                 Err(e) => {
-                    eprintln!("Failed to decode Dispatch Event: {e:?}");
+                    return Err(anyhow::anyhow!("Failed to decode Dispatch Event: {e:?}"));
                 }
             }
         }
