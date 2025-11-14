@@ -210,7 +210,10 @@ impl EvCombinedProver {
         let mut scan_head: Option<u64> = None;
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
         let evm_provider = ProviderBuilder::new().connect_http(self.ctx.evm_rpc.parse()?);
+        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address, &evm_provider);
+        let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
         loop {
+            let current_mailbox_nonce = mailbox_contract.nonce().call().await?;
             message_sync.wait_for_idle().await;
             poll.tick().await;
 
@@ -222,14 +225,17 @@ impl EvCombinedProver {
 
             let scan_start = scan_head.ok_or_else(|| anyhow!("Scan head is not set"))?;
             if scan_start < status.celestia_head {
-                batch_size = self
-                    .calculate_batch_size(
-                        scan_start,
-                        status.celestia_head,
-                        status.trusted_celestia_height,
-                        batch_size,
-                    )
-                    .await?;
+                // only check if batch size can be reduced if a new mailbox event was emitted
+                if current_mailbox_nonce > mailbox_nonce {
+                    batch_size = self
+                        .calculate_batch_size(
+                            scan_start,
+                            status.celestia_head,
+                            status.trusted_celestia_height,
+                            batch_size,
+                        )
+                        .await?;
+                }
             }
 
             if !status.is_batch_ready(batch_size) {
@@ -262,6 +268,7 @@ impl EvCombinedProver {
             // reset batch size and fast forward checkpoints
             batch_size = BATCH_SIZE;
             scan_head = Some(status.celestia_head + 1);
+            mailbox_nonce = current_mailbox_nonce;
 
             let permit = message_sync.begin().await;
             let commit = RangeProofCommitted::new(output.new_height, output.new_state_root);
@@ -369,7 +376,7 @@ impl EvCombinedProver {
         for block_number in start_height..=end_height {
             let input = self
                 .build_block_input(
-                    evm_provider,
+                    &evm_provider,
                     block_number,
                     namespace,
                     &mut current_height,
