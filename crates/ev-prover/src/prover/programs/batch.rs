@@ -21,7 +21,7 @@ use celestia_types::{
 };
 use ev_state_queries::DefaultProvider;
 use ev_types::v1::SignedData;
-use ev_zkevm_types::programs::block::{BlockExecInput, BlockRangeExecOutput, EvCombinedInput};
+use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
 use prost::Message;
 use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;
@@ -35,7 +35,7 @@ use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const EV_COMBINED_ELF: &[u8] = include_elf!("ev-combined-program");
+pub const BATCH_ELF: &[u8] = include_elf!("ev-batch-program");
 
 sol! {
     #[sol(rpc)]
@@ -120,15 +120,15 @@ impl AppContext {
 }
 
 #[derive(Clone)]
-pub struct CombinedProverConfig {
+pub struct BatchProverConfig {
     pub pk: Arc<SP1ProvingKey>,
     pub vk: Arc<SP1VerifyingKey>,
     pub proof_mode: SP1ProofMode,
 }
 
-impl CombinedProverConfig {
+impl BatchProverConfig {
     pub fn new(pk: SP1ProvingKey, vk: SP1VerifyingKey, mode: SP1ProofMode) -> Self {
-        CombinedProverConfig {
+        BatchProverConfig {
             pk: Arc::new(pk),
             vk: Arc::new(vk),
             proof_mode: mode,
@@ -136,7 +136,7 @@ impl CombinedProverConfig {
     }
 }
 
-impl ProverConfig for CombinedProverConfig {
+impl ProverConfig for BatchProverConfig {
     fn pk(&self) -> Arc<SP1ProvingKey> {
         Arc::clone(&self.pk)
     }
@@ -150,17 +150,17 @@ impl ProverConfig for CombinedProverConfig {
     }
 }
 
-pub struct EvCombinedProver {
+pub struct BatchExecProver {
     ctx: AppContext,
     range_tx: mpsc::Sender<MessageProofRequest>,
-    config: CombinedProverConfig,
+    config: BatchProverConfig,
     prover: Arc<SP1Prover>,
 }
 
 #[async_trait]
-impl ProgramProver for EvCombinedProver {
-    type Config = CombinedProverConfig;
-    type Input = EvCombinedInput;
+impl ProgramProver for BatchExecProver {
+    type Config = BatchProverConfig;
+    type Input = BatchExecInput;
     type Output = BlockRangeExecOutput;
 
     fn cfg(&self) -> &Self::Config {
@@ -184,11 +184,11 @@ impl ProgramProver for EvCombinedProver {
     }
 }
 
-impl EvCombinedProver {
+impl BatchExecProver {
     /// Creates a new prover instance.
     pub fn new(ctx: AppContext, range_tx: mpsc::Sender<MessageProofRequest>) -> Result<Self> {
         let prover = prover_from_env();
-        let config = EvCombinedProver::default_config(prover.as_ref());
+        let config = BatchExecProver::default_config(prover.as_ref());
 
         Ok(Self {
             ctx,
@@ -199,9 +199,9 @@ impl EvCombinedProver {
     }
 
     /// Returns the prover config.
-    pub fn default_config(prover: &SP1Prover) -> CombinedProverConfig {
-        let (pk, vk) = prover.setup(EV_COMBINED_ELF);
-        CombinedProverConfig::new(pk, vk, SP1ProofMode::Groth16)
+    pub fn default_config(prover: &SP1Prover) -> BatchProverConfig {
+        let (pk, vk) = prover.setup(BATCH_ELF);
+        BatchProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
     /// Starts the batched prover loop.
@@ -363,7 +363,7 @@ impl EvCombinedProver {
         start_height: u64,
         status: &ProverStatus,
         batch_size: u64,
-    ) -> Result<EvCombinedInput> {
+    ) -> Result<BatchExecInput> {
         let mut current_height = status.trusted_height;
         let mut current_root = status.trusted_root;
 
@@ -389,7 +389,7 @@ impl EvCombinedProver {
 
         // let mut stdin = SP1Stdin::new();
         // stdin.write(&);
-        Ok(EvCombinedInput { blocks: block_inputs })
+        Ok(BatchExecInput { blocks: block_inputs })
     }
 
     /// Builds a single block prover input for the given height.
