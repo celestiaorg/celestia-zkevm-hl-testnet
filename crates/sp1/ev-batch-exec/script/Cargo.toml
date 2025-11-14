@@ -1,11 +1,11 @@
 [package]
 version = "0.1.0"
-name = "ev-combined-script"
+name = "ev-batch-script"
 edition = "2021"
-default-run = "vkey-ev-combined"
+default-run = "vkey-ev-batch"
 
 [[bin]]
-name = "vkey-ev-combined"
+name = "vkey-ev-batch"
 path = "src/bin/vkey.rs"
 
 [dependencies]
