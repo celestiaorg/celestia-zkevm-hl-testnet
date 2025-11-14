@@ -55,6 +55,7 @@ tonic = { version = "0.10", features = ["transport"] }
 tonic-reflection = "0.10"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+url = { workspace = true }
 
 [build-dependencies]
 sp1-build = { workspace = true }
