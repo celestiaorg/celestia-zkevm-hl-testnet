@@ -1,0 +1,7 @@
+# Celestia Rebalancer binary (users should build from source)
+celestia-rebalancer
+
+# Test artifacts
+/tmp/
+*.json.bak
+*.log

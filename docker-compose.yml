@@ -8,6 +8,20 @@ services:
       - celestia-app:/home/celestia/.celestia-app
     restart: "no"
 
+  celestia-post-init:
+    image: ghcr.io/celestiaorg/celestia-app-standalone:feature-zk-execution-ism
+    container_name: celestia-post-init
+    entrypoint: /scripts/post-init.sh
+    volumes:
+      - ./testnet/celestia-app/post-init.sh:/scripts/post-init.sh:ro
+      - celestia-app:/home/celestia/.celestia-app
+    depends_on:
+      celestia-validator:
+        condition: service_healthy
+    networks:
+      - celestia-zkevm-net
+    restart: "no"
+
   celestia-validator:
     image: ghcr.io/celestiaorg/celestia-app-standalone:feature-zk-execution-ism
     container_name: celestia-validator
