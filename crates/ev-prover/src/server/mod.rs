@@ -270,18 +270,24 @@ pub async fn start_server(config: Config) -> Result<()> {
         let storage_clone: Arc<dyn ProofStorage> = storage.clone();
         let message_sync = MessageProofSync::shared();
         let ism_client_clone = Arc::clone(&ism_client);
+        let mailbox_address = env::var("MAILBOX_ADDRESS").expect("MAILBOX_ADDRESS must be set");
 
         tokio::spawn(async move {
             loop {
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-                let combined_context =
-                    match CombinedAppContext::from_config(&config_clone, Arc::clone(&ism_client_clone)).await {
-                        Ok(context) => context,
-                        Err(e) => {
-                            error!("Failed to create combined context: {e:?}");
-                            continue;
-                        }
-                    };
+                let combined_context = match CombinedAppContext::from_config(
+                    &config_clone,
+                    Arc::clone(&ism_client_clone),
+                    Address::from_str(&mailbox_address).unwrap(),
+                )
+                .await
+                {
+                    Ok(context) => context,
+                    Err(e) => {
+                        error!("Failed to create combined context: {e:?}");
+                        continue;
+                    }
+                };
                 let combined_prover = match EvCombinedProver::new(combined_context, tx_range) {
                     Ok(prover) => prover,
                     Err(e) => {
@@ -369,8 +375,8 @@ fn prepare_message_prover(
 ) -> Result<HyperlaneMessageProver> {
     let ism_id = env::var("CELESTIA_ISM_ID").expect("CELESTIA_ISM_ID must be set");
     let mailbox_address = env::var("MAILBOX_ADDRESS").expect("MAILBOX_ADDRESS must be set");
-    let celestia_mailbox_address = env::var("CELESTIA_MAILBOX_ADDRESS").expect("CELESTIA_MAILBOX_ADDRESS must be set");
     let merkle_tree_address = env::var("MERKLE_TREE_ADDRESS").expect("MERKLE_TREE_ADDRESS must be set");
+    let celestia_mailbox_address = env::var("CELESTIA_MAILBOX_ADDRESS").expect("CELESTIA_MAILBOX_ADDRESS must be set");
     let message_storage_path = Config::storage_path().join("messages.db");
     let snapshot_storage_path = Config::storage_path().join("snapshots.db");
     let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());

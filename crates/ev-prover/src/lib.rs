@@ -54,11 +54,9 @@ pub fn load_chain_spec_from_genesis(path: &str) -> Result<(Genesis, Arc<ChainSpe
 pub async fn get_sequencer_pubkey(sequencer_url: String) -> Result<Vec<u8>> {
     debug!("Connecting to sequencer url: {}", sequencer_url);
     let mut sequencer_client = StoreServiceClient::connect(sequencer_url.clone()).await?;
-    debug!("Connected to sequencer url: {}", sequencer_url);
     let block_req = GetBlockRequest {
         identifier: Some(Identifier::Height(1)),
     };
-    debug!("Getting block from sequencer url: {}", sequencer_url);
     let resp = sequencer_client.get_block(block_req).await?;
     debug!("Got block from sequencer url: {}", sequencer_url);
     let pub_key = resp

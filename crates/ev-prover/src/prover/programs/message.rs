@@ -5,7 +5,6 @@
 use crate::prover::{prover_from_env, MessageProofRequest, MessageProofSync, RangeProofCommitted, SP1Prover};
 use crate::prover::{ProgramProver, ProverConfig};
 use alloy::hex::FromHex;
-use alloy::sol;
 use alloy_primitives::{Address, FixedBytes};
 use alloy_provider::{Provider, ProviderBuilder, WsConnect};
 use alloy_rpc_types::{EIP1186AccountProofResponse, Filter};
@@ -26,13 +25,6 @@ use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnap
 use storage::proofs::ProofStorage;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info};
-
-sol! {
-    #[sol(rpc)]
-    contract MailboxContract {
-        function nonce() public view returns (uint32);
-    }
-}
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const EV_HYPERLANE_ELF: &[u8] = include_elf!("ev-hyperlane-program");
@@ -173,16 +165,9 @@ impl HyperlaneMessageProver {
         let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&self.ctx.evm_rpc)?);
         let socket = WsConnect::new(&self.ctx.evm_ws);
         let contract_address = self.ctx.mailbox_address;
-        let mailbox = MailboxContract::new(contract_address, evm_provider.clone());
-        let mut mailbox_nonce = mailbox.nonce().call().await?;
         let filter = Filter::new().address(contract_address).event(&Dispatch::id());
         let mut indexer = HyperlaneIndexer::new(socket, contract_address, filter.clone());
         while let Some(request) = range_rx.recv().await {
-            let current_mailbox_nonce = mailbox.nonce().call().await?;
-            if mailbox_nonce >= current_mailbox_nonce {
-                debug!("No new mailbox messages found, skipping message proof step");
-                return Ok(());
-            }
             let commit_message: RangeProofCommitted = request.commit;
             info!("Received commit message: {:?}", commit_message);
 
@@ -221,13 +206,12 @@ impl HyperlaneMessageProver {
                         merkle_proof
                             .storage_proof
                             .last()
-                            .ok_or(anyhow::anyhow!("No storage proof"))?
+                            .ok_or(anyhow::anyhow!("No storage proof for Hyperlane Branch"))?
                             .value
                             .to_be_bytes::<32>()
                     )
                 );
             }
-            mailbox_nonce = current_mailbox_nonce;
         }
         Ok(())
     }
@@ -342,7 +326,7 @@ impl HyperlaneMessageProver {
                 return Err(anyhow::anyhow!("Failed to relay Hyperlane message to Celestia"));
             }
         }
-        info!("[Done] Tia was bridged back to Celestia");
+        info!("[Success] Token was bridged back to Celestia");
 
         Ok(())
     }
