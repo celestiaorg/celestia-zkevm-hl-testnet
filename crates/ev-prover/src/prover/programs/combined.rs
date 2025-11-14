@@ -224,18 +224,16 @@ impl EvCombinedProver {
             }
 
             let scan_start = scan_head.ok_or_else(|| anyhow!("Scan head is not set"))?;
-            if scan_start < status.celestia_head {
+            if scan_start < status.celestia_head && current_mailbox_nonce > mailbox_nonce {
                 // only check if batch size can be reduced if a new mailbox event was emitted
-                if current_mailbox_nonce > mailbox_nonce {
-                    batch_size = self
-                        .calculate_batch_size(
-                            scan_start,
-                            status.celestia_head,
-                            status.trusted_celestia_height,
-                            batch_size,
-                        )
-                        .await?;
-                }
+                batch_size = self
+                    .calculate_batch_size(
+                        scan_start,
+                        status.celestia_head,
+                        status.trusted_celestia_height,
+                        batch_size,
+                    )
+                    .await?;
             }
 
             if !status.is_batch_ready(batch_size) {
