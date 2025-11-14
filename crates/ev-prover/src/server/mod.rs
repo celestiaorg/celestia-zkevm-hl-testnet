@@ -1,18 +1,13 @@
-use std::env;
 use std::sync::Arc;
 
-use alloy_primitives::Address;
 use alloy_primitives::FixedBytes;
-use alloy_provider::ProviderBuilder;
 use anyhow::Result;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::{CelestiaIsmClient, QueryIsmRequest};
-use ev_state_queries::{DefaultProvider, MockStateQueryProvider};
+use ev_state_queries::MockStateQueryProvider;
 use ev_types::v1::get_block_request::Identifier;
 use ev_types::v1::store_service_client::StoreServiceClient;
 use ev_types::v1::GetBlockRequest;
-use reqwest::Url;
-use std::str::FromStr;
 use storage::hyperlane::message::HyperlaneMessageStore;
 use storage::hyperlane::snapshot::HyperlaneSnapshotStore;
 use storage::proofs::RocksDbProofStorage;
@@ -26,6 +21,7 @@ use tracing::{debug, error};
 
 use crate::config::Config;
 use crate::proto::celestia::prover::v1::prover_server::ProverServer;
+use crate::prover::chain::ChainContext;
 use crate::prover::programs::block::TrustedState;
 use crate::prover::programs::message::HyperlaneMessageProver;
 use crate::prover::service::ProverService;
@@ -34,19 +30,15 @@ use crate::prover::{MessageProofRequest, MessageProofSync};
 #[cfg(not(feature = "batch_mode"))]
 use crate::prover::{
     programs::{
-        block::{AppContext, BlockExecProver},
+        block::BlockExecProver,
         range::{BlockRangeExecProver, BlockRangeExecService},
     },
     BlockProofCommitted,
 };
 
-use crate::prover::programs::message::AppContext as MessageAppContext;
 use storage::proofs::ProofStorage;
 #[cfg(feature = "batch_mode")]
-use {
-    crate::prover::programs::batch::{AppContext as BatchAppContext, BatchExecProver},
-    std::time::Duration,
-};
+use {crate::prover::programs::batch::BatchExecProver, std::time::Duration};
 
 struct Server {
     pub message_prover: Arc<HyperlaneMessageProver>,
@@ -78,12 +70,11 @@ impl Server {
     pub async fn start_message_prover(
         &self,
         rx_range: mpsc::Receiver<MessageProofRequest>,
-        ism_client: Arc<CelestiaIsmClient>,
         message_sync: Arc<MessageProofSync>,
     ) -> Result<JoinHandle<()>> {
         let message_prover = Arc::clone(&self.message_prover);
         Ok(tokio::spawn(async move {
-            if let Err(e) = message_prover.run(rx_range, ism_client, message_sync).await {
+            if let Err(e) = message_prover.run(rx_range, message_sync).await {
                 error!("Message prover task failed: {e:?}");
             }
         }))
@@ -143,8 +134,6 @@ impl Server {
 pub async fn start_server(config: Config) -> Result<()> {
     let listener = TcpListener::bind(config.grpc_address.clone()).await?;
     let sequencer_rpc_url = std::env::var("SEQUENCER_RPC_URL").expect("SEQUENCER_RPC_URL must be set");
-    let reth_rpc_url = std::env::var("RETH_RPC_URL").expect("RETH_RPC_URL must be set");
-    let reth_ws_url = std::env::var("RETH_WS_URL").expect("RETH_WS_URL must be set");
     let descriptor_bytes = include_bytes!("../../src/proto/descriptor.bin");
     let reflection_service = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(descriptor_bytes)
@@ -161,6 +150,8 @@ pub async fn start_server(config: Config) -> Result<()> {
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
+
+    let ctx = ChainContext::from_config(config_clone.clone(), ism_client.clone()).await?;
 
     #[cfg(not(feature = "batch_mode"))]
     let wrapper_task = Some({
@@ -183,15 +174,10 @@ pub async fn start_server(config: Config) -> Result<()> {
                 let queue_capacity = config_clone.queue_capacity;
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
                 let (tx_block, rx_block) = mpsc::channel::<BlockProofCommitted>(256);
-                let app_context = match AppContext::new(config_clone.clone(), trusted_state) {
-                    Ok(context) => context,
-                    Err(e) => {
-                        error!("Failed to create app context: {e:?}");
-                        continue;
-                    }
-                };
+
                 let block_prover = BlockExecProver::new(
-                    app_context,
+                    ctx.clone(),
+                    trusted_state,
                     tx_block,
                     storage_clone.clone(),
                     queue_capacity,
@@ -204,14 +190,13 @@ pub async fn start_server(config: Config) -> Result<()> {
                         continue;
                     }
                 };
-                let message_prover =
-                    match prepare_message_prover(reth_rpc_url.clone(), reth_ws_url.clone(), storage_clone.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
+                let message_prover = match prepare_message_prover(ctx.clone(), storage_clone.clone()) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
                 let server = Server::new(
                     Arc::new(message_prover),
                     Arc::new(block_prover),
@@ -224,10 +209,7 @@ pub async fn start_server(config: Config) -> Result<()> {
                         continue;
                     }
                 };
-                let mut message_handle = match server
-                    .start_message_prover(rx_range, ism_client.clone(), message_sync)
-                    .await
-                {
+                let mut message_handle = match server.start_message_prover(rx_range, message_sync).await {
                     Ok(handle) => handle,
                     Err(e) => {
                         error!("Failed to start message prover: {e:?}");
@@ -269,34 +251,24 @@ pub async fn start_server(config: Config) -> Result<()> {
     let wrapper_task = Some({
         let storage_clone: Arc<dyn ProofStorage> = storage.clone();
         let message_sync = MessageProofSync::shared();
-        let ism_client_clone = Arc::clone(&ism_client);
 
         tokio::spawn(async move {
             loop {
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-                let batch_context =
-                    match BatchAppContext::from_config(&config_clone, Arc::clone(&ism_client_clone)).await {
-                        Ok(context) => context,
-                        Err(e) => {
-                            error!("Failed to create batch context: {e:?}");
-                            continue;
-                        }
-                    };
-                let batch_prover = match BatchExecProver::new(batch_context, tx_range) {
+                let batch_prover = match BatchExecProver::new(ctx.clone(), tx_range) {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create batch prover: {e:?}");
                         continue;
                     }
                 };
-                let message_prover =
-                    match prepare_message_prover(reth_rpc_url.clone(), reth_ws_url.clone(), storage_clone.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
+                let message_prover = match prepare_message_prover(ctx.clone(), storage_clone.clone()) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
                 let server = Arc::new(Server::new(Arc::new(message_prover), Arc::new(batch_prover)));
 
                 let mut batch_handle = match server.start_batch_prover(Arc::clone(&message_sync)).await {
@@ -306,10 +278,7 @@ pub async fn start_server(config: Config) -> Result<()> {
                         continue;
                     }
                 };
-                let mut message_handle = match server
-                    .start_message_prover(rx_range, Arc::clone(&ism_client_clone), Arc::clone(&message_sync))
-                    .await
-                {
+                let mut message_handle = match server.start_message_prover(rx_range, Arc::clone(&message_sync)).await {
                     Ok(handle) => handle,
                     Err(e) => {
                         error!("Failed to start message prover: {e:?}");
@@ -362,34 +331,18 @@ pub async fn start_server(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn prepare_message_prover(
-    reth_rpc_url: String,
-    reth_ws_url: String,
-    storage: Arc<dyn ProofStorage>,
-) -> Result<HyperlaneMessageProver> {
-    let ism_id = env::var("CELESTIA_ISM_ID").expect("CELESTIA_ISM_ID must be set");
-    let mailbox_address = env::var("MAILBOX_ADDRESS").expect("MAILBOX_ADDRESS must be set");
-    let celestia_mailbox_address = env::var("CELESTIA_MAILBOX_ADDRESS").expect("CELESTIA_MAILBOX_ADDRESS must be set");
-    let merkle_tree_address = env::var("MERKLE_TREE_ADDRESS").expect("MERKLE_TREE_ADDRESS must be set");
+fn prepare_message_prover(ctx: Arc<ChainContext>, storage: Arc<dyn ProofStorage>) -> Result<HyperlaneMessageProver> {
     let message_storage_path = Config::storage_path().join("messages.db");
     let snapshot_storage_path = Config::storage_path().join("snapshots.db");
     let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
     let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
-    let ctx = MessageAppContext {
-        evm_rpc: reth_rpc_url.clone(),
-        evm_ws: reth_ws_url,
-        mailbox_address: Address::from_str(&mailbox_address).unwrap(),
-        celestia_mailbox_address,
-        merkle_tree_address: Address::from_str(&merkle_tree_address).unwrap(),
-        ism_id,
-    };
-    let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&reth_rpc_url).unwrap());
+
     HyperlaneMessageProver::new(
-        ctx,
+        ctx.clone(),
         hyperlane_message_store,
         hyperlane_snapshot_store,
         storage.clone(),
-        Arc::new(MockStateQueryProvider::new(evm_provider)),
+        Arc::new(MockStateQueryProvider::new(ctx.evm_provider())),
     )
 }
 
