@@ -32,10 +32,10 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use ev_zkevm_types::programs::block::{BlockVerifier, EvCombinedInput};
+use ev_zkevm_types::programs::block::{BatchExecInput, BlockVerifier};
 
 pub fn main() {
-    let input: EvCombinedInput = sp1_zkvm::io::read::<EvCombinedInput>();
+    let input: BatchExecInput = sp1_zkvm::io::read::<BatchExecInput>();
     let output = BlockVerifier::verify_range(input.blocks).expect("failed to verify range");
     sp1_zkvm::io::commit(&output);
 }
