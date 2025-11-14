@@ -190,7 +190,7 @@ impl BatchExecProver {
     }
 
     /// Starts the batched prover loop.
-    pub async fn run(self, message_sync: Arc<MessageProofSync>) -> Result<()> {
+    pub async fn run(self: Arc<Self>, message_sync: Arc<MessageProofSync>) -> Result<()> {
         let mut batch_size = BATCH_SIZE;
         let mut scan_head: Option<u64> = None;
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
@@ -205,7 +205,7 @@ impl BatchExecProver {
                 scan_head = Some(status.trusted_celestia_height + 1);
             }
 
-            let scan_start = scan_head.unwrap();
+            let scan_start = scan_head.ok_or_else(|| anyhow!("Scan head is not set"))?;
             if scan_start < status.celestia_head {
                 batch_size = self
                     .calculate_batch_size(
@@ -289,7 +289,7 @@ impl BatchExecProver {
         }
 
         let namespace = self.app.namespace;
-        for height in scan_start..latest_head {
+        for height in scan_start..=latest_head {
             if !self.is_empty_block(height, namespace).await? {
                 // Ensure batch size stays within allowed range
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
@@ -323,10 +323,13 @@ impl BatchExecProver {
         let msg = MsgUpdateZkExecutionIsm::new(id, proof.bytes(), public_values, signer);
 
         info!("Updating ZKISM on Celestia...");
-        let res = self.app.ism_client.send_tx(msg).await?;
-        assert!(res.success);
+        let response = self.app.ism_client.send_tx(msg).await?;
+        if !response.success {
+            error!("Failed to submit state transition proof to ZKISM: {:?}", response);
+            return Err(anyhow::anyhow!("Failed to submit state transition proof to ZKISM"));
+        }
 
-        info!("[Done] Proof tx submitted to ism with hash: {}", res.tx_hash);
+        info!("[Done] Proof tx submitted to ism with hash: {}", response.tx_hash);
 
         Ok(())
     }
