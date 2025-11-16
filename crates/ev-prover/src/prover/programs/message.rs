@@ -252,6 +252,7 @@ impl HyperlaneMessageProver {
         }
 
         if messages.is_empty() {
+            debug!("No messages found in db");
             return Ok(());
         }
 

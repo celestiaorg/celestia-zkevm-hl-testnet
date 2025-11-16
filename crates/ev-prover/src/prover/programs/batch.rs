@@ -251,9 +251,7 @@ impl BatchExecProver {
             }
 
             let start_height = status.trusted_celestia_height + 1;
-            let input = self
-                .build_proof_inputs(&evm_provider, start_height, &status, batch_size)
-                .await?;
+            let input = self.build_proof_inputs(&evm_provider, start_height, &status).await?;
 
             let start_time = Instant::now();
             let (proof, output) = self.prove(input).await?;
@@ -362,16 +360,15 @@ impl BatchExecProver {
         evm_provider: &DefaultProvider,
         start_height: u64,
         status: &ProverStatus,
-        batch_size: u64,
     ) -> Result<BatchExecInput> {
+        let current_evm_head = evm_provider.get_block_number().await?;
         let mut current_height = status.trusted_height;
         let mut current_root = status.trusted_root;
 
         let namespace = self.ctx.namespace;
-        let end_height = start_height + batch_size - 1;
 
         let mut block_inputs: Vec<BlockExecInput> = Vec::new();
-        for block_number in start_height..=end_height {
+        for block_number in start_height..=current_evm_head {
             let input = self
                 .build_block_input(
                     evm_provider,
@@ -386,9 +383,6 @@ impl BatchExecProver {
 
             block_inputs.push(input);
         }
-
-        // let mut stdin = SP1Stdin::new();
-        // stdin.write(&);
         Ok(BatchExecInput { blocks: block_inputs })
     }
 
