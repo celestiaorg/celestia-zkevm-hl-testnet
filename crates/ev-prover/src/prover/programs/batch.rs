@@ -297,18 +297,11 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            if let Err(e) = self.submit_proof_msg(&proof).await {
-                error!(?e, "failed to submit tx to ism");
-            }
-
-            // reset batch size and fast forward checkpoints
-            batch_size = BATCH_SIZE;
-            scan_head = Some(status.celestia_head + 1);
-
-            // todo: index before proving, more robust if indexer fails
+            // todo: index before submitting, so that if the indexer fails we can retry the whole flow
             indexer.filter = Filter::new()
                 .address(indexer.contract_address)
                 .event(&Dispatch::id())
+                // start indexing from the first evm block after our last checkpoint
                 .from_block(self.get_last_blob_height(status.trusted_celestia_height).await? + 1)
                 .to_block(output.new_height);
 
@@ -316,6 +309,14 @@ impl BatchExecProver {
             indexer
                 .index(self.message_store.clone(), Arc::new(evm_provider.clone()))
                 .await?;
+
+            if let Err(e) = self.submit_proof_msg(&proof).await {
+                error!(?e, "failed to submit tx to ism");
+            }
+
+            // reset batch size and fast forward checkpoints
+            batch_size = BATCH_SIZE;
+            scan_head = Some(status.celestia_head + 1);
 
             let permit = message_sync.begin().await;
             let commit = RangeProofCommitted::new(output.new_height, output.new_state_root);
