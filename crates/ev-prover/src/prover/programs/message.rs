@@ -6,12 +6,11 @@ use crate::prover::{prover_from_env, MessageProofRequest, MessageProofSync, Rang
 use crate::prover::{ProgramProver, ProverConfig};
 use alloy::hex::FromHex;
 use alloy_primitives::{Address, FixedBytes};
-use alloy_provider::{Provider, ProviderBuilder, WsConnect};
-use alloy_rpc_types::{EIP1186AccountProofResponse, Filter};
+use alloy_provider::{Provider, ProviderBuilder};
+use alloy_rpc_types::EIP1186AccountProofResponse;
 use anyhow::Result;
 use celestia_grpc_client::{CelestiaIsmClient, MsgProcessMessage, MsgSubmitMessages};
-use ev_state_queries::{hyperlane::indexer::HyperlaneIndexer, DefaultProvider, StateQueryProvider};
-use ev_zkevm_types::events::Dispatch;
+use ev_state_queries::{DefaultProvider, StateQueryProvider};
 use ev_zkevm_types::hyperlane::encode_hyperlane_message;
 use ev_zkevm_types::programs::hyperlane::types::{
     HyperlaneBranchProof, HyperlaneBranchProofInputs, HyperlaneMessageInputs, HyperlaneMessageOutputs,
@@ -38,7 +37,6 @@ pub struct AppContext {
     // reth http, for example http://127.0.0.1:8545
     pub evm_rpc: String,
     // reth websocket, for example ws://127.0.0.1:8546
-    pub evm_ws: String,
     pub mailbox_address: Address,
     pub celestia_mailbox_address: String,
     pub merkle_tree_address: Address,
@@ -155,7 +153,6 @@ impl HyperlaneMessageProver {
         MessageProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
-    /// Run the message prover with indexer
     pub async fn run(
         self: Arc<Self>,
         mut range_rx: Receiver<MessageProofRequest>,
@@ -163,10 +160,6 @@ impl HyperlaneMessageProver {
         message_sync: Arc<MessageProofSync>,
     ) -> Result<()> {
         let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&self.ctx.evm_rpc)?);
-        let socket = WsConnect::new(&self.ctx.evm_ws);
-        let contract_address = self.ctx.mailbox_address;
-        let filter = Filter::new().address(contract_address).event(&Dispatch::id());
-        let mut indexer = HyperlaneIndexer::new(socket, contract_address, filter.clone());
         while let Some(request) = range_rx.recv().await {
             let commit_message: RangeProofCommitted = request.commit;
             info!("Received commit message: {:?}", commit_message);
@@ -191,8 +184,6 @@ impl HyperlaneMessageProver {
 
             if let Err(e) = self
                 .run_inner(
-                    &evm_provider,
-                    &mut indexer,
                     committed_height,
                     merkle_proof.clone(),
                     FixedBytes::from_slice(&committed_state_root),
@@ -218,8 +209,6 @@ impl HyperlaneMessageProver {
 
     async fn run_inner(
         &self,
-        evm_provider: &DefaultProvider,
-        indexer: &mut HyperlaneIndexer,
         committed_height: u64,
         proof: EIP1186AccountProofResponse,
         state_root: FixedBytes<32>,
@@ -234,17 +223,6 @@ impl HyperlaneMessageProver {
             return Ok(());
         }
         let start_height = snapshot.height + 1;
-
-        indexer.filter = Filter::new()
-            .address(indexer.contract_address)
-            .event(&Dispatch::id())
-            .from_block(start_height)
-            .to_block(committed_height);
-
-        // run the indexer to get all messages that occurred since the last trusted height
-        indexer
-            .index(self.message_store.clone(), Arc::new(evm_provider.clone()))
-            .await?;
 
         let mut messages: Vec<StoredHyperlaneMessage> = Vec::new();
         for block in start_height..=committed_height {

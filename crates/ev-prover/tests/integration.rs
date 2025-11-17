@@ -26,7 +26,6 @@ async fn test_run_message_prover() {
         std::env::var("CELESTIA_MAILBOX_ADDRESS").expect("CELESTIA_MAILBOX_ADDRESS must be set");
     let merkle_tree_address = std::env::var("MERKLE_TREE_ADDRESS").expect("MERKLE_TREE_ADDRESS must be set");
     let reth_rpc_url = std::env::var("RETH_RPC_URL").expect("RETH_RPC_URL must be set");
-    let reth_ws_url = std::env::var("RETH_WS_URL").expect("RETH_WS_URL must be set");
     let config = ClientConfig::from_env().unwrap();
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await.unwrap());
     // Configure logging for ev-prover
@@ -57,7 +56,6 @@ async fn test_run_message_prover() {
 
     let app = AppContext {
         evm_rpc: reth_rpc_url.clone(),
-        evm_ws: reth_ws_url,
         mailbox_address: Address::from_str(&mailbox_address).unwrap(),
         celestia_mailbox_address,
         merkle_tree_address: Address::from_str(&merkle_tree_address).unwrap(),

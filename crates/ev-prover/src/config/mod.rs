@@ -45,6 +45,9 @@ pub struct RpcConfig {
     /// RPC endpoint for the sequencer node.
     pub evnode_rpc: String,
 
+    /// RPC endpoint for the EVM node websocket.
+    pub evreth_ws: String,
+
     /// RPC endpoint for the EVM node.
     pub evreth_rpc: String,
 }
@@ -54,6 +57,7 @@ impl Default for RpcConfig {
         Self {
             celestia_rpc: "http://localhost:26658".into(),
             evnode_rpc: "http://localhost:7331".into(),
+            evreth_ws: "ws://localhost:8546".into(),
             evreth_rpc: "http://localhost:8545".into(),
         }
     }

@@ -144,7 +144,6 @@ pub async fn start_server(config: Config) -> Result<()> {
     let listener = TcpListener::bind(config.grpc_address.clone()).await?;
     let sequencer_rpc_url = std::env::var("SEQUENCER_RPC_URL").expect("SEQUENCER_RPC_URL must be set");
     let reth_rpc_url = std::env::var("RETH_RPC_URL").expect("RETH_RPC_URL must be set");
-    let reth_ws_url = std::env::var("RETH_WS_URL").expect("RETH_WS_URL must be set");
     let descriptor_bytes = include_bytes!("../../src/proto/descriptor.bin");
     let reflection_service = ReflectionBuilder::configure()
         .register_encoded_file_descriptor_set(descriptor_bytes)
@@ -158,6 +157,9 @@ pub async fn start_server(config: Config) -> Result<()> {
     // Initialize RocksDB storage in the default data directory
     let storage_path = Config::storage_path().join("proofs.db");
     let storage = Arc::new(RocksDbProofStorage::new(storage_path)?);
+    // Message store, shared for indexing
+    let message_storage_path = Config::storage_path().join("messages.db");
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
@@ -288,21 +290,25 @@ pub async fn start_server(config: Config) -> Result<()> {
                         continue;
                     }
                 };
-                let batch_prover = match BatchExecProver::new(batch_ctx, tx_range) {
+                let batch_prover = match BatchExecProver::new(batch_ctx, tx_range, Arc::clone(&hyperlane_message_store))
+                {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create batch prover: {e:?}");
                         continue;
                     }
                 };
-                let message_prover =
-                    match prepare_message_prover(reth_rpc_url.clone(), reth_ws_url.clone(), storage_clone.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
+                let message_prover = match prepare_message_prover(
+                    reth_rpc_url.clone(),
+                    storage_clone.clone(),
+                    Arc::clone(&hyperlane_message_store),
+                ) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
                 let server = Arc::new(Server::new(Arc::new(message_prover), Arc::new(batch_prover)));
 
                 let mut batch_handle = match server.start_batch_prover(Arc::clone(&message_sync)).await {
@@ -370,20 +376,17 @@ pub async fn start_server(config: Config) -> Result<()> {
 
 fn prepare_message_prover(
     reth_rpc_url: String,
-    reth_ws_url: String,
     storage: Arc<dyn ProofStorage>,
+    message_store: Arc<HyperlaneMessageStore>,
 ) -> Result<HyperlaneMessageProver> {
     let ism_id = env::var("CELESTIA_ISM_ID").expect("CELESTIA_ISM_ID must be set");
     let mailbox_address = env::var("MAILBOX_ADDRESS").expect("MAILBOX_ADDRESS must be set");
     let merkle_tree_address = env::var("MERKLE_TREE_ADDRESS").expect("MERKLE_TREE_ADDRESS must be set");
     let celestia_mailbox_address = env::var("CELESTIA_MAILBOX_ADDRESS").expect("CELESTIA_MAILBOX_ADDRESS must be set");
-    let message_storage_path = Config::storage_path().join("messages.db");
     let snapshot_storage_path = Config::storage_path().join("snapshots.db");
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
     let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
     let ctx = MessageAppContext {
         evm_rpc: reth_rpc_url.clone(),
-        evm_ws: reth_ws_url,
         mailbox_address: Address::from_str(&mailbox_address).unwrap(),
         celestia_mailbox_address,
         merkle_tree_address: Address::from_str(&merkle_tree_address).unwrap(),
@@ -392,7 +395,7 @@ fn prepare_message_prover(
     let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&reth_rpc_url).unwrap());
     HyperlaneMessageProver::new(
         ctx,
-        hyperlane_message_store,
+        message_store,
         hyperlane_snapshot_store,
         storage.clone(),
         Arc::new(MockStateQueryProvider::new(evm_provider)),

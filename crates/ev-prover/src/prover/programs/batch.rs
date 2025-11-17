@@ -10,7 +10,8 @@ use crate::{
 };
 use alloy::sol;
 use alloy_primitives::{Address, FixedBytes};
-use alloy_provider::{Provider, ProviderBuilder};
+use alloy_provider::{Provider, ProviderBuilder, WsConnect};
+use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use celestia_grpc_client::{CelestiaIsmClient, MsgUpdateZkExecutionIsm, QueryIsmRequest};
@@ -19,14 +20,17 @@ use celestia_types::{
     nmt::{Namespace, NamespaceProof},
     Blob,
 };
+use ev_state_queries::hyperlane::indexer::HyperlaneIndexer;
 use ev_state_queries::DefaultProvider;
 use ev_types::v1::SignedData;
+use ev_zkevm_types::events::Dispatch;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
 use prost::Message;
 use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;
 use rsp_primitives::genesis::Genesis;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use storage::hyperlane::message::HyperlaneMessageStore;
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
@@ -98,6 +102,7 @@ impl ProverStatus {
 pub struct AppContext {
     pub celestia_client: Arc<Client>,
     pub evm_rpc: String,
+    pub evm_ws: String,
     pub ism_client: Arc<CelestiaIsmClient>,
     pub mailbox_address: Address,
     pub chain_spec: Arc<ChainSpec>,
@@ -120,6 +125,7 @@ impl AppContext {
         Ok(Self {
             celestia_client: Arc::new(celestia_client),
             evm_rpc: config.rpc.evreth_rpc.clone(),
+            evm_ws: config.rpc.evreth_ws.clone(),
             ism_client,
             mailbox_address,
             chain_spec,
@@ -171,6 +177,7 @@ impl ProverConfig for BatchProverConfig {
 
 pub struct BatchExecProver {
     ctx: AppContext,
+    message_store: Arc<HyperlaneMessageStore>,
     range_tx: mpsc::Sender<MessageProofRequest>,
     config: BatchProverConfig,
     prover: Arc<SP1Prover>,
@@ -205,12 +212,17 @@ impl ProgramProver for BatchExecProver {
 
 impl BatchExecProver {
     /// Creates a new prover instance.
-    pub fn new(ctx: AppContext, range_tx: mpsc::Sender<MessageProofRequest>) -> Result<Self> {
+    pub fn new(
+        ctx: AppContext,
+        range_tx: mpsc::Sender<MessageProofRequest>,
+        message_store: Arc<HyperlaneMessageStore>,
+    ) -> Result<Self> {
         let prover = prover_from_env();
         let config = BatchExecProver::default_config(prover.as_ref());
 
         Ok(Self {
             ctx,
+            message_store,
             config,
             prover,
             range_tx,
@@ -231,6 +243,9 @@ impl BatchExecProver {
         let evm_provider = Box::leak(Box::new(ProviderBuilder::new().connect_http(self.ctx.evm_rpc.parse()?))) as &_;
         let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address, evm_provider);
         let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
+        let socket = WsConnect::new(&self.ctx.evm_ws);
+        let filter = Filter::new().address(self.ctx.mailbox_address).event(&Dispatch::id());
+        let mut indexer = HyperlaneIndexer::new(socket, self.ctx.mailbox_address, filter.clone());
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
@@ -276,6 +291,8 @@ impl BatchExecProver {
                 .build_proof_inputs(evm_provider, start_height, &status, end_height)
                 .await?;
 
+            // before generating the proof, index all messages in range
+
             let start_time = Instant::now();
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
@@ -287,6 +304,17 @@ impl BatchExecProver {
             // reset batch size and fast forward checkpoints
             batch_size = BATCH_SIZE;
             scan_head = Some(status.celestia_head + 1);
+
+            indexer.filter = Filter::new()
+                .address(indexer.contract_address)
+                .event(&Dispatch::id())
+                .from_block(start_height)
+                .to_block(output.new_height);
+
+            // run the indexer to get all messages that occurred since the last trusted height
+            indexer
+                .index(self.message_store.clone(), Arc::new(evm_provider.clone()))
+                .await?;
 
             let permit = message_sync.begin().await;
             let commit = RangeProofCommitted::new(output.new_height, output.new_state_root);
@@ -343,7 +371,6 @@ impl BatchExecProver {
                     ))
                     .await?;
                 if &current_mailbox_nonce > mailbox_nonce {
-                    warn!("Found non-empty block at height {height}");
                     // Ensure batch size stays within allowed range
                     let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
                     let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
