@@ -271,6 +271,9 @@ async fn brute_force_head(celestia_client: &Client, namespace: Namespace) -> Res
                     }
                     Ok(_) => {
                         info!("No blobs at height {}, trying next height", current_height);
+                        if search_height == 0 {
+                            return Err(anyhow::anyhow!("No blobs found in chain"));
+                        }
                         search_height -= 1;
                     }
                     Err(e) => {
@@ -278,6 +281,9 @@ async fn brute_force_head(celestia_client: &Client, namespace: Namespace) -> Res
                             "Error fetching blobs at height {}: {}, trying next height",
                             current_height, e
                         );
+                        if search_height == 0 {
+                            return Err(anyhow::anyhow!("No blobs found in chain"));
+                        }
                         search_height -= 1;
                     }
                 }
