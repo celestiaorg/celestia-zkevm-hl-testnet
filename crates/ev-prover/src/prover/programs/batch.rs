@@ -38,6 +38,7 @@ use crate::config::Config;
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
+// Required because we want to pass a reference to the abi to calculate_batch_size
 type MailboxContractType = MailboxContract::MailboxContractInstance<
     &'static alloy_provider::fillers::FillProvider<
         alloy_provider::fillers::JoinFill<
@@ -301,7 +302,7 @@ impl BatchExecProver {
             indexer.filter = Filter::new()
                 .address(indexer.contract_address)
                 .event(&Dispatch::id())
-                // start indexing from the first evm block after our last checkpoint
+                // start indexing from the first ev block after our last checkpoint
                 .from_block(self.get_last_blob_height(status.trusted_celestia_height).await? + 1)
                 .to_block(output.new_height);
 
@@ -531,7 +532,7 @@ impl BatchExecProver {
             let data = signed_data.data.ok_or_else(|| anyhow!("Data not found"))?;
             let height = data.metadata.ok_or_else(|| anyhow!("Metadata not found"))?.height;
             last_height = height;
-            debug!("Got SignedData for EVM block {height}");
+            debug!("Got SignedData for ev block {height}");
 
             let client_executor_input =
                 generate_client_executor_input(&self.ctx.evm_rpc, height, chain_spec.clone(), genesis.clone()).await?;
