@@ -34,6 +34,25 @@ use crate::config::Config;
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
+type MailboxContractType = MailboxContract::MailboxContractInstance<
+    &'static alloy_provider::fillers::FillProvider<
+        alloy_provider::fillers::JoinFill<
+            alloy_provider::Identity,
+            alloy_provider::fillers::JoinFill<
+                alloy_provider::fillers::GasFiller,
+                alloy_provider::fillers::JoinFill<
+                    alloy_provider::fillers::BlobGasFiller,
+                    alloy_provider::fillers::JoinFill<
+                        alloy_provider::fillers::NonceFiller,
+                        alloy_provider::fillers::ChainIdFiller,
+                    >,
+                >,
+            >,
+        >,
+        alloy_provider::RootProvider,
+    >,
+>;
+
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const BATCH_ELF: &[u8] = include_elf!("ev-batch-program");
 
@@ -209,8 +228,8 @@ impl BatchExecProver {
         let mut batch_size = BATCH_SIZE;
         let mut scan_head: Option<u64> = None;
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
-        let evm_provider = ProviderBuilder::new().connect_http(self.ctx.evm_rpc.parse()?);
-        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address, &evm_provider);
+        let evm_provider = Box::leak(Box::new(ProviderBuilder::new().connect_http(self.ctx.evm_rpc.parse()?))) as &_;
+        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address, evm_provider);
         let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
         loop {
             message_sync.wait_for_idle().await;
@@ -218,22 +237,13 @@ impl BatchExecProver {
 
             let status = self.load_prover_status().await?;
             let end_height = status.celestia_head;
-            let current_mailbox_nonce = mailbox_contract
-                .nonce()
-                .call()
-                .block(alloy_rpc_types::BlockId::Number(
-                    alloy_rpc_types::BlockNumberOrTag::Number(self.get_last_blob_height(end_height).await?),
-                ))
-                .await?;
-
-            debug!("Current mailbox nonce: {current_mailbox_nonce}, mailbox nonce: {mailbox_nonce}");
 
             if scan_head.is_none() {
                 scan_head = Some(status.trusted_celestia_height + 1);
             }
 
             let scan_start = scan_head.ok_or_else(|| anyhow!("Scan head is not set"))?;
-            if scan_start < status.celestia_head && current_mailbox_nonce > mailbox_nonce {
+            if scan_start < status.celestia_head {
                 // only check if batch size can be reduced if a new mailbox event was emitted
                 batch_size = self
                     .calculate_batch_size(
@@ -241,6 +251,8 @@ impl BatchExecProver {
                         status.celestia_head,
                         status.trusted_celestia_height,
                         batch_size,
+                        &mut mailbox_nonce,
+                        &mailbox_contract,
                     )
                     .await?;
             }
@@ -261,7 +273,7 @@ impl BatchExecProver {
 
             let start_height = status.trusted_celestia_height + 1;
             let input = self
-                .build_proof_inputs(&evm_provider, start_height, &status, end_height)
+                .build_proof_inputs(evm_provider, start_height, &status, end_height)
                 .await?;
 
             let start_time = Instant::now();
@@ -275,7 +287,6 @@ impl BatchExecProver {
             // reset batch size and fast forward checkpoints
             batch_size = BATCH_SIZE;
             scan_head = Some(status.celestia_head + 1);
-            mailbox_nonce = current_mailbox_nonce;
 
             let permit = message_sync.begin().await;
             let commit = RangeProofCommitted::new(output.new_height, output.new_state_root);
@@ -314,6 +325,8 @@ impl BatchExecProver {
         latest_head: u64,
         trusted_celestia_height: u64,
         current_batch: u64,
+        mailbox_nonce: &mut u32,
+        mailbox_contract: &MailboxContractType,
     ) -> Result<u64> {
         if scan_start >= latest_head {
             return Ok(current_batch);
@@ -322,12 +335,22 @@ impl BatchExecProver {
         let namespace = self.ctx.namespace;
         for height in scan_start..=latest_head {
             if !self.is_empty_block(height, namespace).await? {
-                warn!("Found non-empty block at height {height}");
-                // Ensure batch size stays within allowed range
-                let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
-                let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
-                debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
-                return Ok(batch_size);
+                let current_mailbox_nonce = mailbox_contract
+                    .nonce()
+                    .call()
+                    .block(alloy_rpc_types::BlockId::Number(
+                        alloy_rpc_types::BlockNumberOrTag::Number(self.get_last_blob_height(height).await?),
+                    ))
+                    .await?;
+                if &current_mailbox_nonce > mailbox_nonce {
+                    warn!("Found non-empty block at height {height}");
+                    // Ensure batch size stays within allowed range
+                    let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
+                    let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
+                    *mailbox_nonce = current_mailbox_nonce;
+                    debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
+                    return Ok(batch_size);
+                }
             }
         }
 
