@@ -213,7 +213,14 @@ impl BatchExecProver {
         let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address, &evm_provider);
         let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
         loop {
-            let current_mailbox_nonce = mailbox_contract.nonce().call().await?;
+            let end_height = self.ctx.celestia_client.header_local_head().await?.height().value();
+            let current_mailbox_nonce = mailbox_contract
+                .nonce()
+                .call()
+                .block(alloy_rpc_types::BlockId::Number(
+                    alloy_rpc_types::BlockNumberOrTag::Number(end_height),
+                ))
+                .await?;
             message_sync.wait_for_idle().await;
             poll.tick().await;
 
@@ -251,7 +258,6 @@ impl BatchExecProver {
             }
 
             let start_height = status.trusted_celestia_height + 1;
-            let end_height = self.ctx.celestia_client.header_local_head().await?.height().value();
             let input = self
                 .build_proof_inputs(&evm_provider, start_height, &status, end_height)
                 .await?;
@@ -314,6 +320,7 @@ impl BatchExecProver {
         let namespace = self.ctx.namespace;
         for height in scan_start..=latest_head {
             if !self.is_empty_block(height, namespace).await? {
+                warn!("Found non-empty block at height {height}");
                 // Ensure batch size stays within allowed range
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
                 let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
