@@ -305,6 +305,7 @@ impl BatchExecProver {
             batch_size = BATCH_SIZE;
             scan_head = Some(status.celestia_head + 1);
 
+            // todo: index before proving, more robust if indexer fails
             indexer.filter = Filter::new()
                 .address(indexer.contract_address)
                 .event(&Dispatch::id())
