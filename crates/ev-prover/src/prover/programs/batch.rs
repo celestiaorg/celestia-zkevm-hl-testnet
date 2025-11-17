@@ -303,7 +303,7 @@ impl BatchExecProver {
                 .address(indexer.contract_address)
                 .event(&Dispatch::id())
                 // start indexing from the first ev block after our last checkpoint
-                .from_block(self.get_last_blob_height(status.trusted_celestia_height).await? + 1)
+                .from_block(status.trusted_height + 1)
                 .to_block(output.new_height);
 
             // run the indexer to get all messages that occurred since the last trusted height
