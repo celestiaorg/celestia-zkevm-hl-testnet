@@ -213,18 +213,20 @@ impl BatchExecProver {
         let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address, &evm_provider);
         let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
         loop {
-            let end_height = self.ctx.celestia_client.header_local_head().await?.height().value();
-            let current_mailbox_nonce = mailbox_contract
-                .nonce()
-                .call()
-                .block(alloy_rpc_types::BlockId::Number(
-                    alloy_rpc_types::BlockNumberOrTag::Number(end_height),
-                ))
-                .await?;
             message_sync.wait_for_idle().await;
             poll.tick().await;
 
             let status = self.load_prover_status().await?;
+            let end_height = status.celestia_head;
+            let current_mailbox_nonce = mailbox_contract
+                .nonce()
+                .call()
+                .block(alloy_rpc_types::BlockId::Number(
+                    alloy_rpc_types::BlockNumberOrTag::Number(self.get_last_blob_height(end_height).await?),
+                ))
+                .await?;
+
+            debug!("Current mailbox nonce: {current_mailbox_nonce}, mailbox nonce: {mailbox_nonce}");
 
             if scan_head.is_none() {
                 scan_head = Some(status.trusted_celestia_height + 1);
@@ -362,6 +364,27 @@ impl BatchExecProver {
         info!("[Done] Proof tx submitted to ism with hash: {}", response.tx_hash);
 
         Ok(())
+    }
+
+    async fn get_last_blob_height(&self, height: u64) -> Result<u64> {
+        let blobs: Vec<Blob> = self
+            .ctx
+            .celestia_client
+            .blob_get_all(height, &[self.ctx.namespace])
+            .await?
+            .unwrap_or_default();
+
+        let last_blob = blobs.last().ok_or_else(|| anyhow!("No blobs found"))?;
+        let last_blob_signed_data = match SignedData::decode(last_blob.data.as_slice()) {
+            Ok(data) => data,
+            Err(_) => return Err(anyhow!("Failed to decode last blob signed data")),
+        };
+        let last_blob_data = last_blob_signed_data.data.ok_or_else(|| anyhow!("Data not found"))?;
+        let last_blob_height = last_blob_data
+            .metadata
+            .ok_or_else(|| anyhow!("Metadata not found"))?
+            .height;
+        Ok(last_blob_height)
     }
 
     /// Builds the proof input structure for the given batch size starting from the provided height.
