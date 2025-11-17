@@ -309,7 +309,7 @@ impl BatchExecProver {
             indexer.filter = Filter::new()
                 .address(indexer.contract_address)
                 .event(&Dispatch::id())
-                .from_block(start_height)
+                .from_block(self.get_last_blob_height(status.trusted_celestia_height).await? + 1)
                 .to_block(output.new_height);
 
             // run the indexer to get all messages that occurred since the last trusted height
