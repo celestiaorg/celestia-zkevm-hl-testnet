@@ -22,7 +22,6 @@ use tokio::task::JoinHandle;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server as TonicServer;
 use tonic_reflection::server::Builder as ReflectionBuilder;
-use tracing::info;
 use tracing::{debug, error};
 
 use crate::config::Config;

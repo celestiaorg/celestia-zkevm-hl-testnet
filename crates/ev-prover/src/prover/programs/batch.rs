@@ -295,7 +295,8 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            if start_height + 1 < start_height + batch_size {
+            // index if new ev blocks were included
+            if status.trusted_height < output.new_height {
                 indexer.filter = Filter::new()
                     .address(indexer.contract_address)
                     .event(&Dispatch::id())
