@@ -244,17 +244,17 @@ pub async fn start_server(config: Config) -> Result<()> {
                 };
                 tokio::select! {
                     r = &mut block_handle => {
-                        error!("block prover stopped: {:?}", r);
+                        error!("Block prover stopped: {:?}", r);
                         message_handle.abort();
                         block_range_handle.abort();
                     }
                     r = &mut message_handle => {
-                        error!("message prover stopped: {:?}", r);
+                        error!("Message prover stopped: {:?}", r);
                         block_handle.abort();
                         block_range_handle.abort();
                     }
                     r = &mut block_range_handle => {
-                        error!("block range prover stopped: {:?}", r);
+                        error!("Block range prover stopped: {:?}", r);
                         block_handle.abort();
                         message_handle.abort();
                     }
@@ -308,11 +308,11 @@ pub async fn start_server(config: Config) -> Result<()> {
 
                 tokio::select! {
                     r = &mut batch_handle => {
-                        error!("batch prover stopped: {:?}", r);
+                        error!("Batch prover stopped: {:?}", r);
                         message_handle.abort();
                     }
                     r = &mut message_handle => {
-                        error!("message prover stopped: {:?}", r);
+                        error!("Message prover stopped: {:?}", r);
                         batch_handle.abort();
                     }
                 }
@@ -337,9 +337,9 @@ pub async fn start_server(config: Config) -> Result<()> {
             }
             r = server_task => {
                 match r {
-                    Ok(Ok(())) => debug!("gRPC server stopped gracefully"),
-                    Ok(Err(e)) => error!("gRPC server failed: {e:?}"),
-                    Err(e) => error!("gRPC server task panicked: {e:?}"),
+                    Ok(Ok(())) => debug!("GRPC server stopped gracefully"),
+                    Ok(Err(e)) => error!("GRPC server failed: {e:?}"),
+                    Err(e) => error!("GRPC server task panicked: {e:?}"),
                 }
                 wrapper_task.abort();
             }

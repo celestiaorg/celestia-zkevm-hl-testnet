@@ -216,7 +216,7 @@ impl BlockRangeExecService {
         concurrency: usize,
     ) -> Result<Self> {
         let next_expected = proof_store.get_range_cursor().await?;
-        debug!(?next_expected, "loaded next expected range cursor from proof_store");
+        debug!(?next_expected, "Loaded next expected range cursor from proof_store");
 
         Ok(Self {
             ctx,
@@ -246,7 +246,7 @@ impl BlockRangeExecService {
                 if let Some(cursor) = self.next_expected {
                     let proof_store = self.proof_store.clone();
                     proof_store.set_range_cursor(cursor).await?;
-                    debug!(next_expected = cursor, "persisted next expected range cursor");
+                    debug!(next_expected = cursor, "Persisted next expected range cursor");
                 }
 
                 let permit = self.concurrency.clone().acquire_owned().await?;
@@ -261,7 +261,7 @@ impl BlockRangeExecService {
                 let hyperlane_message_store = self.hyperlane_message_store.clone();
 
                 // Spawn a concurrent task to aggregate and submit the range proof
-                info!(?start, ?end, "spawning new task for aggregate range");
+                info!(?start, ?end, "Spawning new task for aggregate range");
                 tokio::spawn(async move {
                     let _permit = permit;
 
@@ -269,7 +269,7 @@ impl BlockRangeExecService {
                         Ok((proof, output)) => {
                             // Submit the range proof to the ISM
                             if let Err(e) = Self::submit_range_proof(&client, &proof).await {
-                                error!(?e, "failed to submit tx to ism");
+                                error!(?e, "Failed to submit tx to ism");
                             }
 
                             let event = RangeProofCommitted::new(output.new_height, output.new_state_root);
@@ -289,17 +289,17 @@ impl BlockRangeExecService {
                                     .index(hyperlane_message_store.clone(), Arc::new(ctx.evm_provider()))
                                     .await
                                 {
-                                    error!(?e, "failed to index hyperlane messages");
+                                    error!(?e, "Failed to index hyperlane messages");
                                 }
                             }
 
                             // Send the range proof committed event downstream
                             if let Err(e) = tx.send(message).await {
-                                error!(?e, "failed to send RangeProofCommitted event on channel");
+                                error!(?e, "Failed to send RangeProofCommitted event on channel");
                             }
                         }
                         Err(e) => {
-                            error!(?e, %start, %end, "range aggregation failed");
+                            error!(?e, %start, %end, "Range aggregation failed");
                         }
                     }
                 });
@@ -380,7 +380,7 @@ impl BlockRangeExecService {
         // Store the range proof for future reference
         proof_store.store_range_proof(start, end, &res, &output).await?;
 
-        info!("Successfull created and stored proof for range {start}-{end}. Outputs: {output}");
+        info!("Successfully created and stored proof for range {start}-{end}. Outputs: {output}");
 
         Ok((res, output))
     }

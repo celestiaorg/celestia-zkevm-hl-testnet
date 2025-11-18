@@ -82,16 +82,16 @@ impl Config {
 
         let config_path = config_dir.join(Self::CONFIG_FILE);
         if !config_path.exists() {
-            info!("creating default config at {config_path:?}");
+            info!("Creating default config at {config_path:?}");
             let yaml = serde_yaml::to_string(&Config::default())?;
             fs::write(&config_path, yaml)?;
         } else {
-            info!("config file already exists at {config_path:?}");
+            info!("Config file already exists at {config_path:?}");
         }
 
         let genesis_path = config_dir.join(Self::GENESIS_FILE);
         if !genesis_path.exists() {
-            info!("writing embedded genesis to {genesis_path:?}");
+            info!("Writing embedded genesis to {genesis_path:?}");
             fs::write(&genesis_path, Self::DEFAULT_GENESIS_JSON)?;
         }
 
@@ -135,7 +135,7 @@ impl Config {
             return Err(anyhow!("config file not found at {}", config_path.display()));
         }
 
-        info!("reading config file at {}", config_path.display());
+        info!("Reading config file at {}", config_path.display());
         let config_yaml = fs::read_to_string(&config_path).context("Failed to read config file from path")?;
         let config = serde_yaml::from_str(&config_yaml)?;
 
@@ -149,7 +149,7 @@ impl Config {
             return Err(anyhow!("genesis file not found at {}", genesis_path.display()));
         }
 
-        info!("reading genesis file at {}", genesis_path.display());
+        info!("Reading genesis file at {}", genesis_path.display());
         let genesis_json = fs::read_to_string(genesis_path).context("Failed to read genesis file from path")?;
         let alloy_genesis: AlloyGenesis = serde_json::from_str(&genesis_json)?;
 

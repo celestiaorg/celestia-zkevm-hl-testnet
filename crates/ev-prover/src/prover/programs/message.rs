@@ -269,7 +269,7 @@ impl HyperlaneMessageProver {
             return Err(anyhow::anyhow!("Failed to submit Hyperlane tree proof to ZKISM"));
         }
 
-        info!("[Done] ZKISM was updated successfully");
+        info!("ZKISM was updated successfully");
         self.proof_store
             .store_membership_proof(committed_height, &message_proof.0, &message_proof.1)
             .await?;

@@ -242,7 +242,7 @@ impl BlockExecProver {
                 let mut tasks = JoinSet::new();
 
                 while let Some(event) = event_rx.recv().await {
-                    debug!("\nNew block event height={}, blobs={}", event.height, event.blobs.len());
+                    debug!("New block event height={}, blobs={}", event.height, event.blobs.len());
                     let client = client.clone();
                     let prover = prover.clone();
                     let job_tx = job_tx.clone();
@@ -254,13 +254,13 @@ impl BlockExecProver {
                             Ok(job) => {
                                 let _ = job_tx.send(job).await;
                             }
-                            Err(e) => error!("failed to retrieve proof inputs: {e:#}"),
+                            Err(e) => error!("Failed to retrieve proof inputs: {e:#}"),
                         }
                     });
                 }
 
                 while tasks.join_next().await.is_some() {}
-                error!("prepare stage shutting down");
+                error!("Prepare stage shutting down");
             }
         });
 
@@ -320,7 +320,7 @@ impl BlockExecProver {
                     }
                 }
 
-                error!("schedule stage shutting down");
+                error!("Schedule stage shutting down");
             }
         });
 
@@ -341,13 +341,13 @@ impl BlockExecProver {
                         let _permit = permit; // limit concurrent proofs
 
                         if let Err(e) = prover.prove_and_store(scheduled).await {
-                            error!("prove failed: {e:#}");
+                            error!("Prove failed: {e:#}");
                         }
                     });
                 }
 
                 while tasks.join_next().await.is_some() {}
-                error!("prove stage shutting down");
+                error!("Prove stage shutting down");
             }
         });
 

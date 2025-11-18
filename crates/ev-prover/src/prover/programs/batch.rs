@@ -221,7 +221,7 @@ impl BatchExecProver {
             }
 
             if let Err(e) = self.submit_proof_msg(&proof).await {
-                error!(?e, "failed to submit tx to ism");
+                error!(?e, "Failed to submit tx to ism");
             }
 
             // reset batch size and fast forward checkpoints
