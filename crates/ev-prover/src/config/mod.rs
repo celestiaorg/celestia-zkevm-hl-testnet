@@ -20,6 +20,9 @@ pub struct Config {
     /// Configuration for outbound RPC connections (Celestia, EVM, etc.)
     pub rpc: RpcConfig,
 
+    /// Configuration for Hyperlane addresses and identifiers.
+    pub hyperlane: HyperlaneConfig,
+
     /// Namespace ID for Celestia blob inclusion.
     pub namespace: Namespace,
 
@@ -36,34 +39,12 @@ pub struct Config {
     pub batch_size: usize,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
-pub struct RpcConfig {
-    /// RPC endpoint for the Celestia light node.
-    pub celestia_rpc: String,
-
-    /// RPC endpoint for the sequencer node.
-    pub evnode_rpc: String,
-
-    /// RPC endpoint for the EVM node.
-    pub evreth_rpc: String,
-}
-
-impl Default for RpcConfig {
-    fn default() -> Self {
-        Self {
-            celestia_rpc: "http://localhost:26658".into(),
-            evnode_rpc: "http://localhost:7331".into(),
-            evreth_rpc: "http://localhost:8545".into(),
-        }
-    }
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
             grpc_address: "127.0.0.1:50051".into(),
             rpc: RpcConfig::default(),
+            hyperlane: HyperlaneConfig::default(),
             namespace: Namespace::new_v0(&hex::decode(DEFAULT_NAMESPACE).unwrap()).unwrap(),
             pub_key: DEFAULT_PUB_KEY_HEX.into(),
             queue_capacity: 256,
@@ -174,5 +155,79 @@ impl Config {
 
         let genesis = Genesis::Custom(alloy_genesis.config);
         Ok(genesis)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RpcConfig {
+    /// RPC endpoint for the Celestia light node.
+    pub celestia_rpc: String,
+
+    /// RPC endpoint for the sequencer node.
+    pub evnode_rpc: String,
+
+    /// RPC endpoint for the EVM node.
+    pub evreth_rpc: String,
+
+    /// Websocket endpoint for the EVM node.
+    pub evreth_ws: String,
+}
+
+impl Default for RpcConfig {
+    fn default() -> Self {
+        Self {
+            celestia_rpc: "http://localhost:26658".into(),
+            evnode_rpc: "http://localhost:7331".into(),
+            evreth_rpc: "http://localhost:8545".into(),
+            evreth_ws: "ws://localhost:8546".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct HyperlaneConfig {
+    #[serde(default)]
+    pub evm: EvmHyperlaneConfig,
+
+    #[serde(default)]
+    pub celestia: CelestiaHyperlaneConfig,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EvmHyperlaneConfig {
+    /// Mailbox contract address on the EVM chain.
+    pub mailbox_address: String,
+
+    /// Merkle tree contract address on the EVM chain.
+    pub merkle_tree_address: String,
+}
+
+impl Default for EvmHyperlaneConfig {
+    fn default() -> Self {
+        Self {
+            mailbox_address: "0xb1c938f5ba4b3593377f399e12175e8db0c787ff".into(),
+            merkle_tree_address: "0xfcb1d485ef46344029d9e8a7925925e146b3430e".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CelestiaHyperlaneConfig {
+    /// Ism identifier
+    pub ism_id: String,
+
+    /// Celestia mailbox identifier / address (whatever format you use).
+    pub mailbox_id: String,
+}
+
+impl Default for CelestiaHyperlaneConfig {
+    fn default() -> Self {
+        Self {
+            ism_id: "0x726f757465725f69736d000000000000000000000000002a0000000000000001".to_string(),
+            mailbox_id: "0x68797065726c616e650000000000000000000000000000000000000000000000".to_string(),
+        }
     }
 }

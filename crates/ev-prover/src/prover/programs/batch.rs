@@ -1,39 +1,34 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::{
-    generate_client_executor_input,
-    prover::{
-        config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
-        MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
-    },
+use crate::prover::chain::ChainContext;
+use crate::prover::{
+    config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
+    MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
 };
 use alloy_primitives::FixedBytes;
-use alloy_provider::{Provider, ProviderBuilder};
+use alloy_provider::Provider;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use celestia_grpc_client::{CelestiaIsmClient, MsgUpdateZkExecutionIsm, QueryIsmRequest};
-use celestia_rpc::{BlobClient, Client, HeaderClient, ShareClient};
+use celestia_grpc_client::{MsgUpdateZkExecutionIsm, QueryIsmRequest};
+use celestia_rpc::{BlobClient, HeaderClient, ShareClient};
 use celestia_types::{
     nmt::{Namespace, NamespaceProof},
     Blob,
 };
 use ev_types::v1::SignedData;
-use ev_zkevm_types::programs::block::{BlockExecInput, BlockRangeExecOutput, EvCombinedInput};
+use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
 use prost::Message;
-use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;
-use rsp_primitives::genesis::Genesis;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
-use crate::config::Config;
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const EV_COMBINED_ELF: &[u8] = include_elf!("ev-combined-program");
+pub const BATCH_ELF: &[u8] = include_elf!("ev-batch-program");
 
 /// ProverStatus of the latest Celestia state relevant to the prover loop.
 ///
@@ -63,57 +58,16 @@ impl ProverStatus {
     }
 }
 
-/// AppContext contains RPC clients and configuration required by the prover.
-///
-/// This encapsulates the dependencies required to query on-chain state and build proof inputs
-/// including chain spec, genesis, namespace, sequencer key and rpc clients.
-pub struct AppContext {
-    pub celestia_client: Arc<Client>,
-    pub evm_rpc: String,
-    pub ism_client: Arc<CelestiaIsmClient>,
-    pub chain_spec: Arc<ChainSpec>,
-    pub genesis: Genesis,
-    pub namespace: Namespace,
-    pub pub_key: Vec<u8>,
-}
-
-impl AppContext {
-    pub async fn from_config(config: &Config, ism_client: Arc<CelestiaIsmClient>) -> Result<Self> {
-        let celestia_client = Client::new(&config.rpc.celestia_rpc, None).await?;
-        let genesis = Config::load_genesis()?;
-        let chain_spec = Self::chain_spec_from_genesis(&genesis)?;
-        let pub_key = hex::decode(config.pub_key.clone())?;
-
-        Ok(Self {
-            celestia_client: Arc::new(celestia_client),
-            evm_rpc: config.rpc.evreth_rpc.clone(),
-            ism_client,
-            chain_spec,
-            genesis,
-            namespace: config.namespace,
-            pub_key,
-        })
-    }
-
-    pub fn chain_spec_from_genesis(genesis: &Genesis) -> Result<Arc<ChainSpec>> {
-        let chain_spec: ChainSpec = genesis
-            .try_into()
-            .map_err(|e| anyhow!("Failed to convert genesis to chain spec: {e}"))?;
-
-        Ok(Arc::new(chain_spec))
-    }
-}
-
 #[derive(Clone)]
-pub struct CombinedProverConfig {
+pub struct BatchProverConfig {
     pub pk: Arc<SP1ProvingKey>,
     pub vk: Arc<SP1VerifyingKey>,
     pub proof_mode: SP1ProofMode,
 }
 
-impl CombinedProverConfig {
+impl BatchProverConfig {
     pub fn new(pk: SP1ProvingKey, vk: SP1VerifyingKey, mode: SP1ProofMode) -> Self {
-        CombinedProverConfig {
+        BatchProverConfig {
             pk: Arc::new(pk),
             vk: Arc::new(vk),
             proof_mode: mode,
@@ -121,7 +75,7 @@ impl CombinedProverConfig {
     }
 }
 
-impl ProverConfig for CombinedProverConfig {
+impl ProverConfig for BatchProverConfig {
     fn pk(&self) -> Arc<SP1ProvingKey> {
         Arc::clone(&self.pk)
     }
@@ -135,17 +89,17 @@ impl ProverConfig for CombinedProverConfig {
     }
 }
 
-pub struct EvCombinedProver {
-    app: AppContext,
+pub struct BatchExecProver {
+    ctx: Arc<ChainContext>,
     range_tx: mpsc::Sender<MessageProofRequest>,
-    config: CombinedProverConfig,
+    config: BatchProverConfig,
     prover: Arc<SP1Prover>,
 }
 
 #[async_trait]
-impl ProgramProver for EvCombinedProver {
-    type Config = CombinedProverConfig;
-    type Input = EvCombinedInput;
+impl ProgramProver for BatchExecProver {
+    type Config = BatchProverConfig;
+    type Input = BatchExecInput;
     type Output = BlockRangeExecOutput;
 
     fn cfg(&self) -> &Self::Config {
@@ -169,14 +123,14 @@ impl ProgramProver for EvCombinedProver {
     }
 }
 
-impl EvCombinedProver {
+impl BatchExecProver {
     /// Creates a new prover instance.
-    pub fn new(app: AppContext, range_tx: mpsc::Sender<MessageProofRequest>) -> Result<Self> {
+    pub fn new(ctx: Arc<ChainContext>, range_tx: mpsc::Sender<MessageProofRequest>) -> Result<Self> {
         let prover = prover_from_env();
-        let config = EvCombinedProver::default_config(prover.as_ref());
+        let config = BatchExecProver::default_config(prover.as_ref());
 
         Ok(Self {
-            app,
+            ctx,
             config,
             prover,
             range_tx,
@@ -184,9 +138,9 @@ impl EvCombinedProver {
     }
 
     /// Returns the prover config.
-    pub fn default_config(prover: &SP1Prover) -> CombinedProverConfig {
-        let (pk, vk) = prover.setup(EV_COMBINED_ELF);
-        CombinedProverConfig::new(pk, vk, SP1ProofMode::Groth16)
+    pub fn default_config(prover: &SP1Prover) -> BatchProverConfig {
+        let (pk, vk) = prover.setup(BATCH_ELF);
+        BatchProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
     /// Starts the batched prover loop.
@@ -257,15 +211,15 @@ impl EvCombinedProver {
     /// the latest header from Celestia.
     async fn load_prover_status(&self) -> Result<ProverStatus> {
         let resp = self
-            .app
-            .ism_client
+            .ctx
+            .ism_client()
             .ism(QueryIsmRequest {
-                id: self.app.ism_client.ism_id().to_string(),
+                id: self.ctx.ism_id().to_string(),
             })
             .await?;
         let ism = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
         let trusted_root = FixedBytes::from_slice(&ism.state_root);
-        let celestia_head = self.app.celestia_client.header_local_head().await?.height().value();
+        let celestia_head = self.ctx.celestia_client().header_local_head().await?.height().value();
 
         Ok(ProverStatus {
             trusted_height: ism.height,
@@ -288,7 +242,7 @@ impl EvCombinedProver {
             return Ok(current_batch);
         }
 
-        let namespace = self.app.namespace;
+        let namespace = self.ctx.namespace();
         for height in scan_start..=latest_head {
             if !self.is_empty_block(height, namespace).await? {
                 // Ensure batch size stays within allowed range
@@ -305,8 +259,8 @@ impl EvCombinedProver {
     /// Retruns true if the block contains zero blobs for the given Namespace.
     async fn is_empty_block(&self, height: u64, namespace: Namespace) -> Result<bool> {
         let blobs: Vec<Blob> = self
-            .app
-            .celestia_client
+            .ctx
+            .celestia_client()
             .blob_get_all(height, &[namespace])
             .await?
             .unwrap_or_default();
@@ -316,14 +270,14 @@ impl EvCombinedProver {
 
     /// Submits a state transition proof msg to the zk verifier on-chain.
     async fn submit_proof_msg(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
-        let id = self.app.ism_client.ism_id().to_string();
+        let id = self.ctx.ism_id().to_string();
         let public_values = proof.public_values.as_slice().to_vec();
-        let signer = self.app.ism_client.signer_address().to_string();
+        let signer = self.ctx.ism_client().signer_address().to_string();
 
         let msg = MsgUpdateZkExecutionIsm::new(id, proof.bytes(), public_values, signer);
 
         info!("Updating ZKISM on Celestia...");
-        let response = self.app.ism_client.send_tx(msg).await?;
+        let response = self.ctx.ism_client().send_tx(msg).await?;
         if !response.success {
             error!("Failed to submit state transition proof to ZKISM: {:?}", response);
             return Err(anyhow::anyhow!("Failed to submit state transition proof to ZKISM"));
@@ -340,24 +294,17 @@ impl EvCombinedProver {
         start_height: u64,
         status: &ProverStatus,
         batch_size: u64,
-    ) -> Result<EvCombinedInput> {
+    ) -> Result<BatchExecInput> {
         let mut current_height = status.trusted_height;
         let mut current_root = status.trusted_root;
 
-        let namespace = self.app.namespace;
+        let namespace = self.ctx.namespace();
         let end_height = start_height + batch_size - 1;
 
         let mut block_inputs: Vec<BlockExecInput> = Vec::new();
         for block_number in start_height..=end_height {
             let input = self
-                .build_block_input(
-                    block_number,
-                    namespace,
-                    &mut current_height,
-                    &mut current_root,
-                    self.app.chain_spec.clone(),
-                    self.app.genesis.clone(),
-                )
+                .build_block_input(block_number, namespace, &mut current_height, &mut current_root)
                 .await?;
 
             block_inputs.push(input);
@@ -365,7 +312,7 @@ impl EvCombinedProver {
 
         // let mut stdin = SP1Stdin::new();
         // stdin.write(&);
-        Ok(EvCombinedInput { blocks: block_inputs })
+        Ok(BatchExecInput { blocks: block_inputs })
     }
 
     /// Builds a single block prover input for the given height.
@@ -375,21 +322,19 @@ impl EvCombinedProver {
         namespace: Namespace,
         trusted_height: &mut u64,
         trusted_root: &mut FixedBytes<32>,
-        chain_spec: Arc<ChainSpec>,
-        genesis: Genesis,
     ) -> Result<BlockExecInput> {
         let blobs: Vec<Blob> = self
-            .app
-            .celestia_client
+            .ctx
+            .celestia_client()
             .blob_get_all(height, &[namespace])
             .await?
             .unwrap_or_default();
         debug!("Got {} blobs for block: {}", blobs.len(), height);
 
-        let extended_header = self.app.celestia_client.header_get_by_height(height).await?;
+        let extended_header = self.ctx.celestia_client().header_get_by_height(height).await?;
         let namespace_data = self
-            .app
-            .celestia_client
+            .ctx
+            .celestia_client()
             .share_get_namespace_data(&extended_header, namespace)
             .await?;
         let mut proofs: Vec<NamespaceProof> = Vec::new();
@@ -408,7 +353,7 @@ impl EvCombinedProver {
                 header_raw: serde_cbor::to_vec(&extended_header.header)?,
                 dah: extended_header.dah,
                 blobs_raw: serde_cbor::to_vec(&blobs)?,
-                pub_key: self.app.pub_key.to_vec(),
+                pub_key: self.ctx.pub_key_bytes(),
                 namespace,
                 proofs,
                 executor_inputs: vec![],
@@ -428,8 +373,7 @@ impl EvCombinedProver {
             last_height = height;
             debug!("Got SignedData for EVM block {height}");
 
-            let client_executor_input =
-                generate_client_executor_input(&self.app.evm_rpc, height, chain_spec.clone(), genesis.clone()).await?;
+            let client_executor_input = self.ctx.generate_executor_input(height).await?;
             executor_inputs.push(client_executor_input);
         }
 
@@ -437,7 +381,7 @@ impl EvCombinedProver {
             header_raw: serde_cbor::to_vec(&extended_header.header)?,
             dah: extended_header.dah,
             blobs_raw: serde_cbor::to_vec(&blobs)?,
-            pub_key: self.app.pub_key.to_vec(),
+            pub_key: self.ctx.pub_key_bytes(),
             namespace,
             proofs,
             executor_inputs: executor_inputs.clone(),
@@ -445,8 +389,9 @@ impl EvCombinedProver {
             trusted_root: *trusted_root,
         };
 
-        let provider = ProviderBuilder::new().connect_http(self.app.evm_rpc.parse()?);
-        let block = provider
+        let block = self
+            .ctx
+            .evm_provider()
             .get_block_by_number(last_height.into())
             .await?
             .ok_or_else(|| anyhow!("Block {last_height} not found"))?;

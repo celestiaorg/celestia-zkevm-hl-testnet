@@ -3264,7 +3264,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ev-combined-program"
+name = "ev-batch-program"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus",
@@ -3289,7 +3289,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ev-combined-script"
+name = "ev-batch-script"
 version = "0.1.0"
 dependencies = [
  "bincode",
@@ -3445,6 +3445,7 @@ dependencies = [
  "tonic-reflection",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]

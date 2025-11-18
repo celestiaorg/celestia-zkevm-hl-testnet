@@ -23,4 +23,4 @@ We use the standard SP1 approach to write compressed proofs generated using `ev-
 | namespace | [u8;29] | the Celestia namespace that contains the data blobs which themselves contain EV blocks | |
 | public_key | [u8;32] | the sequencer's public key for verification |
 
-These are the same as for `ev-range-exec`, because the circuits fulfill a similar purpose and update the same ISM endpoint. The only difference is that `combined` does not prove every single block recursively, but instead takes a block range as input and generates a single proof using just one prover instance.
+These are the same as for `ev-range-exec`, because the circuits fulfill a similar purpose and update the same ISM endpoint. The only difference is that `batch-exec` does not prove every single block recursively, but instead takes a block range as input and generates a single proof using just one prover instance.
