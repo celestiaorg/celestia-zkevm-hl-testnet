@@ -279,7 +279,11 @@ impl BatchExecProver {
                     .nonce()
                     .call()
                     .block(alloy_rpc_types::BlockId::Number(
-                        alloy_rpc_types::BlockNumberOrTag::Number(self.get_last_blob_height(height).await?),
+                        alloy_rpc_types::BlockNumberOrTag::Number(
+                            self.get_last_blob_height(height)
+                                .await?
+                                .ok_or_else(|| anyhow!("No blobs found but Mailbox nonce increased"))?,
+                        ),
                     ))
                     .await?;
                 if current_mailbox_nonce > *mailbox_nonce {
@@ -328,13 +332,16 @@ impl BatchExecProver {
         Ok(())
     }
 
-    async fn get_last_blob_height(&self, height: u64) -> Result<u64> {
+    async fn get_last_blob_height(&self, height: u64) -> Result<Option<u64>> {
         let blobs: Vec<Blob> = self
             .ctx
             .celestia_client()
             .blob_get_all(height, &[self.ctx.namespace()])
             .await?
             .unwrap_or_default();
+        if blobs.is_empty() {
+            return Ok(None);
+        }
 
         let last_blob = blobs.last().ok_or_else(|| anyhow!("No blobs found"))?;
         let last_blob_signed_data = match SignedData::decode(last_blob.data.as_slice()) {
@@ -346,7 +353,7 @@ impl BatchExecProver {
             .metadata
             .ok_or_else(|| anyhow!("Metadata not found"))?
             .height;
-        Ok(last_blob_height)
+        Ok(Some(last_blob_height))
     }
 
     /// Builds the proof input structure for the given batch size starting from the provided height.
