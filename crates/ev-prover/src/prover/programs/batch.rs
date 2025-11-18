@@ -250,10 +250,7 @@ impl BatchExecProver {
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
-
             let status = self.load_prover_status().await?;
-            let end_height = status.celestia_head;
-
             if scan_head.is_none() {
                 scan_head = Some(status.trusted_celestia_height + 1);
             }
@@ -289,7 +286,7 @@ impl BatchExecProver {
 
             let start_height = status.trusted_celestia_height + 1;
             let input = self
-                .build_proof_inputs(evm_provider, start_height, &status, end_height)
+                .build_proof_inputs(evm_provider, start_height, &status, batch_size)
                 .await?;
 
             // before generating the proof, index all messages in range
@@ -298,17 +295,19 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            indexer.filter = Filter::new()
-                .address(indexer.contract_address)
-                .event(&Dispatch::id())
-                // start indexing from the first ev block after our last checkpoint
-                .from_block(status.trusted_height + 1)
-                .to_block(output.new_height);
+            if start_height + 1 < start_height + batch_size {
+                indexer.filter = Filter::new()
+                    .address(indexer.contract_address)
+                    .event(&Dispatch::id())
+                    // start indexing from the first ev block after our last checkpoint
+                    .from_block(status.trusted_height + 1)
+                    .to_block(output.new_height);
 
-            // run the indexer to get all messages that occurred since the last trusted height
-            indexer
-                .index(self.message_store.clone(), Arc::new(evm_provider.clone()))
-                .await?;
+                // run the indexer to get all messages that occurred since the last trusted height
+                indexer
+                    .index(self.message_store.clone(), Arc::new(evm_provider.clone()))
+                    .await?;
+            }
 
             if let Err(e) = self.submit_proof_msg(&proof).await {
                 error!(?e, "failed to submit tx to ism");
@@ -372,7 +371,7 @@ impl BatchExecProver {
                         alloy_rpc_types::BlockNumberOrTag::Number(self.get_last_blob_height(height).await?),
                     ))
                     .await?;
-                if &current_mailbox_nonce > mailbox_nonce {
+                if current_mailbox_nonce > *mailbox_nonce {
                     // Ensure batch size stays within allowed range
                     let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
                     let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
@@ -445,7 +444,7 @@ impl BatchExecProver {
         evm_provider: &DefaultProvider,
         start_height: u64,
         status: &ProverStatus,
-        end_height: u64,
+        batch_size: u64,
     ) -> Result<BatchExecInput> {
         let mut current_height = status.trusted_height;
         let mut current_root = status.trusted_root;
@@ -453,7 +452,7 @@ impl BatchExecProver {
         let namespace = self.ctx.namespace;
 
         let mut block_inputs: Vec<BlockExecInput> = Vec::new();
-        for block_number in start_height..=end_height {
+        for block_number in start_height..=start_height + batch_size {
             let input = self
                 .build_block_input(
                     evm_provider,

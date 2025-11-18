@@ -345,7 +345,7 @@ pub async fn start_server(config: Config) -> Result<()> {
                         batch_handle.abort();
                     }
                 }
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_secs(600)).await;
             }
         })
     });
