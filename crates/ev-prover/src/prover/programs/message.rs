@@ -7,12 +7,11 @@ use crate::prover::{prover_from_env, MessageProofRequest, MessageProofSync, Rang
 use crate::prover::{ProgramProver, ProverConfig};
 use alloy::hex::FromHex;
 use alloy_primitives::FixedBytes;
-use alloy_provider::{Provider, WsConnect};
-use alloy_rpc_types::{EIP1186AccountProofResponse, Filter};
+use alloy_provider::Provider;
+use alloy_rpc_types::EIP1186AccountProofResponse;
 use anyhow::Result;
 use celestia_grpc_client::{MsgProcessMessage, MsgSubmitMessages};
-use ev_state_queries::{hyperlane::indexer::HyperlaneIndexer, DefaultProvider, StateQueryProvider};
-use ev_zkevm_types::events::Dispatch;
+use ev_state_queries::StateQueryProvider;
 use ev_zkevm_types::hyperlane::encode_hyperlane_message;
 use ev_zkevm_types::programs::hyperlane::types::{
     HyperlaneBranchProof, HyperlaneBranchProofInputs, HyperlaneMessageInputs, HyperlaneMessageOutputs,
@@ -145,11 +144,6 @@ impl HyperlaneMessageProver {
         message_sync: Arc<MessageProofSync>,
     ) -> Result<()> {
         let evm_provider = self.ctx.evm_provider();
-        let socket = WsConnect::new(self.ctx.evm_ws_endpoint());
-        let contract_address = self.ctx.mailbox_address();
-        let filter = Filter::new().address(contract_address).event(&Dispatch::id());
-        let mut indexer = HyperlaneIndexer::new(socket, contract_address, filter.clone());
-
         while let Some(request) = range_rx.recv().await {
             let commit_message: RangeProofCommitted = request.commit;
             info!("Received commit message: {:?}", commit_message);

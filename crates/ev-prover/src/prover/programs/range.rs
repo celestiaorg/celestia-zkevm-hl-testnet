@@ -1,19 +1,23 @@
 #![allow(dead_code)]
 use std::{collections::BTreeSet, env, sync::Arc};
 
+use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use celestia_grpc_client::{CelestiaIsmClient, StateTransitionProofMsg};
+use ev_zkevm_types::events::Dispatch;
 use ev_zkevm_types::programs::block::{BlockRangeExecInput, BlockRangeExecOutput};
 use sp1_sdk::{
     include_elf, HashableKey, SP1Proof, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin,
     SP1VerifyingKey,
 };
+use storage::hyperlane::message::HyperlaneMessageStore;
 use storage::proofs::ProofStorage;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Semaphore;
 use tracing::{debug, error, info};
 
+use crate::prover::chain::ChainContext;
 use crate::prover::{
     programs::block::EV_EXEC_ELF, BlockProofCommitted, MessageProofRequest, ProgramProver, ProverConfig,
     RangeProofCommitted,
@@ -155,16 +159,17 @@ impl ProgramProver for BlockRangeExecProver {
 /// - All SP1 proofs must be in compressed format (`SP1Proof::Compressed`).
 /// - The number of `vkeys` must exactly match the number of `proofs`.
 pub struct BlockRangeExecProver {
+    ctx: Arc<ChainContext>,
     config: BlockRangeExecConfig,
     prover: Arc<SP1Prover>,
 }
 
 impl BlockRangeExecProver {
-    pub fn new() -> Result<Self> {
+    pub fn new(ctx: Arc<ChainContext>) -> Result<Self> {
         let prover = prover_from_env();
         let config = BlockRangeExecProver::default_config(prover.as_ref());
 
-        Ok(Self { config, prover })
+        Ok(Self { ctx, config, prover })
     }
 
     /// Returns the default prover configuration for the block execution program.
@@ -182,9 +187,11 @@ impl BlockRangeExecProver {
 }
 
 pub struct BlockRangeExecService {
+    ctx: Arc<ChainContext>,
     client: CelestiaIsmClient,
     prover: Arc<BlockRangeExecProver>,
-    storage: Arc<dyn ProofStorage>,
+    proof_store: Arc<dyn ProofStorage>,
+    hyperlane_message_store: Arc<HyperlaneMessageStore>,
     rx_block: Receiver<BlockProofCommitted>,
     tx_range: Sender<MessageProofRequest>,
 
@@ -197,21 +204,25 @@ pub struct BlockRangeExecService {
 
 impl BlockRangeExecService {
     pub async fn new(
+        ctx: Arc<ChainContext>,
         client: CelestiaIsmClient,
         prover: Arc<BlockRangeExecProver>,
-        storage: Arc<dyn ProofStorage>,
+        proof_store: Arc<dyn ProofStorage>,
+        hyperlane_message_store: Arc<HyperlaneMessageStore>,
         rx_block: Receiver<BlockProofCommitted>,
         tx_range: Sender<MessageProofRequest>,
         batch_size: usize,
         concurrency: usize,
     ) -> Result<Self> {
-        let next_expected = storage.get_range_cursor().await?;
-        debug!(?next_expected, "loaded next expected range cursor from storage");
+        let next_expected = proof_store.get_range_cursor().await?;
+        debug!(?next_expected, "loaded next expected range cursor from proof_store");
 
         Ok(Self {
+            ctx,
             client,
             prover,
-            storage,
+            proof_store,
+            hyperlane_message_store,
             rx_block,
             tx_range,
             batch_size,
@@ -222,14 +233,15 @@ impl BlockRangeExecService {
     }
 
     pub async fn run(mut self) -> Result<()> {
+        let indexer = self.ctx.hyperlane_indexer();
         while let Some(ev) = self.rx_block.recv().await {
             self.pending.insert(ev);
             debug!("Block execution proofs pending: {}", self.pending.len());
 
             while let Some((start, end)) = self.next_provable_range()? {
                 if let Some(cursor) = self.next_expected {
-                    let storage = self.storage.clone();
-                    storage.set_range_cursor(cursor).await?;
+                    let proof_store = self.proof_store.clone();
+                    proof_store.set_range_cursor(cursor).await?;
                     debug!(next_expected = cursor, "persisted next expected range cursor");
                 }
 
@@ -237,14 +249,17 @@ impl BlockRangeExecService {
 
                 let client = self.client.clone();
                 let prover = self.prover.clone();
-                let storage = self.storage.clone();
+                let proof_store = self.proof_store.clone();
                 let tx = self.tx_range.clone();
 
                 info!(?start, ?end, "spawning new task for aggregate range");
+                let mut indexer_clone = indexer.clone();
+                let ctx = self.ctx.clone();
+                let hyperlane_message_store = self.hyperlane_message_store.clone();
                 tokio::spawn(async move {
                     let _permit = permit;
 
-                    match Self::aggregate_range(start, end, prover, storage).await {
+                    match Self::aggregate_range(start, end, prover, proof_store).await {
                         Ok((proof, output)) => {
                             if let Err(e) = Self::submit_range_proof(&client, &proof).await {
                                 error!(?e, "failed to submit tx to ism");
@@ -252,6 +267,23 @@ impl BlockRangeExecService {
 
                             let event = RangeProofCommitted::new(output.new_height, output.new_state_root);
                             let message = MessageProofRequest::new(event);
+                            // index if new ev blocks were included
+                            if output.trusted_height < output.new_height {
+                                indexer_clone.filter = Filter::new()
+                                    .address(indexer_clone.contract_address)
+                                    .event(&Dispatch::id())
+                                    // start indexing from the first ev block after our last checkpoint
+                                    .from_block(output.trusted_height + 1)
+                                    .to_block(output.new_height);
+
+                                // run the indexer to get all messages that occurred since the last trusted height
+                                if let Err(e) = indexer_clone
+                                    .index(hyperlane_message_store.clone(), Arc::new(ctx.evm_provider()))
+                                    .await
+                                {
+                                    error!(?e, "failed to index hyperlane messages");
+                                }
+                            }
                             if let Err(e) = tx.send(message).await {
                                 error!(?e, "failed to send RangeProofCommitted event on channel");
                             }
@@ -314,9 +346,9 @@ impl BlockRangeExecService {
         start: u64,
         end: u64,
         prover: Arc<BlockRangeExecProver>,
-        storage: Arc<dyn ProofStorage>,
+        proof_store: Arc<dyn ProofStorage>,
     ) -> Result<(SP1ProofWithPublicValues, BlockRangeExecOutput)> {
-        let block_proofs = storage.get_block_proofs_in_range(start, end).await?;
+        let block_proofs = proof_store.get_block_proofs_in_range(start, end).await?;
         let inner = &prover.cfg().block_exec;
         let vkeys = vec![inner.digest; block_proofs.len()];
 
@@ -331,7 +363,7 @@ impl BlockRangeExecService {
 
         let input = (BlockRangeExecInput { vkeys, public_values }, proofs);
         let (res, output) = prover.prove(input).await?;
-        storage.store_range_proof(start, end, &res, &output).await?;
+        proof_store.store_range_proof(start, end, &res, &output).await?;
 
         info!("Successfull created and stored proof for range {start}-{end}. Outputs: {output}");
 

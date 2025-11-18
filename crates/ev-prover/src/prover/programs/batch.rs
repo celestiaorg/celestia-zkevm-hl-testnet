@@ -6,8 +6,10 @@ use crate::prover::{
     config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
     MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
 };
+use alloy::sol;
 use alloy_primitives::FixedBytes;
 use alloy_provider::Provider;
+use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use celestia_grpc_client::{MsgUpdateZkExecutionIsm, QueryIsmRequest};
@@ -16,8 +18,6 @@ use celestia_types::{
     nmt::{Namespace, NamespaceProof},
     Blob,
 };
-use ev_state_queries::hyperlane::indexer::HyperlaneIndexer;
-use ev_state_queries::DefaultProvider;
 use ev_types::v1::SignedData;
 use ev_zkevm_types::events::Dispatch;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
@@ -31,35 +31,15 @@ use tracing::{debug, error, info, warn};
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
-// Required because we want to pass a reference to the abi to calculate_batch_size
-type MailboxContractType = MailboxContract::MailboxContractInstance<
-    &'static alloy_provider::fillers::FillProvider<
-        alloy_provider::fillers::JoinFill<
-            alloy_provider::Identity,
-            alloy_provider::fillers::JoinFill<
-                alloy_provider::fillers::GasFiller,
-                alloy_provider::fillers::JoinFill<
-                    alloy_provider::fillers::BlobGasFiller,
-                    alloy_provider::fillers::JoinFill<
-                        alloy_provider::fillers::NonceFiller,
-                        alloy_provider::fillers::ChainIdFiller,
-                    >,
-                >,
-            >,
-        >,
-        alloy_provider::RootProvider,
-    >,
->;
-
-/// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const BATCH_ELF: &[u8] = include_elf!("ev-batch-program");
-
 sol! {
     #[sol(rpc)]
     contract MailboxContract {
         function nonce() public view returns (uint32);
     }
 }
+
+/// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
+pub const BATCH_ELF: &[u8] = include_elf!("ev-batch-program");
 
 /// ProverStatus of the latest Celestia state relevant to the prover loop.
 ///
@@ -125,6 +105,7 @@ pub struct BatchExecProver {
     range_tx: mpsc::Sender<MessageProofRequest>,
     config: BatchProverConfig,
     prover: Arc<SP1Prover>,
+    hyperlane_message_store: Arc<HyperlaneMessageStore>,
 }
 
 #[async_trait]
@@ -156,7 +137,11 @@ impl ProgramProver for BatchExecProver {
 
 impl BatchExecProver {
     /// Creates a new prover instance.
-    pub fn new(ctx: Arc<ChainContext>, range_tx: mpsc::Sender<MessageProofRequest>) -> Result<Self> {
+    pub fn new(
+        ctx: Arc<ChainContext>,
+        range_tx: mpsc::Sender<MessageProofRequest>,
+        hyperlane_message_store: Arc<HyperlaneMessageStore>,
+    ) -> Result<Self> {
         let prover = prover_from_env();
         let config = BatchExecProver::default_config(prover.as_ref());
 
@@ -165,6 +150,7 @@ impl BatchExecProver {
             config,
             prover,
             range_tx,
+            hyperlane_message_store,
         })
     }
 
@@ -179,12 +165,9 @@ impl BatchExecProver {
         let mut batch_size = BATCH_SIZE;
         let mut scan_head: Option<u64> = None;
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
-        let evm_provider = Box::leak(Box::new(ProviderBuilder::new().connect_http(self.ctx.evm_rpc.parse()?))) as &_;
-        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address, evm_provider);
+        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
         let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
-        let socket = WsConnect::new(&self.ctx.evm_ws);
-        let filter = Filter::new().address(self.ctx.mailbox_address).event(&Dispatch::id());
-        let mut indexer = HyperlaneIndexer::new(socket, self.ctx.mailbox_address, filter.clone());
+        let mut indexer = self.ctx.hyperlane_indexer();
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
@@ -203,7 +186,6 @@ impl BatchExecProver {
                         status.trusted_celestia_height,
                         batch_size,
                         &mut mailbox_nonce,
-                        &mailbox_contract,
                     )
                     .await?;
             }
@@ -223,9 +205,7 @@ impl BatchExecProver {
             }
 
             let start_height = status.trusted_celestia_height + 1;
-            let input = self
-                .build_proof_inputs(evm_provider, start_height, &status, batch_size)
-                .await?;
+            let input = self.build_proof_inputs(start_height, &status, batch_size).await?;
 
             // before generating the proof, index all messages in range
 
@@ -244,7 +224,7 @@ impl BatchExecProver {
 
                 // run the indexer to get all messages that occurred since the last trusted height
                 indexer
-                    .index(self.message_store.clone(), Arc::new(evm_provider.clone()))
+                    .index(self.hyperlane_message_store.clone(), Arc::new(self.ctx.evm_provider()))
                     .await?;
             }
 
@@ -294,12 +274,11 @@ impl BatchExecProver {
         trusted_celestia_height: u64,
         current_batch: u64,
         mailbox_nonce: &mut u32,
-        mailbox_contract: &MailboxContractType,
     ) -> Result<u64> {
+        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
         if scan_start >= latest_head {
             return Ok(current_batch);
         }
-
         let namespace = self.ctx.namespace();
         for height in scan_start..=latest_head {
             if !self.is_empty_block(height, namespace).await? {
@@ -359,8 +338,8 @@ impl BatchExecProver {
     async fn get_last_blob_height(&self, height: u64) -> Result<u64> {
         let blobs: Vec<Blob> = self
             .ctx
-            .celestia_client
-            .blob_get_all(height, &[self.ctx.namespace])
+            .celestia_client()
+            .blob_get_all(height, &[self.ctx.namespace()])
             .await?
             .unwrap_or_default();
 
@@ -380,17 +359,13 @@ impl BatchExecProver {
     /// Builds the proof input structure for the given batch size starting from the provided height.
     async fn build_proof_inputs(
         &self,
-        evm_provider: &DefaultProvider,
         start_height: u64,
         status: &ProverStatus,
         batch_size: u64,
     ) -> Result<BatchExecInput> {
         let mut current_height = status.trusted_height;
         let mut current_root = status.trusted_root;
-
         let namespace = self.ctx.namespace();
-        let end_height = start_height + batch_size - 1;
-
         let mut block_inputs: Vec<BlockExecInput> = Vec::new();
         for block_number in start_height..=start_height + batch_size {
             let input = self
@@ -406,7 +381,6 @@ impl BatchExecProver {
     #[allow(clippy::too_many_arguments)]
     async fn build_block_input(
         &self,
-        provider: &DefaultProvider,
         height: u64,
         namespace: Namespace,
         trusted_height: &mut u64,

@@ -16,6 +16,7 @@ use storage::hyperlane::{StoredHyperlaneMessage, message::HyperlaneMessageStore}
 use tracing::debug;
 
 /// HyperlaneIndexer is a service that indexes Hyperlane messages from the Dispatch event emitted from the Mailbox contract.
+#[derive(Debug, Clone)]
 pub struct HyperlaneIndexer {
     pub socket: WsConnect,
     pub contract_address: Address,

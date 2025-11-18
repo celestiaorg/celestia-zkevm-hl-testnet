@@ -1,5 +1,5 @@
-use std::fs;
 use std::path::PathBuf;
+use std::{env, fs};
 
 use alloy_genesis::Genesis as AlloyGenesis;
 use anyhow::{anyhow, Context, Result};
@@ -202,6 +202,18 @@ pub struct EvmHyperlaneConfig {
 
     /// Merkle tree contract address on the EVM chain.
     pub merkle_tree_address: String,
+}
+
+impl EvmHyperlaneConfig {
+    pub fn from_env() -> Result<Self> {
+        let mailbox_address = env::var("MAILBOX_CONTRACT_ADDRESS").expect("MAILBOX_CONTRACT_ADDRESS must be set");
+        let merkle_tree_address =
+            env::var("MERKLE_TREE_CONTRACT_ADDRESS").expect("MERKLE_TREE_CONTRACT_ADDRESS must be set");
+        Ok(Self {
+            mailbox_address,
+            merkle_tree_address,
+        })
+    }
 }
 
 impl Default for EvmHyperlaneConfig {
