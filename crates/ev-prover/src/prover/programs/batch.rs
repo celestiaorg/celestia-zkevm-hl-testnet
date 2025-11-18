@@ -200,8 +200,7 @@ impl BatchExecProver {
             let start_height = status.trusted_celestia_height + 1;
             let input = self.build_proof_inputs(start_height, &status, batch_size).await?;
 
-            // before generating the proof, index all messages in range
-
+            // Generate the proof
             let start_time = Instant::now();
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
@@ -269,14 +268,17 @@ impl BatchExecProver {
         mailbox_nonce: &mut u32,
     ) -> Result<u64> {
         let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
+
         if scan_start >= latest_head {
             return Ok(current_batch);
         }
+
         for height in scan_start..=latest_head {
             let last_blob_height = self.get_last_blob_height(height).await?;
             if last_blob_height.is_none() {
                 continue;
             }
+
             let current_mailbox_nonce = mailbox_contract
                 .nonce()
                 .call()
@@ -286,6 +288,7 @@ impl BatchExecProver {
                     ),
                 ))
                 .await?;
+
             if current_mailbox_nonce > *mailbox_nonce {
                 // Ensure batch size stays within allowed range
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
@@ -354,6 +357,7 @@ impl BatchExecProver {
         let mut current_root = status.trusted_root;
         let namespace = self.ctx.namespace();
         let mut block_inputs: Vec<BlockExecInput> = Vec::new();
+
         for block_number in start_height..=start_height + batch_size {
             let input = self
                 .build_block_input(block_number, namespace, &mut current_height, &mut current_root)
@@ -394,6 +398,7 @@ impl BatchExecProver {
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 
         let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();
+
         if blobs.is_empty() {
             debug!(
                 "No blobs for Celestia height {}, keeping trusted_height={} and trusted_root unchanged",
@@ -412,6 +417,7 @@ impl BatchExecProver {
             });
         }
 
+        // Process blobs to extract executor inputs
         let mut last_height = 0;
         for blob in blobs.as_slice() {
             let signed_data = match SignedData::decode(blob.data.as_slice()) {
@@ -427,6 +433,7 @@ impl BatchExecProver {
             executor_inputs.push(client_executor_input);
         }
 
+        // Construct the block execution input
         let input = BlockExecInput {
             header_raw: serde_cbor::to_vec(&extended_header.header)?,
             dah: extended_header.dah,
@@ -439,6 +446,7 @@ impl BatchExecProver {
             trusted_root: *trusted_root,
         };
 
+        // Update trusted state based on the last EVM block processed
         let block = self
             .ctx
             .evm_provider()
@@ -448,6 +456,7 @@ impl BatchExecProver {
 
         *trusted_height = last_height;
         *trusted_root = block.header.state_root;
+
         debug!(
             "Updated trusted_height to {} and trusted_root to {:?}",
             trusted_height, trusted_root
