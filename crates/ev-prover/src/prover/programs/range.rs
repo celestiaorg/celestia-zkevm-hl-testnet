@@ -286,7 +286,7 @@ impl BlockRangeExecService {
 
                                 // Run the indexer to get all messages that occurred since the last trusted height
                                 if let Err(e) = indexer_clone
-                                    .index(hyperlane_message_store.clone(), Arc::new(ctx.evm_provider()))
+                                    .index(hyperlane_message_store.clone(), ctx.evm_provider())
                                     .await
                                 {
                                     error!(?e, "Failed to index hyperlane messages");

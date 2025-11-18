@@ -216,7 +216,7 @@ impl BatchExecProver {
 
                 // run the indexer to get all messages that occurred since the last trusted height
                 indexer
-                    .index(self.hyperlane_message_store.clone(), Arc::new(self.ctx.evm_provider()))
+                    .index(self.hyperlane_message_store.clone(), self.ctx.evm_provider())
                     .await?;
             }
 

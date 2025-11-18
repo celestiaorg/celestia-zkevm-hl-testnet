@@ -42,7 +42,7 @@ impl HyperlaneIndexer {
         Ok(Self::new(filter))
     }
 
-    pub async fn index(&self, message_store: Arc<HyperlaneMessageStore>, provider: Arc<DefaultProvider>) -> Result<()> {
+    pub async fn index(&self, message_store: Arc<HyperlaneMessageStore>, provider: DefaultProvider) -> Result<()> {
         let logs = provider.get_logs(&self.filter).await?;
         for log in logs {
             match Dispatch::decode_log_data(log.data()) {
