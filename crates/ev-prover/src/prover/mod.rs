@@ -7,6 +7,7 @@ use sp1_prover::components::CpuProverComponents;
 use sp1_sdk::{network::NetworkMode, Prover, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 use tracing::debug;
 
+pub mod abi;
 #[allow(clippy::module_inception)]
 pub mod chain;
 pub mod config;

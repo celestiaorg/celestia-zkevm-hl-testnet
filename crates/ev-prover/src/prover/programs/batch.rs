@@ -1,12 +1,12 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::prover::abi::MailboxContract;
 use crate::prover::chain::ChainContext;
 use crate::prover::{
     config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
     MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
 };
-use alloy::sol;
 use alloy_primitives::FixedBytes;
 use alloy_provider::Provider;
 use alloy_rpc_types::Filter;
@@ -30,13 +30,6 @@ use tracing::{debug, error, info, warn};
 
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
-
-sol! {
-    #[sol(rpc)]
-    contract MailboxContract {
-        function nonce() public view returns (uint32);
-    }
-}
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const BATCH_ELF: &[u8] = include_elf!("ev-batch-program");
