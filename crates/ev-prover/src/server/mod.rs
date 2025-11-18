@@ -142,8 +142,6 @@ impl Server {
 }
 
 pub async fn start_server(config: Config) -> Result<()> {
-    // very basic versioning such that we know we are on the right branch when starting the service
-    info!("Running Testnet v0.0.1-closed-alpha");
     let listener = TcpListener::bind(config.grpc_address.clone()).await?;
     let sequencer_rpc_url = std::env::var("SEQUENCER_RPC_URL").expect("SEQUENCER_RPC_URL must be set");
     let reth_rpc_url = std::env::var("RETH_RPC_URL").expect("RETH_RPC_URL must be set");
