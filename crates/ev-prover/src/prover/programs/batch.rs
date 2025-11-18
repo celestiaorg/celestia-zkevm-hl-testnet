@@ -272,44 +272,31 @@ impl BatchExecProver {
         if scan_start >= latest_head {
             return Ok(current_batch);
         }
-        let namespace = self.ctx.namespace();
         for height in scan_start..=latest_head {
-            if !self.is_empty_block(height, namespace).await? {
-                let current_mailbox_nonce = mailbox_contract
-                    .nonce()
-                    .call()
-                    .block(alloy_rpc_types::BlockId::Number(
-                        alloy_rpc_types::BlockNumberOrTag::Number(
-                            self.get_last_blob_height(height)
-                                .await?
-                                .ok_or_else(|| anyhow!("No blobs found but Mailbox nonce increased"))?,
-                        ),
-                    ))
-                    .await?;
-                if current_mailbox_nonce > *mailbox_nonce {
-                    // Ensure batch size stays within allowed range
-                    let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
-                    let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
-                    *mailbox_nonce = current_mailbox_nonce;
-                    debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
-                    return Ok(batch_size);
-                }
+            let last_blob_height = self.get_last_blob_height(height).await?;
+            if last_blob_height.is_none() {
+                continue;
+            }
+            let current_mailbox_nonce = mailbox_contract
+                .nonce()
+                .call()
+                .block(alloy_rpc_types::BlockId::Number(
+                    alloy_rpc_types::BlockNumberOrTag::Number(
+                        last_blob_height.ok_or_else(|| anyhow!("No blobs found but Mailbox nonce increased"))?,
+                    ),
+                ))
+                .await?;
+            if current_mailbox_nonce > *mailbox_nonce {
+                // Ensure batch size stays within allowed range
+                let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
+                let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
+                *mailbox_nonce = current_mailbox_nonce;
+                debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
+                return Ok(batch_size);
             }
         }
 
         Ok(BATCH_SIZE)
-    }
-
-    /// Retruns true if the block contains zero blobs for the given Namespace.
-    async fn is_empty_block(&self, height: u64, namespace: Namespace) -> Result<bool> {
-        let blobs: Vec<Blob> = self
-            .ctx
-            .celestia_client()
-            .blob_get_all(height, &[namespace])
-            .await?
-            .unwrap_or_default();
-
-        Ok(blobs.is_empty())
     }
 
     /// Submits a state transition proof msg to the zk verifier on-chain.
