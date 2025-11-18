@@ -8,7 +8,6 @@ use sp1_sdk::{network::NetworkMode, Prover, ProverClient, SP1ProofWithPublicValu
 use tracing::debug;
 
 pub mod abi;
-#[allow(clippy::module_inception)]
 pub mod chain;
 pub mod config;
 pub mod programs;
