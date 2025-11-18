@@ -36,7 +36,7 @@ pub fn init() -> Result<()> {
 
 pub async fn start() -> Result<()> {
     let config = Config::load()?;
-    info!("starting gRPC server at {}", config.grpc_address);
+    info!("Starting gRPC server at {}", config.grpc_address);
     start_server(config).await?;
 
     Ok(())
@@ -44,7 +44,7 @@ pub async fn start() -> Result<()> {
 
 pub fn unsafe_reset_db() -> Result<()> {
     let storage_path = Config::storage_path().join("proofs.db");
-    info!("resetting db state at {}", storage_path.display());
+    info!("Resetting db state at {}", storage_path.display());
 
     let mut storage = RocksDbProofStorage::new(storage_path)?;
     storage.unsafe_reset()?;
@@ -84,12 +84,12 @@ pub async fn create_zkism() -> Result<()> {
     // todo: deploy the ISM and Update
     let pub_key = get_sequencer_pubkey(config.rpc.evnode_rpc).await?;
 
-    info!("setting up ELF for state proofs");
+    info!("Setting up ELF for state proofs");
     let prover = ProverClient::builder().cpu().build();
     let (_, vk) = prover.setup(BATCH_ELF);
     let state_transition_vkey = vk.bytes32_raw().to_vec();
 
-    info!("setting up ELF for membership proofs");
+    info!("Setting up ELF for membership proofs");
     let (_, vk) = prover.setup(EV_HYPERLANE_ELF);
     let state_membership_vkey = vk.bytes32_raw().to_vec();
 
@@ -134,7 +134,7 @@ pub async fn update_ism(ism_id: String, token_id: String) -> Result<()> {
 }
 
 pub fn version() {
-    info!("version: {VERSION}");
+    info!("Version: {VERSION}");
 }
 
 pub async fn query(query_cmd: QueryCommands) -> Result<()> {
