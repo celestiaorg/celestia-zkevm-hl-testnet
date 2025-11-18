@@ -2,14 +2,15 @@
 //! two given heights against a given EVM block height.
 
 #![allow(dead_code)]
+use crate::prover::chain::ChainContext;
 use crate::prover::{prover_from_env, MessageProofRequest, MessageProofSync, RangeProofCommitted, SP1Prover};
 use crate::prover::{ProgramProver, ProverConfig};
 use alloy::hex::FromHex;
-use alloy_primitives::{Address, FixedBytes};
-use alloy_provider::{Provider, ProviderBuilder, WsConnect};
+use alloy_primitives::FixedBytes;
+use alloy_provider::{Provider, WsConnect};
 use alloy_rpc_types::{EIP1186AccountProofResponse, Filter};
 use anyhow::Result;
-use celestia_grpc_client::{CelestiaIsmClient, MsgProcessMessage, MsgSubmitMessages};
+use celestia_grpc_client::{MsgProcessMessage, MsgSubmitMessages};
 use ev_state_queries::{hyperlane::indexer::HyperlaneIndexer, DefaultProvider, StateQueryProvider};
 use ev_zkevm_types::events::Dispatch;
 use ev_zkevm_types::hyperlane::encode_hyperlane_message;
@@ -17,9 +18,8 @@ use ev_zkevm_types::programs::hyperlane::types::{
     HyperlaneBranchProof, HyperlaneBranchProofInputs, HyperlaneMessageInputs, HyperlaneMessageOutputs,
     HYPERLANE_MERKLE_TREE_KEYS,
 };
-use reqwest::Url;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
-use std::{env, str::FromStr, sync::Arc};
+use std::{env, sync::Arc};
 use storage::hyperlane::StoredHyperlaneMessage;
 use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore};
 use storage::proofs::ProofStorage;
@@ -28,22 +28,6 @@ use tracing::{debug, error, info};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const EV_HYPERLANE_ELF: &[u8] = include_elf!("ev-hyperlane-program");
-
-/// AppContext encapsulates the full set of RPC endpoints and configuration
-/// needed to fetch input data for execution and data availability proofs.
-///
-/// This separates RPC concerns from the proving logic, allowing `AppContext`
-/// to be responsible for gathering the data required for the proof system inputs.
-pub struct AppContext {
-    // reth http, for example http://127.0.0.1:8545
-    pub evm_rpc: String,
-    // reth websocket, for example ws://127.0.0.1:8546
-    pub evm_ws: String,
-    pub mailbox_address: Address,
-    pub celestia_mailbox_address: String,
-    pub merkle_tree_address: Address,
-    pub ism_id: String,
-}
 
 #[derive(Clone)]
 pub struct MessageProverConfig {
@@ -92,7 +76,7 @@ impl MerkleTreeState {
 
 /// HyperlaneMessageProver is a prover for generating SP1 proofs for Hyperlane message inclusion in EVM blocks.
 pub struct HyperlaneMessageProver {
-    pub ctx: AppContext,
+    pub ctx: Arc<ChainContext>,
     pub config: MessageProverConfig,
     pub prover: Arc<SP1Prover>,
     pub message_store: Arc<HyperlaneMessageStore>,
@@ -129,7 +113,7 @@ impl ProgramProver for HyperlaneMessageProver {
 
 impl HyperlaneMessageProver {
     pub fn new(
-        ctx: AppContext,
+        ctx: Arc<ChainContext>,
         message_store: Arc<HyperlaneMessageStore>,
         snapshot_store: Arc<HyperlaneSnapshotStore>,
         proof_store: Arc<dyn ProofStorage>,
@@ -159,14 +143,14 @@ impl HyperlaneMessageProver {
     pub async fn run(
         self: Arc<Self>,
         mut range_rx: Receiver<MessageProofRequest>,
-        ism_client: Arc<CelestiaIsmClient>,
         message_sync: Arc<MessageProofSync>,
     ) -> Result<()> {
-        let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&self.ctx.evm_rpc)?);
-        let socket = WsConnect::new(&self.ctx.evm_ws);
-        let contract_address = self.ctx.mailbox_address;
+        let evm_provider = self.ctx.evm_provider();
+        let socket = WsConnect::new(self.ctx.evm_ws_endpoint());
+        let contract_address = self.ctx.mailbox_address();
         let filter = Filter::new().address(contract_address).event(&Dispatch::id());
         let mut indexer = HyperlaneIndexer::new(socket, contract_address, filter.clone());
+
         while let Some(request) = range_rx.recv().await {
             let commit_message: RangeProofCommitted = request.commit;
             info!("Received commit message: {:?}", commit_message);
@@ -185,7 +169,7 @@ impl HyperlaneMessageProver {
                 .collect::<Result<Vec<_>>>()?;
 
             let merkle_proof = evm_provider
-                .get_proof(self.ctx.merkle_tree_address, keys)
+                .get_proof(self.ctx.merkle_tree_address(), keys)
                 .block_id(committed_height.into())
                 .await?;
 
@@ -196,7 +180,6 @@ impl HyperlaneMessageProver {
                     committed_height,
                     merkle_proof.clone(),
                     FixedBytes::from_slice(&committed_state_root),
-                    &ism_client,
                 )
                 .await
             {
@@ -224,7 +207,6 @@ impl HyperlaneMessageProver {
         committed_height: u64,
         proof: EIP1186AccountProofResponse,
         state_root: FixedBytes<32>,
-        ism_client: &CelestiaIsmClient,
     ) -> Result<()> {
         // generate a new proof for all messages that occurred since the last trusted height, inserting into the last snapshot
         // then save new snapshot
@@ -261,7 +243,7 @@ impl HyperlaneMessageProver {
         // Construct program inputs from values
         let input = HyperlaneMessageInputs::new(
             state_root.to_string(),
-            self.ctx.merkle_tree_address.to_string(),
+            self.ctx.merkle_tree_address().to_string(),
             messages.clone().into_iter().map(|m| m.message).collect(),
             HyperlaneBranchProofInputs::from(branch_proof),
             snapshot.tree.clone(),
@@ -276,12 +258,14 @@ impl HyperlaneMessageProver {
             messages.iter().map(|m| m.message.id()).collect::<Vec<String>>()
         );
 
+        let ism_client = self.ctx.ism_client();
+
         // Prove messages against trusted root
         let message_proof = self.prove(input).await?;
         info!("Message proof generated successfully");
 
         let message_proof_msg = MsgSubmitMessages::new(
-            self.ctx.ism_id.clone(),
+            self.ctx.ism_id().to_string(),
             committed_height,
             message_proof.0.bytes(),
             message_proof.0.public_values.as_slice().to_vec(),
@@ -311,8 +295,7 @@ impl HyperlaneMessageProver {
         for message in messages.clone() {
             let message_hex = alloy::hex::encode(encode_hyperlane_message(&message.message)?);
             let msg = MsgProcessMessage::new(
-                // Celestia mailbox id, todo: add to config
-                self.ctx.celestia_mailbox_address.clone(),
+                self.ctx.config().hyperlane.celestia.mailbox_id.clone(),
                 ism_client.signer_address().to_string(),
                 alloy::hex::encode(vec![]), // empty metadata; messages are pre-authorized before submission
                 message_hex,
