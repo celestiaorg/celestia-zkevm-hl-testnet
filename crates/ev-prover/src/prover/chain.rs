@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use alloy_primitives::Address;
-use alloy_provider::{ProviderBuilder, WsConnect};
+use alloy_provider::ProviderBuilder;
 use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Context, Result};
 use celestia_grpc_client::CelestiaIsmClient;
@@ -156,9 +156,8 @@ impl ChainContext {
 
     /// Creates the Hyperlane message indexer.
     pub fn hyperlane_indexer(&self) -> HyperlaneIndexer {
-        let socket = WsConnect::new(self.evm_ws_endpoint().to_string());
         let filter = Filter::new().address(self.mailbox_address()).event(&Dispatch::id());
-        HyperlaneIndexer::new(socket, self.mailbox_address(), filter.clone())
+        HyperlaneIndexer::new(filter.clone())
     }
 
     /// Generates STF inputs for the configured chain at the requested block height.

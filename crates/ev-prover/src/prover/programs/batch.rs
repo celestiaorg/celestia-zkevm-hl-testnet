@@ -208,7 +208,7 @@ impl BatchExecProver {
             // index if new ev blocks were included
             if status.trusted_height < output.new_height {
                 indexer.filter = Filter::new()
-                    .address(indexer.contract_address)
+                    .address(self.ctx.mailbox_address())
                     .event(&Dispatch::id())
                     // start indexing from the first ev block after our last checkpoint
                     .from_block(status.trusted_height + 1)

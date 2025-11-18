@@ -278,7 +278,7 @@ impl BlockRangeExecService {
                             // Index Hyperlane messages if new EV blocks were included
                             if output.trusted_height < output.new_height {
                                 indexer_clone.filter = Filter::new()
-                                    .address(indexer_clone.contract_address)
+                                    .address(ctx.mailbox_address())
                                     .event(&Dispatch::id())
                                     // start indexing from the first ev block after our last checkpoint
                                     .from_block(output.trusted_height + 1)
