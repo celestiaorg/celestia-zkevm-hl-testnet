@@ -297,10 +297,11 @@ impl HyperlaneMessageProver {
                 error!("Failed to relay Hyperlane message to Celestia: {:?}", response);
                 return Err(anyhow::anyhow!("Failed to relay Hyperlane message to Celestia"));
             }
+            info!(
+                "Successfully submitted Hyperlane message with id {} to Celestia",
+                message.message.id()
+            );
         }
-
-        info!("Token was bridged back to Celestia");
-
         Ok(())
     }
 }

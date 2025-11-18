@@ -369,7 +369,6 @@ impl BatchExecProver {
     }
 
     /// Builds a single block prover input for the given height.
-    #[allow(clippy::too_many_arguments)]
     async fn build_block_input(
         &self,
         height: u64,
