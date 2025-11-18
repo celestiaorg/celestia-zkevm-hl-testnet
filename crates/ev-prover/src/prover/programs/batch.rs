@@ -327,7 +327,7 @@ impl BatchExecProver {
             return Err(anyhow::anyhow!("Failed to submit state transition proof to ZKISM"));
         }
 
-        info!("[Done] Proof tx submitted to ism with hash: {}", response.tx_hash);
+        info!("Proof tx submitted to ism with hash: {}", response.tx_hash);
 
         Ok(())
     }
