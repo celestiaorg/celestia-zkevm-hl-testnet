@@ -288,7 +288,7 @@ impl HyperlaneMessageProver {
                 return Err(anyhow::anyhow!("Failed to relay Hyperlane message to Celestia"));
             }
         }
-        info!("[Success] Token was bridged back to Celestia");
+        info!("Token was bridged back to Celestia");
 
         Ok(())
     }

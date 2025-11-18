@@ -90,7 +90,7 @@ impl Server {
     }
     #[cfg(not(feature = "batch_mode"))]
     pub async fn start_block_range_prover(
-        self,
+        #[allow(clippy::too_many_arguments)] self,
         ctx: Arc<ChainContext>,
         client: CelestiaIsmClient,
         proof_store: Arc<dyn ProofStorage>,
