@@ -95,7 +95,7 @@ async fn main() {
     )
     .await
     .expect("Failed to prove blocks");
-    info!("[Done] proving blocks");
+    info!("Done proving blocks");
 
     let block_proof_msg = MsgUpdateZkExecutionIsm::new(
         ISM_ID.to_string(),
@@ -107,7 +107,7 @@ async fn main() {
     info!("Updating ZKISM on Celestia...");
     let response = ism_client.send_tx(block_proof_msg).await.unwrap();
     assert!(response.success);
-    info!("[Done] ZKISM was updated successfully");
+    info!("ZKISM was updated successfully");
 
     let evm_provider = ProviderBuilder::new().connect_http(Url::from_str(&reth_rpc_url).unwrap());
     info!("Proving Evolve Hyperlane deposit events...");
@@ -136,12 +136,12 @@ async fn main() {
         message_proof.0.public_values.as_slice().to_vec(),
         ism_client.signer_address().to_string(),
     );
-    info!("[Done] ZKISM was updated successfully");
+    info!("ZKISM was updated successfully");
 
     info!("Submitting Hyperlane tree proof to ZKISM...");
     let response = ism_client.send_tx(message_proof_msg).await.unwrap();
     assert!(response.success);
-    info!("[Done] ZKISM was updated successfully");
+    info!("ZKISM was updated successfully");
 
     info!("Relaying verified Hyperlane messages to Celestia...");
     // submit all now verified messages to hyperlane
@@ -156,7 +156,7 @@ async fn main() {
         let response = ism_client.send_tx(msg).await.unwrap();
         assert!(response.success);
     }
-    info!("[Done] Tia was bridged back to Celestia");
+    info!("Token was bridged back to Celestia");
 }
 
 async fn retry_async<F, Fut, T, E>(mut f: F, label: &str) -> T

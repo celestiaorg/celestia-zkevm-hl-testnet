@@ -36,7 +36,7 @@ pub fn init() -> Result<()> {
 
 pub async fn start() -> Result<()> {
     let config = Config::load()?;
-    info!("starting gRPC server at {}", config.grpc_address);
+    info!("Starting gRPC server at {}", config.grpc_address);
     start_server(config).await?;
 
     Ok(())
@@ -44,7 +44,7 @@ pub async fn start() -> Result<()> {
 
 pub fn unsafe_reset_db() -> Result<()> {
     let storage_path = Config::storage_path().join("proofs.db");
-    info!("resetting db state at {}", storage_path.display());
+    info!("Resetting db state at {}", storage_path.display());
 
     let mut storage = RocksDbProofStorage::new(storage_path)?;
     storage.unsafe_reset()?;
@@ -55,7 +55,8 @@ pub async fn create_zkism() -> Result<()> {
     let config = Config::load()?;
     let ism_client = CelestiaIsmClient::new(ClientConfig::from_env()?).await?;
 
-    let celestia_client = Client::new(&config.rpc.celestia_rpc, None).await?;
+    let auth_token = config.rpc.celestia_auth_token.as_deref();
+    let celestia_client = Client::new(&config.rpc.celestia_rpc, auth_token).await?;
     let namespace = config.namespace;
 
     // Find a Celestia height with at least one blob (brute force backwards starting from head)
@@ -84,12 +85,12 @@ pub async fn create_zkism() -> Result<()> {
     // todo: deploy the ISM and Update
     let pub_key = get_sequencer_pubkey(config.rpc.evnode_rpc).await?;
 
-    info!("setting up ELF for state proofs");
+    info!("Setting up ELF for state proofs");
     let prover = ProverClient::builder().cpu().build();
     let (_, vk) = prover.setup(BATCH_ELF);
     let state_transition_vkey = vk.bytes32_raw().to_vec();
 
-    info!("setting up ELF for membership proofs");
+    info!("Setting up ELF for membership proofs");
     let (_, vk) = prover.setup(EV_HYPERLANE_ELF);
     let state_membership_vkey = vk.bytes32_raw().to_vec();
 
@@ -134,7 +135,7 @@ pub async fn update_ism(ism_id: String, token_id: String) -> Result<()> {
 }
 
 pub fn version() {
-    info!("version: {VERSION}");
+    info!("Version: {VERSION}");
 }
 
 pub async fn query(query_cmd: QueryCommands) -> Result<()> {
@@ -271,6 +272,9 @@ async fn brute_force_head(celestia_client: &Client, namespace: Namespace) -> Res
                     }
                     Ok(_) => {
                         info!("No blobs at height {}, trying next height", current_height);
+                        if search_height == 0 {
+                            return Err(anyhow::anyhow!("No blobs found in chain"));
+                        }
                         search_height -= 1;
                     }
                     Err(e) => {
@@ -278,6 +282,9 @@ async fn brute_force_head(celestia_client: &Client, namespace: Namespace) -> Res
                             "Error fetching blobs at height {}: {}, trying next height",
                             current_height, e
                         );
+                        if search_height == 0 {
+                            return Err(anyhow::anyhow!("No blobs found in chain"));
+                        }
                         search_height -= 1;
                     }
                 }
