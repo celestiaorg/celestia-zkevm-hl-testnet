@@ -89,19 +89,24 @@ impl Server {
         }))
     }
     #[cfg(not(feature = "batch_mode"))]
+    #[allow(clippy::too_many_arguments)]
     pub async fn start_block_range_prover(
         self,
+        ctx: Arc<ChainContext>,
         client: CelestiaIsmClient,
-        storage: Arc<dyn ProofStorage>,
+        proof_store: Arc<dyn ProofStorage>,
+        hyperlane_message_store: Arc<HyperlaneMessageStore>,
         rx_block: mpsc::Receiver<BlockProofCommitted>,
         tx_range: mpsc::Sender<MessageProofRequest>,
         batch_size: usize,
     ) -> Result<JoinHandle<()>> {
         Ok(tokio::spawn(async move {
             match BlockRangeExecService::new(
+                ctx.clone(),
                 client,
                 self.block_range_prover.clone(),
-                storage.clone(),
+                proof_store.clone(),
+                hyperlane_message_store.clone(),
                 rx_block,
                 tx_range,
                 batch_size,
@@ -144,20 +149,22 @@ pub async fn start_server(config: Config) -> Result<()> {
     let mut config_clone = config.clone();
     config_clone.pub_key = public_key(sequencer_rpc_url).await?;
     debug!("Successfully got pubkey from evnode: {}", config_clone.pub_key);
-    // Initialize RocksDB storage in the default data directory
+    // Initialize RocksDB proof_store in the default data directory
     let storage_path = Config::storage_path().join("proofs.db");
-    let storage = Arc::new(RocksDbProofStorage::new(storage_path)?);
+    let proof_store = Arc::new(RocksDbProofStorage::new(storage_path)?);
+    // Message store, shared for indexing
+    let message_storage_path = Config::storage_path().join("messages.db");
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
-
     let ctx = ChainContext::from_config(config_clone.clone(), ism_client.clone()).await?;
 
     #[cfg(not(feature = "batch_mode"))]
     let wrapper_task = Some({
-        let storage_clone: Arc<dyn ProofStorage> = storage.clone();
         let client_config = ClientConfig::from_env()?;
         let client = CelestiaIsmClient::new(client_config).await?;
+        let proof_store = proof_store.clone();
         tokio::spawn(async move {
             loop {
                 let trusted_state = match get_trusted_state(&client).await {
@@ -179,24 +186,25 @@ pub async fn start_server(config: Config) -> Result<()> {
                     ctx.clone(),
                     trusted_state,
                     tx_block,
-                    storage_clone.clone(),
+                    proof_store.clone(),
                     queue_capacity,
                     concurrency,
                 );
-                let block_range_prover = match BlockRangeExecProver::new() {
+                let block_range_prover = match BlockRangeExecProver::new(ctx.clone()) {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create block range prover: {e:?}");
                         continue;
                     }
                 };
-                let message_prover = match prepare_message_prover(ctx.clone(), storage_clone.clone()) {
-                    Ok(prover) => prover,
-                    Err(e) => {
-                        error!("Failed to create message prover: {e:?}");
-                        continue;
-                    }
-                };
+                let message_prover =
+                    match prepare_message_prover(ctx.clone(), hyperlane_message_store.clone(), proof_store.clone()) {
+                        Ok(prover) => prover,
+                        Err(e) => {
+                            error!("Failed to create message prover: {e:?}");
+                            continue;
+                        }
+                    };
                 let server = Server::new(
                     Arc::new(message_prover),
                     Arc::new(block_prover),
@@ -217,7 +225,15 @@ pub async fn start_server(config: Config) -> Result<()> {
                     }
                 };
                 let mut block_range_handle = match server
-                    .start_block_range_prover(client.clone(), storage_clone.clone(), rx_block, tx_range, batch_size)
+                    .start_block_range_prover(
+                        ctx.clone(),
+                        client.clone(),
+                        proof_store.clone(),
+                        hyperlane_message_store.clone(),
+                        rx_block,
+                        tx_range,
+                        batch_size,
+                    )
                     .await
                 {
                     Ok(handle) => handle,
@@ -228,17 +244,17 @@ pub async fn start_server(config: Config) -> Result<()> {
                 };
                 tokio::select! {
                     r = &mut block_handle => {
-                        error!("block prover stopped: {:?}", r);
+                        error!("Block prover stopped: {:?}", r);
                         message_handle.abort();
                         block_range_handle.abort();
                     }
                     r = &mut message_handle => {
-                        error!("message prover stopped: {:?}", r);
+                        error!("Message prover stopped: {:?}", r);
                         block_handle.abort();
                         block_range_handle.abort();
                     }
                     r = &mut block_range_handle => {
-                        error!("block range prover stopped: {:?}", r);
+                        error!("Block range prover stopped: {:?}", r);
                         block_handle.abort();
                         message_handle.abort();
                     }
@@ -249,20 +265,24 @@ pub async fn start_server(config: Config) -> Result<()> {
 
     #[cfg(feature = "batch_mode")]
     let wrapper_task = Some({
-        let storage_clone: Arc<dyn ProofStorage> = storage.clone();
+        let proof_store_clone: Arc<dyn ProofStorage> = proof_store.clone();
         let message_sync = MessageProofSync::shared();
 
         tokio::spawn(async move {
             loop {
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-                let batch_prover = match BatchExecProver::new(ctx.clone(), tx_range) {
+                let batch_prover = match BatchExecProver::new(ctx.clone(), tx_range, hyperlane_message_store.clone()) {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create batch prover: {e:?}");
                         continue;
                     }
                 };
-                let message_prover = match prepare_message_prover(ctx.clone(), storage_clone.clone()) {
+                let message_prover = match prepare_message_prover(
+                    ctx.clone(),
+                    hyperlane_message_store.clone(),
+                    proof_store_clone.clone(),
+                ) {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create message prover: {e:?}");
@@ -288,20 +308,20 @@ pub async fn start_server(config: Config) -> Result<()> {
 
                 tokio::select! {
                     r = &mut batch_handle => {
-                        error!("batch prover stopped: {:?}", r);
+                        error!("Batch prover stopped: {:?}", r);
                         message_handle.abort();
                     }
                     r = &mut message_handle => {
-                        error!("message prover stopped: {:?}", r);
+                        error!("Message prover stopped: {:?}", r);
                         batch_handle.abort();
                     }
                 }
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_secs(600)).await;
             }
         })
     });
 
-    let prover_service = ProverService::new(storage)?;
+    let prover_service = ProverService::new(proof_store.clone())?;
     let server_task = tokio::spawn(async move {
         TonicServer::builder()
             .add_service(reflection_service)
@@ -317,9 +337,9 @@ pub async fn start_server(config: Config) -> Result<()> {
             }
             r = server_task => {
                 match r {
-                    Ok(Ok(())) => debug!("gRPC server stopped gracefully"),
-                    Ok(Err(e)) => error!("gRPC server failed: {e:?}"),
-                    Err(e) => error!("gRPC server task panicked: {e:?}"),
+                    Ok(Ok(())) => debug!("GRPC server stopped gracefully"),
+                    Ok(Err(e)) => error!("GRPC server failed: {e:?}"),
+                    Err(e) => error!("GRPC server task panicked: {e:?}"),
                 }
                 wrapper_task.abort();
             }
@@ -331,17 +351,19 @@ pub async fn start_server(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn prepare_message_prover(ctx: Arc<ChainContext>, storage: Arc<dyn ProofStorage>) -> Result<HyperlaneMessageProver> {
-    let message_storage_path = Config::storage_path().join("messages.db");
+fn prepare_message_prover(
+    ctx: Arc<ChainContext>,
+    hyperlane_message_store: Arc<HyperlaneMessageStore>,
+    proof_store: Arc<dyn ProofStorage>,
+) -> Result<HyperlaneMessageProver> {
     let snapshot_storage_path = Config::storage_path().join("snapshots.db");
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
     let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
 
     HyperlaneMessageProver::new(
         ctx.clone(),
         hyperlane_message_store,
         hyperlane_snapshot_store,
-        storage.clone(),
+        proof_store.clone(),
         Arc::new(MockStateQueryProvider::new(ctx.evm_provider())),
     )
 }

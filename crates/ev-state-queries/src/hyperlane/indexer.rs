@@ -13,22 +13,18 @@ use ev_zkevm_types::{
 };
 use std::{env, str::FromStr, sync::Arc};
 use storage::hyperlane::{StoredHyperlaneMessage, message::HyperlaneMessageStore};
+use tracing::debug;
 
 /// HyperlaneIndexer is a service that indexes Hyperlane messages from the Dispatch event emitted from the Mailbox contract.
+#[derive(Debug, Clone)]
 pub struct HyperlaneIndexer {
-    pub socket: WsConnect,
-    pub contract_address: Address,
     pub filter: Filter,
 }
 
 /// Implementation of the HyperlaneIndexer that queries the network for Dispatch messages.
 impl HyperlaneIndexer {
-    pub fn new(socket: WsConnect, contract_address: Address, filter: Filter) -> Self {
-        Self {
-            socket,
-            contract_address,
-            filter,
-        }
+    pub fn new(filter: Filter) -> Self {
+        Self { filter }
     }
 
     pub fn from_env() -> Result<Self> {
@@ -43,10 +39,10 @@ impl HyperlaneIndexer {
             Address::from_str(&mailbox_addr).map_err(|e| anyhow::anyhow!("Invalid mailbox contract address: {e}"))?;
 
         let filter = Filter::new().address(contract_address).event(&Dispatch::id());
-        Ok(Self::new(socket, contract_address, filter))
+        Ok(Self::new(filter))
     }
 
-    pub async fn index(&self, message_store: Arc<HyperlaneMessageStore>, provider: Arc<DefaultProvider>) -> Result<()> {
+    pub async fn index(&self, message_store: Arc<HyperlaneMessageStore>, provider: DefaultProvider) -> Result<()> {
         let logs = provider.get_logs(&self.filter).await?;
         for log in logs {
             match Dispatch::decode_log_data(log.data()) {
@@ -57,10 +53,10 @@ impl HyperlaneIndexer {
                         decode_hyperlane_message(&dispatch_event.message).expect("Failed to decode Hyperlane message");
                     let stored_message = StoredHyperlaneMessage::new(hyperlane_message, log.block_number);
                     message_store.insert_message(current_index, stored_message).unwrap();
-                    println!("Inserted Hyperlane Message at index: {current_index}");
+                    debug!("Inserted Hyperlane Message at index: {current_index}");
                 }
                 Err(e) => {
-                    eprintln!("Failed to decode Dispatch Event: {e:?}");
+                    return Err(anyhow::anyhow!("Failed to decode Dispatch Event: {e:?}"));
                 }
             }
         }
@@ -71,18 +67,13 @@ impl HyperlaneIndexer {
 
 impl Default for HyperlaneIndexer {
     fn default() -> Self {
-        let socket = WsConnect::new("ws://127.0.0.1:8546");
         let contract_address = Address::from_str("0xb1c938f5ba4b3593377f399e12175e8db0c787ff").unwrap();
         let filter = Filter::new()
             .address(contract_address)
             .event(&Dispatch::id())
             .from_block(0)
             .to_block(10000);
-        Self {
-            socket,
-            contract_address,
-            filter,
-        }
+        Self { filter }
     }
 }
 
