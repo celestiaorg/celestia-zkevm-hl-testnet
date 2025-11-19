@@ -206,8 +206,7 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            // index if new ev blocks were included, the maximum range that reth supports is 100000 blocks,
-            // but the range can be adjusted in the config as needed
+            // index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks
             let mut start = status.trusted_height + 1;
 
             while start <= output.new_height {
