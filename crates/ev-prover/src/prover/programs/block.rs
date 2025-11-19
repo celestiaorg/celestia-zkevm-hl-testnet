@@ -230,7 +230,7 @@ impl BlockExecProver {
         let (job_tx, mut job_rx) = mpsc::channel::<ProofJob>(self.queue_capacity);
         let (sched_tx, mut sched_rx) = mpsc::channel::<ScheduledProofJob>(self.queue_capacity);
 
-        // Stage 1: Prepare proof inputs (parallel, IO-bound)
+        // ========== Stage 1: Prepare proof inputs (parallel, IO-bound) ==========
         let sem = Arc::new(Semaphore::new(self.concurrency));
         tokio::spawn({
             let client = client.clone();
@@ -240,11 +240,11 @@ impl BlockExecProver {
             let sem = sem.clone();
             async move {
                 let mut tasks = JoinSet::new();
+
                 while let Some(event) = event_rx.recv().await {
-                    debug!("\nNew block event height={}, blobs={}", event.height, event.blobs.len());
+                    debug!("New block event height={}, blobs={}", event.height, event.blobs.len());
                     let client = client.clone();
                     let prover = prover.clone();
-
                     let job_tx = job_tx.clone();
                     let permit = sem.clone().acquire_owned().await.unwrap();
 
@@ -254,17 +254,17 @@ impl BlockExecProver {
                             Ok(job) => {
                                 let _ = job_tx.send(job).await;
                             }
-                            Err(e) => error!("failed to retrieve proof inputs: {e:#}"),
+                            Err(e) => error!("Failed to retrieve proof inputs: {e:#}"),
                         }
                     });
                 }
 
                 while tasks.join_next().await.is_some() {}
-                error!("prepare stage shutting down");
+                error!("Prepare stage shutting down");
             }
         });
 
-        // Stage 2: Assign the trusted height and root for the next proof (single writer of trusted_state, in height order)
+        // ========== Stage 2: Assign trusted height and root (single writer, in height order) ==========
         tokio::spawn({
             let prover = self.clone();
             let sched_tx = sched_tx.clone();
@@ -275,6 +275,7 @@ impl BlockExecProver {
                 while let Some(job) = job_rx.recv().await {
                     buf.insert(job.height, job);
 
+                    // Process jobs in height order
                     loop {
                         let height = match next_height {
                             Some(h) => h,
@@ -290,13 +291,13 @@ impl BlockExecProver {
 
                         let Some(job) = buf.remove(&height) else { break };
 
-                        // Snapshot current trusted state for proof
+                        // Snapshot current trusted state for this proof
                         let (trusted_height, trusted_root) = {
                             let s = prover.trusted_state.read().await;
                             (s.height, s.root)
                         };
 
-                        // Optimistically advance global trusted_state monotonically for FUTURE jobs
+                        // Optimistically advance global trusted_state for future jobs
                         if let Some(next) = job.executor_inputs.last() {
                             let mut s = prover.trusted_state.write().await;
                             if next.current_block.number > s.height {
@@ -319,11 +320,11 @@ impl BlockExecProver {
                     }
                 }
 
-                error!("schedule stage shutting down");
+                error!("Schedule stage shutting down");
             }
         });
 
-        // Stage 3: Prove (parallel, CPU/IO-bound for remote prover network)
+        // ========== Stage 3: Prove (parallel, CPU/IO-bound for remote prover network) ==========
         let prove_sem = Arc::new(Semaphore::new(self.concurrency));
         tokio::spawn({
             let prover = self.clone();
@@ -331,23 +332,26 @@ impl BlockExecProver {
 
             async move {
                 let mut tasks = JoinSet::new();
+
                 while let Some(scheduled) = sched_rx.recv().await {
                     let prover = prover.clone();
                     let permit = prove_sem.clone().acquire_owned().await.unwrap();
+
                     tasks.spawn(async move {
                         let _permit = permit; // limit concurrent proofs
 
                         if let Err(e) = prover.prove_and_store(scheduled).await {
-                            error!("prove failed: {e:#}");
+                            error!("Prove failed: {e:#}");
                         }
                     });
                 }
 
                 while tasks.join_next().await.is_some() {}
-                error!("prove stage shutting down");
+                error!("Prove stage shutting down");
             }
         });
 
+        // Main subscription loop: feed events into the pipeline
         while let Some(result) = subscription.next().await {
             match result {
                 Ok(event) => {
@@ -369,6 +373,7 @@ impl BlockExecProver {
 
     /// Retrieves the proof inputs required via RPC calls to the configured celestia and evm nodes.
     async fn prepare_inputs(self: Arc<Self>, client: Arc<Client>, event: BlockEvent) -> Result<ProofJob> {
+        // Fetch Celestia header and namespace data
         let extended_header = client.header_get_by_height(event.height).await?;
         let namespace_data = client
             .share_get_namespace_data(&extended_header, self.ctx.namespace())
@@ -376,12 +381,14 @@ impl BlockExecProver {
 
         let proofs: Vec<NamespaceProof> = namespace_data.rows.iter().map(|row| row.proof.clone()).collect();
 
+        // Decode blob data to extract block heights
         let signed_data: Vec<SignedData> = event
             .blobs
             .iter()
             .filter_map(|blob| SignedData::decode(Bytes::from(blob.data.clone())).ok())
             .collect();
 
+        // Generate executor inputs for each EVM block
         let mut executor_inputs = Vec::with_capacity(signed_data.len());
         for data in signed_data {
             let block_number = data
@@ -408,6 +415,7 @@ impl BlockExecProver {
     async fn prove_and_store(self: Arc<Self>, scheduled: ScheduledProofJob) -> Result<()> {
         let extended_header = &scheduled.job.extended_header;
 
+        // Construct the proof inputs
         let inputs = BlockExecInput {
             header_raw: serde_cbor::to_vec(&extended_header.header)?,
             dah: extended_header.dah.clone(),
@@ -420,8 +428,10 @@ impl BlockExecProver {
             trusted_root: scheduled.trusted_root,
         };
 
+        // Generate the proof
         let (proof, outputs) = self.prove(inputs).await?;
 
+        // Store the proof (non-blocking failure to avoid breaking the pipeline)
         if let Err(e) = self
             .storage
             .store_block_proof(scheduled.job.height, &proof, &outputs)
@@ -439,6 +449,7 @@ impl BlockExecProver {
             scheduled.job.height, outputs,
         );
 
+        // Notify that this block proof is committed
         self.tx.send(BlockProofCommitted(scheduled.job.height)).await?;
 
         Ok(())

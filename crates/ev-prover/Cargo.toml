@@ -7,11 +7,12 @@ edition = "2021"
 batch_mode = []
 
 [dependencies]
-alloy = { workspace = true }
+alloy = { workspace = true, features = ["sol-types", "contract"] }
 alloy-genesis = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-provider = { workspace = true }
 alloy-rpc-types = { workspace = true }
+alloy-sol-types = { workspace = true }
 anyhow = "1.0"
 async-trait = "0.1.88"
 bincode = { workspace = true }

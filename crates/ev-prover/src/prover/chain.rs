@@ -3,11 +3,15 @@ use std::sync::Arc;
 
 use alloy_primitives::Address;
 use alloy_provider::ProviderBuilder;
+use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Context, Result};
 use celestia_grpc_client::CelestiaIsmClient;
 use celestia_rpc::client::Client;
 use celestia_types::nmt::Namespace;
-use ev_state_queries::{DefaultProvider, MockStateQueryProvider, StateQueryProvider};
+use ev_state_queries::{
+    hyperlane::indexer::HyperlaneIndexer, DefaultProvider, MockStateQueryProvider, StateQueryProvider,
+};
+use ev_zkevm_types::events::Dispatch;
 use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;
 use rsp_host_executor::EthHostExecutor;
@@ -57,7 +61,8 @@ impl ChainContext {
         let genesis = Config::load_genesis()?;
         let chain_spec = Self::load_chain_spec_from_genesis(&genesis)?;
 
-        let celestia_client = Arc::new(Client::new(&config.rpc.celestia_rpc, None).await?);
+        let auth_token = config.rpc.celestia_auth_token.as_deref();
+        let celestia_client = Arc::new(Client::new(&config.rpc.celestia_rpc, auth_token).await?);
         let evm_provider =
             ProviderBuilder::new().connect_http(Url::parse(&config.rpc.evreth_rpc).context("invalid evm rpc url")?);
 
@@ -106,7 +111,8 @@ impl ChainContext {
     /// Creates a new Celestia WebSocket client for subscriptions.
     pub async fn celestia_ws_client(&self) -> Result<Client> {
         let url = self.celestia_ws_url()?;
-        Client::new(url.as_str(), None).await.map_err(|e| anyhow!(e))
+        let auth_token = self.config.rpc.celestia_auth_token.as_deref();
+        Client::new(url.as_str(), auth_token).await.map_err(|e| anyhow!(e))
     }
 
     /// Returns the ISM client.
@@ -148,6 +154,12 @@ impl ChainContext {
     /// Creates a state query provider backed by the default EVM provider.
     pub fn state_query_provider(&self) -> Arc<dyn StateQueryProvider> {
         Arc::new(MockStateQueryProvider::new(self.evm_provider()))
+    }
+
+    /// Creates the Hyperlane message indexer.
+    pub fn hyperlane_indexer(&self) -> HyperlaneIndexer {
+        let filter = Filter::new().address(self.mailbox_address()).event(&Dispatch::id());
+        HyperlaneIndexer::new(filter.clone())
     }
 
     /// Generates STF inputs for the configured chain at the requested block height.
