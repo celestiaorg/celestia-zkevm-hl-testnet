@@ -53,7 +53,7 @@ The prover services runs zk circuits built using SP1:
 6.	**ProverService submits proofs + message to Celestia.**
 Once both proofs are ready, the prover service relays them to the on-chain verifier hosted on Celestia, along with the message to be processed.
 7.	**Celestia verifies proofs and processes the message.**
-Celestia decodes the proofs, verifies them using its `ZKExecutionISM` module, and authorizes the message ID to be processed. Subsequently, the associated message is processed minting the synthetic tokens on behalf of the recipient and emits a new `EventProcess` signalling its completion.
+Celestia decodes the proofs, verifies them using its `ZKExecutionISM` module, and authorizes the message ID to be processed. Subsequently, the associated message is processed, minting the synthetic tokens on behalf of the recipient, and the system emits a new `EventProcess` signalling its completion.
 
 ### Token return flows
 
