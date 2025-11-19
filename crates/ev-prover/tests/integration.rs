@@ -30,9 +30,9 @@ async fn test_run_message_prover() {
     let tmp = TempDir::new().expect("cannot create temp directory");
     let storage_path = tmp.path();
 
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(&storage_path).unwrap());
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(&storage_path, None).unwrap());
-    let proof_store = Arc::new(RocksDbProofStorage::new(&storage_path).unwrap());
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
+    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(storage_path, None).unwrap());
+    let proof_store = Arc::new(RocksDbProofStorage::new(storage_path).unwrap());
 
     hyperlane_message_store.reset_db().unwrap();
     hyperlane_snapshot_store.reset_db().unwrap();
