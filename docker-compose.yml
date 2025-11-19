@@ -60,7 +60,7 @@ services:
 
   ev-node-evm-single:
     # release tag v1.0.0-beta.9
-    image: ghcr.io/evstack/ev-node-evm-single@sha256:de309b77b18827eb7c84d107455e2b2e1468eb6cb19dcf35d2a29c1dca1b92b1
+    image: ghcr.io/evstack/ev-node-evm-single:v1.0.0-beta.9
     container_name: ev-node-evm-single
     entrypoint: /scripts/entrypoint.sh
     ports:
@@ -94,7 +94,7 @@ services:
   reth:
     container_name: reth
     # release tag v0.1.0
-    image: ghcr.io/evstack/ev-reth:latest@sha256:3683ecbafe8916f1e05b20192a02f0f316e18dfb8c5074d11f109ec646954586
+    image: ghcr.io/evstack/ev-reth:v0.1.0
     ports:
       - "9001:9001" # metrics
       - "30303:30303" # eth/66 peering
