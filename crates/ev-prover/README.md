@@ -17,7 +17,7 @@ when using the succinct prover network, because in default mode the base fee wil
     make deploy-ism
     ```
 
-3. Update the ISM used by Hyperlane to the new ZKISM 
+3. Update the ISM used by Hyperlane to the new ZKISM
     ```shell
     make update-ism
     ```
@@ -34,7 +34,25 @@ Run the following commands from the root of the repository.
     ev-prover init
     ```
 
-3. Start the `ev-prover` application binary using:
+3. (Optional) If you have authentication enabled on your Celestia node, you need to set the auth token in the config file.
+
+   First, retrieve your auth token:
+    ```shell
+    celestia bridge auth read
+    # Or if using docker:
+    # docker compose exec celestia-bridge celestia bridge auth read
+    ```
+
+   Then, edit `~/.ev-prover/config/config.yaml` and add the `celestia_auth_token` field under `rpc`:
+    ```yaml
+    rpc:
+      celestia_rpc: "http://localhost:26658"
+      celestia_auth_token: YOUR_AUTH_TOKEN_HERE
+      evnode_rpc: "http://localhost:7331"
+      evreth_rpc: "http://localhost:8545"
+    ```
+
+4. Start the `ev-prover` application binary using:
 
     ```shell
     RUST_LOG="ev_prover=debug" ev-prover start

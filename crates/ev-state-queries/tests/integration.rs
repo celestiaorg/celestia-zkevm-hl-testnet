@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use alloy_provider::ProviderBuilder;
+use alloy_provider::{ProviderBuilder, WsConnect};
 use ev_state_queries::hyperlane::indexer::HyperlaneIndexer;
 use storage::hyperlane::message::HyperlaneMessageStore;
 
@@ -25,6 +25,9 @@ async fn test_run_indexer() {
     let indexer = HyperlaneIndexer::default();
     let message_store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
     message_store.reset_db().unwrap();
-    let provider = Arc::new(ProviderBuilder::new().connect_ws(indexer.socket.clone()).await.unwrap());
+    let provider = ProviderBuilder::new()
+        .connect_ws(WsConnect::new("ws://127.0.0.1:8546"))
+        .await
+        .unwrap();
     indexer.index(message_store, provider).await.unwrap();
 }

@@ -1,34 +1,33 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::{
-    generate_client_executor_input,
-    prover::{
-        config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
-        MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
-    },
+use crate::prover::abi::MailboxContract;
+use crate::prover::chain::ChainContext;
+use crate::prover::{
+    config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
+    MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
 };
 use alloy_primitives::FixedBytes;
-use alloy_provider::{Provider, ProviderBuilder};
+use alloy_provider::Provider;
+use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use celestia_grpc_client::{CelestiaIsmClient, MsgUpdateZkExecutionIsm, QueryIsmRequest};
-use celestia_rpc::{BlobClient, Client, HeaderClient, ShareClient};
+use celestia_grpc_client::{MsgUpdateZkExecutionIsm, QueryIsmRequest};
+use celestia_rpc::{BlobClient, HeaderClient, ShareClient};
 use celestia_types::{
     nmt::{Namespace, NamespaceProof},
     Blob,
 };
 use ev_types::v1::SignedData;
+use ev_zkevm_types::events::Dispatch;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
 use prost::Message;
-use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;
-use rsp_primitives::genesis::Genesis;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use storage::hyperlane::message::HyperlaneMessageStore;
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
-use crate::config::Config;
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
@@ -60,47 +59,6 @@ impl ProverStatus {
     /// Returns how far ahead the Celestia head is from the trusted height.
     fn distance(&self) -> u64 {
         self.celestia_head.saturating_sub(self.trusted_celestia_height)
-    }
-}
-
-/// AppContext contains RPC clients and configuration required by the prover.
-///
-/// This encapsulates the dependencies required to query on-chain state and build proof inputs
-/// including chain spec, genesis, namespace, sequencer key and rpc clients.
-pub struct AppContext {
-    pub celestia_client: Arc<Client>,
-    pub evm_rpc: String,
-    pub ism_client: Arc<CelestiaIsmClient>,
-    pub chain_spec: Arc<ChainSpec>,
-    pub genesis: Genesis,
-    pub namespace: Namespace,
-    pub pub_key: Vec<u8>,
-}
-
-impl AppContext {
-    pub async fn from_config(config: &Config, ism_client: Arc<CelestiaIsmClient>) -> Result<Self> {
-        let celestia_client = Client::new(&config.rpc.celestia_rpc, None).await?;
-        let genesis = Config::load_genesis()?;
-        let chain_spec = Self::chain_spec_from_genesis(&genesis)?;
-        let pub_key = hex::decode(config.pub_key.clone())?;
-
-        Ok(Self {
-            celestia_client: Arc::new(celestia_client),
-            evm_rpc: config.rpc.evreth_rpc.clone(),
-            ism_client,
-            chain_spec,
-            genesis,
-            namespace: config.namespace,
-            pub_key,
-        })
-    }
-
-    pub fn chain_spec_from_genesis(genesis: &Genesis) -> Result<Arc<ChainSpec>> {
-        let chain_spec: ChainSpec = genesis
-            .try_into()
-            .map_err(|e| anyhow!("Failed to convert genesis to chain spec: {e}"))?;
-
-        Ok(Arc::new(chain_spec))
     }
 }
 
@@ -136,10 +94,11 @@ impl ProverConfig for BatchProverConfig {
 }
 
 pub struct BatchExecProver {
-    app: AppContext,
+    ctx: Arc<ChainContext>,
     range_tx: mpsc::Sender<MessageProofRequest>,
     config: BatchProverConfig,
     prover: Arc<SP1Prover>,
+    hyperlane_message_store: Arc<HyperlaneMessageStore>,
 }
 
 #[async_trait]
@@ -171,15 +130,20 @@ impl ProgramProver for BatchExecProver {
 
 impl BatchExecProver {
     /// Creates a new prover instance.
-    pub fn new(app: AppContext, range_tx: mpsc::Sender<MessageProofRequest>) -> Result<Self> {
+    pub fn new(
+        ctx: Arc<ChainContext>,
+        range_tx: mpsc::Sender<MessageProofRequest>,
+        hyperlane_message_store: Arc<HyperlaneMessageStore>,
+    ) -> Result<Self> {
         let prover = prover_from_env();
         let config = BatchExecProver::default_config(prover.as_ref());
 
         Ok(Self {
-            app,
+            ctx,
             config,
             prover,
             range_tx,
+            hyperlane_message_store,
         })
     }
 
@@ -194,25 +158,27 @@ impl BatchExecProver {
         let mut batch_size = BATCH_SIZE;
         let mut scan_head: Option<u64> = None;
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
-
+        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
+        let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
+        let mut indexer = self.ctx.hyperlane_indexer();
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
-
             let status = self.load_prover_status().await?;
-
             if scan_head.is_none() {
                 scan_head = Some(status.trusted_celestia_height + 1);
             }
 
             let scan_start = scan_head.ok_or_else(|| anyhow!("Scan head is not set"))?;
             if scan_start < status.celestia_head {
+                // only check if batch size can be reduced if a new mailbox event was emitted
                 batch_size = self
                     .calculate_batch_size(
                         scan_start,
                         status.celestia_head,
                         status.trusted_celestia_height,
                         batch_size,
+                        &mut mailbox_nonce,
                     )
                     .await?;
             }
@@ -234,12 +200,28 @@ impl BatchExecProver {
             let start_height = status.trusted_celestia_height + 1;
             let input = self.build_proof_inputs(start_height, &status, batch_size).await?;
 
+            // Generate the proof
             let start_time = Instant::now();
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
+            // index if new ev blocks were included
+            if status.trusted_height < output.new_height {
+                indexer.filter = Filter::new()
+                    .address(self.ctx.mailbox_address())
+                    .event(&Dispatch::id())
+                    // start indexing from the first ev block after our last checkpoint
+                    .from_block(status.trusted_height + 1)
+                    .to_block(output.new_height);
+
+                // run the indexer to get all messages that occurred since the last trusted height
+                indexer
+                    .index(self.hyperlane_message_store.clone(), self.ctx.evm_provider())
+                    .await?;
+            }
+
             if let Err(e) = self.submit_proof_msg(&proof).await {
-                error!(?e, "failed to submit tx to ism");
+                error!(?e, "Failed to submit tx to ism");
             }
 
             // reset batch size and fast forward checkpoints
@@ -257,15 +239,15 @@ impl BatchExecProver {
     /// the latest header from Celestia.
     async fn load_prover_status(&self) -> Result<ProverStatus> {
         let resp = self
-            .app
-            .ism_client
+            .ctx
+            .ism_client()
             .ism(QueryIsmRequest {
-                id: self.app.ism_client.ism_id().to_string(),
+                id: self.ctx.ism_id().to_string(),
             })
             .await?;
         let ism = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
         let trusted_root = FixedBytes::from_slice(&ism.state_root);
-        let celestia_head = self.app.celestia_client.header_local_head().await?.height().value();
+        let celestia_head = self.ctx.celestia_client().header_local_head().await?.height().value();
 
         Ok(ProverStatus {
             trusted_height: ism.height,
@@ -283,17 +265,35 @@ impl BatchExecProver {
         latest_head: u64,
         trusted_celestia_height: u64,
         current_batch: u64,
+        mailbox_nonce: &mut u32,
     ) -> Result<u64> {
+        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
+
         if scan_start >= latest_head {
             return Ok(current_batch);
         }
 
-        let namespace = self.app.namespace;
         for height in scan_start..=latest_head {
-            if !self.is_empty_block(height, namespace).await? {
+            let last_blob_height = self.get_last_blob_height(height).await?;
+            if last_blob_height.is_none() {
+                continue;
+            }
+
+            let current_mailbox_nonce = mailbox_contract
+                .nonce()
+                .call()
+                .block(alloy_rpc_types::BlockId::Number(
+                    alloy_rpc_types::BlockNumberOrTag::Number(
+                        last_blob_height.ok_or_else(|| anyhow!("No blobs found but Mailbox nonce increased"))?,
+                    ),
+                ))
+                .await?;
+
+            if current_mailbox_nonce > *mailbox_nonce {
                 // Ensure batch size stays within allowed range
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
                 let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
+                *mailbox_nonce = current_mailbox_nonce;
                 debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
                 return Ok(batch_size);
             }
@@ -302,36 +302,48 @@ impl BatchExecProver {
         Ok(BATCH_SIZE)
     }
 
-    /// Retruns true if the block contains zero blobs for the given Namespace.
-    async fn is_empty_block(&self, height: u64, namespace: Namespace) -> Result<bool> {
-        let blobs: Vec<Blob> = self
-            .app
-            .celestia_client
-            .blob_get_all(height, &[namespace])
-            .await?
-            .unwrap_or_default();
-
-        Ok(blobs.is_empty())
-    }
-
     /// Submits a state transition proof msg to the zk verifier on-chain.
     async fn submit_proof_msg(&self, proof: &SP1ProofWithPublicValues) -> Result<()> {
-        let id = self.app.ism_client.ism_id().to_string();
+        let id = self.ctx.ism_id().to_string();
         let public_values = proof.public_values.as_slice().to_vec();
-        let signer = self.app.ism_client.signer_address().to_string();
+        let signer = self.ctx.ism_client().signer_address().to_string();
 
         let msg = MsgUpdateZkExecutionIsm::new(id, proof.bytes(), public_values, signer);
 
         info!("Updating ZKISM on Celestia...");
-        let response = self.app.ism_client.send_tx(msg).await?;
+        let response = self.ctx.ism_client().send_tx(msg).await?;
         if !response.success {
             error!("Failed to submit state transition proof to ZKISM: {:?}", response);
             return Err(anyhow::anyhow!("Failed to submit state transition proof to ZKISM"));
         }
 
-        info!("[Done] Proof tx submitted to ism with hash: {}", response.tx_hash);
+        info!("Proof tx submitted to ism with hash: {}", response.tx_hash);
 
         Ok(())
+    }
+
+    async fn get_last_blob_height(&self, height: u64) -> Result<Option<u64>> {
+        let blobs: Vec<Blob> = self
+            .ctx
+            .celestia_client()
+            .blob_get_all(height, &[self.ctx.namespace()])
+            .await?
+            .unwrap_or_default();
+        if blobs.is_empty() {
+            return Ok(None);
+        }
+
+        let last_blob = blobs.last().ok_or_else(|| anyhow!("No blobs found"))?;
+        let last_blob_signed_data = match SignedData::decode(last_blob.data.as_slice()) {
+            Ok(data) => data,
+            Err(_) => return Err(anyhow!("Failed to decode last blob signed data")),
+        };
+        let last_blob_data = last_blob_signed_data.data.ok_or_else(|| anyhow!("Data not found"))?;
+        let last_blob_height = last_blob_data
+            .metadata
+            .ok_or_else(|| anyhow!("Metadata not found"))?
+            .height;
+        Ok(Some(last_blob_height))
     }
 
     /// Builds the proof input structure for the given batch size starting from the provided height.
@@ -343,28 +355,16 @@ impl BatchExecProver {
     ) -> Result<BatchExecInput> {
         let mut current_height = status.trusted_height;
         let mut current_root = status.trusted_root;
-
-        let namespace = self.app.namespace;
-        let end_height = start_height + batch_size - 1;
-
+        let namespace = self.ctx.namespace();
         let mut block_inputs: Vec<BlockExecInput> = Vec::new();
-        for block_number in start_height..=end_height {
+
+        for block_number in start_height..=start_height + batch_size {
             let input = self
-                .build_block_input(
-                    block_number,
-                    namespace,
-                    &mut current_height,
-                    &mut current_root,
-                    self.app.chain_spec.clone(),
-                    self.app.genesis.clone(),
-                )
+                .build_block_input(block_number, namespace, &mut current_height, &mut current_root)
                 .await?;
 
             block_inputs.push(input);
         }
-
-        // let mut stdin = SP1Stdin::new();
-        // stdin.write(&);
         Ok(BatchExecInput { blocks: block_inputs })
     }
 
@@ -375,21 +375,19 @@ impl BatchExecProver {
         namespace: Namespace,
         trusted_height: &mut u64,
         trusted_root: &mut FixedBytes<32>,
-        chain_spec: Arc<ChainSpec>,
-        genesis: Genesis,
     ) -> Result<BlockExecInput> {
         let blobs: Vec<Blob> = self
-            .app
-            .celestia_client
+            .ctx
+            .celestia_client()
             .blob_get_all(height, &[namespace])
             .await?
             .unwrap_or_default();
         debug!("Got {} blobs for block: {}", blobs.len(), height);
 
-        let extended_header = self.app.celestia_client.header_get_by_height(height).await?;
+        let extended_header = self.ctx.celestia_client().header_get_by_height(height).await?;
         let namespace_data = self
-            .app
-            .celestia_client
+            .ctx
+            .celestia_client()
             .share_get_namespace_data(&extended_header, namespace)
             .await?;
         let mut proofs: Vec<NamespaceProof> = Vec::new();
@@ -399,6 +397,7 @@ impl BatchExecProver {
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 
         let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();
+
         if blobs.is_empty() {
             debug!(
                 "No blobs for Celestia height {}, keeping trusted_height={} and trusted_root unchanged",
@@ -408,7 +407,7 @@ impl BatchExecProver {
                 header_raw: serde_cbor::to_vec(&extended_header.header)?,
                 dah: extended_header.dah,
                 blobs_raw: serde_cbor::to_vec(&blobs)?,
-                pub_key: self.app.pub_key.to_vec(),
+                pub_key: self.ctx.pub_key_bytes(),
                 namespace,
                 proofs,
                 executor_inputs: vec![],
@@ -417,6 +416,7 @@ impl BatchExecProver {
             });
         }
 
+        // Process blobs to extract executor inputs
         let mut last_height = 0;
         for blob in blobs.as_slice() {
             let signed_data = match SignedData::decode(blob.data.as_slice()) {
@@ -426,18 +426,18 @@ impl BatchExecProver {
             let data = signed_data.data.ok_or_else(|| anyhow!("Data not found"))?;
             let height = data.metadata.ok_or_else(|| anyhow!("Metadata not found"))?.height;
             last_height = height;
-            debug!("Got SignedData for EVM block {height}");
+            debug!("Got SignedData for ev block {height}");
 
-            let client_executor_input =
-                generate_client_executor_input(&self.app.evm_rpc, height, chain_spec.clone(), genesis.clone()).await?;
+            let client_executor_input = self.ctx.generate_executor_input(height).await?;
             executor_inputs.push(client_executor_input);
         }
 
+        // Construct the block execution input
         let input = BlockExecInput {
             header_raw: serde_cbor::to_vec(&extended_header.header)?,
             dah: extended_header.dah,
             blobs_raw: serde_cbor::to_vec(&blobs)?,
-            pub_key: self.app.pub_key.to_vec(),
+            pub_key: self.ctx.pub_key_bytes(),
             namespace,
             proofs,
             executor_inputs: executor_inputs.clone(),
@@ -445,14 +445,17 @@ impl BatchExecProver {
             trusted_root: *trusted_root,
         };
 
-        let provider = ProviderBuilder::new().connect_http(self.app.evm_rpc.parse()?);
-        let block = provider
+        // Update trusted state based on the last EVM block processed
+        let block = self
+            .ctx
+            .evm_provider()
             .get_block_by_number(last_height.into())
             .await?
             .ok_or_else(|| anyhow!("Block {last_height} not found"))?;
 
         *trusted_height = last_height;
         *trusted_root = block.header.state_root;
+
         debug!(
             "Updated trusted_height to {} and trusted_root to {:?}",
             trusted_height, trusted_root

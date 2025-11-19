@@ -2,24 +2,23 @@
 //! two given heights against a given EVM block height.
 
 #![allow(dead_code)]
+use crate::prover::chain::ChainContext;
 use crate::prover::{prover_from_env, MessageProofRequest, MessageProofSync, RangeProofCommitted, SP1Prover};
 use crate::prover::{ProgramProver, ProverConfig};
 use alloy::hex::FromHex;
-use alloy_primitives::{Address, FixedBytes};
-use alloy_provider::{Provider, ProviderBuilder, WsConnect};
-use alloy_rpc_types::{EIP1186AccountProofResponse, Filter};
+use alloy_primitives::FixedBytes;
+use alloy_provider::Provider;
+use alloy_rpc_types::EIP1186AccountProofResponse;
 use anyhow::Result;
-use celestia_grpc_client::{CelestiaIsmClient, MsgProcessMessage, MsgSubmitMessages};
-use ev_state_queries::{hyperlane::indexer::HyperlaneIndexer, DefaultProvider, StateQueryProvider};
-use ev_zkevm_types::events::Dispatch;
+use celestia_grpc_client::{MsgProcessMessage, MsgSubmitMessages};
+use ev_state_queries::StateQueryProvider;
 use ev_zkevm_types::hyperlane::encode_hyperlane_message;
 use ev_zkevm_types::programs::hyperlane::types::{
     HyperlaneBranchProof, HyperlaneBranchProofInputs, HyperlaneMessageInputs, HyperlaneMessageOutputs,
     HYPERLANE_MERKLE_TREE_KEYS,
 };
-use reqwest::Url;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
-use std::{env, str::FromStr, sync::Arc};
+use std::{env, sync::Arc};
 use storage::hyperlane::StoredHyperlaneMessage;
 use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore};
 use storage::proofs::ProofStorage;
@@ -28,22 +27,6 @@ use tracing::{debug, error, info};
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const EV_HYPERLANE_ELF: &[u8] = include_elf!("ev-hyperlane-program");
-
-/// AppContext encapsulates the full set of RPC endpoints and configuration
-/// needed to fetch input data for execution and data availability proofs.
-///
-/// This separates RPC concerns from the proving logic, allowing `AppContext`
-/// to be responsible for gathering the data required for the proof system inputs.
-pub struct AppContext {
-    // reth http, for example http://127.0.0.1:8545
-    pub evm_rpc: String,
-    // reth websocket, for example ws://127.0.0.1:8546
-    pub evm_ws: String,
-    pub mailbox_address: Address,
-    pub celestia_mailbox_address: String,
-    pub merkle_tree_address: Address,
-    pub ism_id: String,
-}
 
 #[derive(Clone)]
 pub struct MessageProverConfig {
@@ -92,7 +75,7 @@ impl MerkleTreeState {
 
 /// HyperlaneMessageProver is a prover for generating SP1 proofs for Hyperlane message inclusion in EVM blocks.
 pub struct HyperlaneMessageProver {
-    pub ctx: AppContext,
+    pub ctx: Arc<ChainContext>,
     pub config: MessageProverConfig,
     pub prover: Arc<SP1Prover>,
     pub message_store: Arc<HyperlaneMessageStore>,
@@ -129,7 +112,7 @@ impl ProgramProver for HyperlaneMessageProver {
 
 impl HyperlaneMessageProver {
     pub fn new(
-        ctx: AppContext,
+        ctx: Arc<ChainContext>,
         message_store: Arc<HyperlaneMessageStore>,
         snapshot_store: Arc<HyperlaneSnapshotStore>,
         proof_store: Arc<dyn ProofStorage>,
@@ -155,18 +138,12 @@ impl HyperlaneMessageProver {
         MessageProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
-    /// Run the message prover with indexer
     pub async fn run(
         self: Arc<Self>,
         mut range_rx: Receiver<MessageProofRequest>,
-        ism_client: Arc<CelestiaIsmClient>,
         message_sync: Arc<MessageProofSync>,
     ) -> Result<()> {
-        let evm_provider: DefaultProvider = ProviderBuilder::new().connect_http(Url::from_str(&self.ctx.evm_rpc)?);
-        let socket = WsConnect::new(&self.ctx.evm_ws);
-        let contract_address = self.ctx.mailbox_address;
-        let filter = Filter::new().address(contract_address).event(&Dispatch::id());
-        let mut indexer = HyperlaneIndexer::new(socket, contract_address, filter.clone());
+        let evm_provider = self.ctx.evm_provider();
         while let Some(request) = range_rx.recv().await {
             let commit_message: RangeProofCommitted = request.commit;
             info!("Received commit message: {:?}", commit_message);
@@ -185,18 +162,16 @@ impl HyperlaneMessageProver {
                 .collect::<Result<Vec<_>>>()?;
 
             let merkle_proof = evm_provider
-                .get_proof(self.ctx.merkle_tree_address, keys)
+                .get_proof(self.ctx.merkle_tree_address(), keys)
                 .block_id(committed_height.into())
                 .await?;
 
+            // Run the inner proof generation and submission logic
             if let Err(e) = self
                 .run_inner(
-                    &evm_provider,
-                    &mut indexer,
                     committed_height,
                     merkle_proof.clone(),
                     FixedBytes::from_slice(&committed_state_root),
-                    &ism_client,
                 )
                 .await
             {
@@ -206,67 +181,57 @@ impl HyperlaneMessageProver {
                         merkle_proof
                             .storage_proof
                             .last()
-                            .ok_or(anyhow::anyhow!("No storage proof"))?
+                            .ok_or(anyhow::anyhow!("No storage proof for Hyperlane Branch"))?
                             .value
                             .to_be_bytes::<32>()
                     )
                 );
             }
         }
-
         Ok(())
     }
 
     async fn run_inner(
         &self,
-        evm_provider: &DefaultProvider,
-        indexer: &mut HyperlaneIndexer,
         committed_height: u64,
         proof: EIP1186AccountProofResponse,
         state_root: FixedBytes<32>,
-        ism_client: &CelestiaIsmClient,
     ) -> Result<()> {
-        // generate a new proof for all messages that occurred since the last trusted height, inserting into the last snapshot
-        // then save new snapshot
+        // Load the current snapshot and check if there are new blocks to process
         let trusted_snapshot_index = self.snapshot_store.current_index()?;
         let mut snapshot = self.snapshot_store.get_snapshot(trusted_snapshot_index)?;
+
         if snapshot.height == committed_height {
             debug!("No new ev blocks so no new messages to prove");
             return Ok(());
         }
+
         let start_height = snapshot.height + 1;
 
-        indexer.filter = Filter::new()
-            .address(indexer.contract_address)
-            .event(&Dispatch::id())
-            .from_block(start_height)
-            .to_block(committed_height);
-
-        // run the indexer to get all messages that occurred since the last trusted height
-        indexer
-            .index(self.message_store.clone(), Arc::new(evm_provider.clone()))
-            .await?;
-
+        // Collect all messages from the new blocks
         let mut messages: Vec<StoredHyperlaneMessage> = Vec::new();
         for block in start_height..=committed_height {
             messages.extend(self.message_store.get_by_block(block)?);
         }
 
         if messages.is_empty() {
+            debug!("No messages found in db");
             return Ok(());
         }
 
+        // Prepare the branch proof for verification
         let branch_proof = HyperlaneBranchProof::new(proof);
 
         // Construct program inputs from values
         let input = HyperlaneMessageInputs::new(
             state_root.to_string(),
-            self.ctx.merkle_tree_address.to_string(),
+            self.ctx.merkle_tree_address().to_string(),
             messages.clone().into_iter().map(|m| m.message).collect(),
             HyperlaneBranchProofInputs::from(branch_proof),
             snapshot.tree.clone(),
         );
 
+        // Update the snapshot's merkle tree with new messages
         for message in messages.clone() {
             snapshot.tree.insert(message.message.id())?;
         }
@@ -276,22 +241,26 @@ impl HyperlaneMessageProver {
             messages.iter().map(|m| m.message.id()).collect::<Vec<String>>()
         );
 
-        // Prove messages against trusted root
+        // Generate the message proof
+        let ism_client = self.ctx.ism_client();
         let message_proof = self.prove(input).await?;
         info!("Message proof generated successfully");
 
+        // Prepare the proof submission message
         let message_proof_msg = MsgSubmitMessages::new(
-            self.ctx.ism_id.clone(),
+            self.ctx.ism_id().to_string(),
             committed_height,
             message_proof.0.bytes(),
             message_proof.0.public_values.as_slice().to_vec(),
             ism_client.signer_address().to_string(),
         );
 
-        // store the unfinalized snapshot
+        // Store the unfinalized snapshot
         snapshot.height = committed_height;
         let snapshot_index = self.snapshot_store.current_index()? + 1;
         self.snapshot_store.insert_snapshot(snapshot_index, snapshot)?;
+
+        // Submit the proof to ZKISM
         info!("Submitting Hyperlane tree proof to ZKISM...");
         let response = ism_client.send_tx(message_proof_msg).await?;
 
@@ -299,32 +268,40 @@ impl HyperlaneMessageProver {
             error!("Failed to submit Hyperlane tree proof to ZKISM: {:?}", response);
             return Err(anyhow::anyhow!("Failed to submit Hyperlane tree proof to ZKISM"));
         }
-        info!("[Done] ZKISM was updated successfully");
+
+        info!("ZKISM was updated successfully");
         self.proof_store
             .store_membership_proof(committed_height, &message_proof.0, &message_proof.1)
             .await?;
 
+        // TODO: check for unfinalized shapshots and retry
+        // this is a necessary mainnet optimization
         self.snapshot_store.finalize_snapshot(trusted_snapshot_index)?;
 
+        // Relay all verified messages to Celestia
+        // TODO: add a finality flag to each message and retry
+        // this is a necessary mainnet optimization
         info!("Relaying verified Hyperlane messages to Celestia...");
-        // submit all now verified messages to hyperlane
+
         for message in messages.clone() {
             let message_hex = alloy::hex::encode(encode_hyperlane_message(&message.message)?);
             let msg = MsgProcessMessage::new(
-                // Celestia mailbox id, todo: add to config
-                self.ctx.celestia_mailbox_address.clone(),
+                self.ctx.config().hyperlane.celestia.mailbox_id.clone(),
                 ism_client.signer_address().to_string(),
                 alloy::hex::encode(vec![]), // empty metadata; messages are pre-authorized before submission
                 message_hex,
             );
+
             let response = ism_client.send_tx(msg).await?;
             if !response.success {
                 error!("Failed to relay Hyperlane message to Celestia: {:?}", response);
                 return Err(anyhow::anyhow!("Failed to relay Hyperlane message to Celestia"));
             }
+            info!(
+                "Successfully submitted Hyperlane message with id {} to Celestia",
+                message.message.id()
+            );
         }
-        info!("[Done] Tia was bridged back to Celestia");
-
         Ok(())
     }
 }
