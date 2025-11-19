@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::prover::abi::MailboxContract;
 use crate::prover::chain::ChainContext;
+use crate::prover::config::MAX_INDEXING_RANGE;
 use crate::prover::{
     config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
     MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
@@ -205,19 +206,25 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            // index if new ev blocks were included
-            if status.trusted_height < output.new_height {
+            // index if new ev blocks were included, the maximum range that reth supports is 100000 blocks,
+            // but the range can be adjusted in the config as needed
+            let mut start = status.trusted_height + 1;
+            let end = output.new_height;
+            let batch = MAX_INDEXING_RANGE;
+
+            while start <= end {
+                let stop = std::cmp::min(start + batch - 1, end);
                 indexer.filter = Filter::new()
                     .address(self.ctx.mailbox_address())
                     .event(&Dispatch::id())
-                    // start indexing from the first ev block after our last checkpoint
-                    .from_block(status.trusted_height + 1)
-                    .to_block(output.new_height);
+                    .from_block(start)
+                    .to_block(stop);
 
-                // run the indexer to get all messages that occurred since the last trusted height
                 indexer
                     .index(self.hyperlane_message_store.clone(), self.ctx.evm_provider())
                     .await?;
+
+                start = stop + 1;
             }
 
             if let Err(e) = self.submit_proof_msg(&proof).await {
