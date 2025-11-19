@@ -208,7 +208,6 @@ impl BatchExecProver {
 
             // index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks
             let mut start = status.trusted_height + 1;
-
             while start <= output.new_height {
                 let stop = std::cmp::min(start + MAX_INDEXING_RANGE - 1, output.new_height);
                 indexer.filter = Filter::new()
