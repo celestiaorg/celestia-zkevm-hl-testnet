@@ -32,12 +32,11 @@ mod tests {
     fn test_insert_messages() {
         let tmp = TempDir::new().expect("cannot create temp directory");
         let message = hex::decode(DEFAULT_MESSAGE).unwrap();
-        let message_storage_path = dirs::home_dir()
+        let storage_path = dirs::home_dir()
             .expect("cannot find home directory")
             .join(&tmp)
-            .join("data")
-            .join("messages.db");
-        let store = HyperlaneMessageStore::new(message_storage_path).unwrap();
+            .join("data");
+        let store = HyperlaneMessageStore::new(storage_path).unwrap();
         let message = decode_hyperlane_message(&message).unwrap();
         let message = StoredHyperlaneMessage::new(message, Some(100));
         let mut current_index = store.current_index().unwrap();
@@ -63,12 +62,11 @@ mod tests {
     #[test]
     fn test_insert_snapshot() {
         let tmp = TempDir::new().expect("cannot create temp directory");
-        let snapshot_storage_path = dirs::home_dir()
+        let storage_path = dirs::home_dir()
             .expect("cannot find home directory")
             .join(&tmp)
-            .join("data")
-            .join("snapshots.db");
-        let store = HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap();
+            .join("data");
+        let store = HyperlaneSnapshotStore::new(storage_path, None).unwrap();
         let snapshot = MerkleTree::default();
         let current_index = store.current_index().unwrap();
         store

@@ -13,10 +13,12 @@ pub struct HyperlaneMessageStore {
 }
 
 impl HyperlaneMessageStore {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(base_path: P) -> Result<Self> {
+        let db_path = base_path.as_ref().join("messages.db");
+
         let db_opts = Self::get_opts()?;
         let cfs = Self::get_cfs()?;
-        let db = DB::open_cf_descriptors(&db_opts, path, cfs)?;
+        let db = DB::open_cf_descriptors(&db_opts, db_path, cfs)?;
         Ok(Self {
             db: Arc::new(RwLock::new(db)),
         })

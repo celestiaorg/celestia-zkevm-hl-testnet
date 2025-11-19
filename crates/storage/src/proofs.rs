@@ -123,7 +123,9 @@ const CF_METADATA: &str = "metadata";
 const KEY_RANGE_CURSOR: &[u8] = b"range_cursor";
 
 impl RocksDbProofStorage {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, ProofStorageError> {
+    pub fn new<P: AsRef<Path>>(base_path: P) -> Result<Self, ProofStorageError> {
+        let db_path = base_path.as_ref().join("proofs.db");
+
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
@@ -135,7 +137,7 @@ impl RocksDbProofStorage {
             ColumnFamilyDescriptor::new(CF_METADATA, Options::default()),
         ];
 
-        let db = DB::open_cf_descriptors(&opts, path, cfs)?;
+        let db = DB::open_cf_descriptors(&opts, db_path, cfs)?;
         Ok(Self { db: Arc::new(db) })
     }
 

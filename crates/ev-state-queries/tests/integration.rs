@@ -18,13 +18,12 @@ use storage::hyperlane::message::HyperlaneMessageStore;
 */
 #[tokio::test]
 async fn test_run_indexer() {
-    let message_storage_path = dirs::home_dir()
+    let storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(".ev-prover")
-        .join("data")
-        .join("messages.db");
+        .join("data");
     let indexer = HyperlaneIndexer::default();
-    let message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
+    let message_store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
     message_store.reset_db().unwrap();
     let provider = ProviderBuilder::new()
         .connect_ws(WsConnect::new("ws://127.0.0.1:8546"))

@@ -28,13 +28,11 @@ async fn test_run_message_prover() {
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let tmp = TempDir::new().expect("cannot create temp directory");
-    let snapshot_storage_path = tmp.path().join("snapshots.db");
-    let message_storage_path = tmp.path().join("messages.db");
-    let proof_storage_path = tmp.path().join("proofs.db");
+    let storage_path = tmp.path();
 
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
-    let proof_store = Arc::new(RocksDbProofStorage::new(proof_storage_path).unwrap());
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
+    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(storage_path, None).unwrap());
+    let proof_store = Arc::new(RocksDbProofStorage::new(storage_path).unwrap());
 
     hyperlane_message_store.reset_db().unwrap();
     hyperlane_snapshot_store.reset_db().unwrap();

@@ -61,7 +61,8 @@ impl ChainContext {
         let genesis = Config::load_genesis()?;
         let chain_spec = Self::load_chain_spec_from_genesis(&genesis)?;
 
-        let celestia_client = Arc::new(Client::new(&config.rpc.celestia_rpc, None).await?);
+        let auth_token = config.rpc.celestia_auth_token.as_deref();
+        let celestia_client = Arc::new(Client::new(&config.rpc.celestia_rpc, auth_token).await?);
         let evm_provider =
             ProviderBuilder::new().connect_http(Url::parse(&config.rpc.evreth_rpc).context("invalid evm rpc url")?);
 
@@ -110,7 +111,8 @@ impl ChainContext {
     /// Creates a new Celestia WebSocket client for subscriptions.
     pub async fn celestia_ws_client(&self) -> Result<Client> {
         let url = self.celestia_ws_url()?;
-        Client::new(url.as_str(), None).await.map_err(|e| anyhow!(e))
+        let auth_token = self.config.rpc.celestia_auth_token.as_deref();
+        Client::new(url.as_str(), auth_token).await.map_err(|e| anyhow!(e))
     }
 
     /// Returns the ISM client.

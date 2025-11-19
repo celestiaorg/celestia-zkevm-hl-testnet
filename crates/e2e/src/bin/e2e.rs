@@ -115,8 +115,7 @@ async fn main() {
     let snapshot_storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(".ev-prover")
-        .join("data")
-        .join("snapshots.db");
+        .join("data");
     let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
     hyperlane_snapshot_store.reset_db().unwrap();
 

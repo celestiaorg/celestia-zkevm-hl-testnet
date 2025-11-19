@@ -62,8 +62,7 @@ pub async fn parallel_prover(
     let storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(".ev-prover")
-        .join("data")
-        .join("proofs.db");
+        .join("data");
     let proof_storage = Arc::new(RocksDbProofStorage::new(storage_path)?);
 
     let genesis_path = dirs::home_dir()

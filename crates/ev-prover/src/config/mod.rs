@@ -164,6 +164,10 @@ pub struct RpcConfig {
     /// RPC endpoint for the Celestia light node.
     pub celestia_rpc: String,
 
+    /// Authentication token for the Celestia RPC client.
+    /// If None, no authentication is used.
+    pub celestia_auth_token: Option<String>,
+
     /// RPC endpoint for the sequencer node.
     pub evnode_rpc: String,
 
@@ -178,6 +182,7 @@ impl Default for RpcConfig {
     fn default() -> Self {
         Self {
             celestia_rpc: "http://localhost:26658".into(),
+            celestia_auth_token: None,
             evnode_rpc: "http://localhost:7331".into(),
             evreth_rpc: "http://localhost:8545".into(),
             evreth_ws: "ws://localhost:8546".into(),

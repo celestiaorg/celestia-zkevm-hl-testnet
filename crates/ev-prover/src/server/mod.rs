@@ -149,12 +149,10 @@ pub async fn start_server(config: Config) -> Result<()> {
     let mut config_clone = config.clone();
     config_clone.pub_key = public_key(sequencer_rpc_url).await?;
     debug!("Successfully got pubkey from evnode: {}", config_clone.pub_key);
-    // Initialize RocksDB proof_store in the default data directory
-    let storage_path = Config::storage_path().join("proofs.db");
-    let proof_store = Arc::new(RocksDbProofStorage::new(storage_path)?);
-    // Message store, shared for indexing
-    let message_storage_path = Config::storage_path().join("messages.db");
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
+    // Initialize RocksDB storage in the default data directory
+    let storage_path = Config::storage_path();
+    let proof_store = Arc::new(RocksDbProofStorage::new(&storage_path)?);
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(&storage_path).unwrap());
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
@@ -356,8 +354,8 @@ fn prepare_message_prover(
     hyperlane_message_store: Arc<HyperlaneMessageStore>,
     proof_store: Arc<dyn ProofStorage>,
 ) -> Result<HyperlaneMessageProver> {
-    let snapshot_storage_path = Config::storage_path().join("snapshots.db");
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
+    let storage_path = Config::storage_path();
+    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(storage_path, None).unwrap());
 
     HyperlaneMessageProver::new(
         ctx.clone(),

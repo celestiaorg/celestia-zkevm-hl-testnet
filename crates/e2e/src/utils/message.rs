@@ -51,8 +51,7 @@ pub async fn prove_messages(
     let message_storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(&tmp)
-        .join("data")
-        .join("messages.db");
+        .join("data");
     let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
     // prune in case non-empty
     hyperlane_message_store.reset_db().unwrap();
@@ -95,8 +94,7 @@ pub async fn prove_messages(
     let snapshot_storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(&tmp)
-        .join("data")
-        .join("snapshots.db");
+        .join("data");
     let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
     hyperlane_snapshot_store.reset_db().unwrap();
     let snapshot = hyperlane_snapshot_store.get_snapshot(0).unwrap();

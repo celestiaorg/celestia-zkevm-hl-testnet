@@ -36,10 +36,12 @@ pub struct HyperlaneSnapshotStore {
 }
 
 impl HyperlaneSnapshotStore {
-    pub fn new<P: AsRef<Path>>(path: P, trusted_snapshot: Option<MerkleTree>) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(base_path: P, trusted_snapshot: Option<MerkleTree>) -> Result<Self> {
+        let db_path = base_path.as_ref().join("snapshots.db");
+
         let opts = Self::get_opts()?;
         let cfs = Self::get_cfs()?;
-        let db = DB::open_cf_descriptors(&opts, path, cfs)?;
+        let db = DB::open_cf_descriptors(&opts, db_path, cfs)?;
         let snapshot_store = Self {
             db: Arc::new(RwLock::new(db)),
         };
