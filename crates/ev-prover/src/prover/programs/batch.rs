@@ -209,12 +209,9 @@ impl BatchExecProver {
             // Index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks.
             // The max range can be configured on reth using max_blocks_per_filter: u64 and max_logs_per_response: usize.
             let mut from_block = status.trusted_height + 1;
-            debug!(
-                "Indexing mailbox events from block {from_block} to {}",
-                output.new_height
-            );
             while from_block <= output.new_height {
                 let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, output.new_height);
+                debug!("Indexing mailbox events from block {from_block} to {to_block}");
                 indexer.filter = Filter::new()
                     .address(self.ctx.mailbox_address())
                     .event(&Dispatch::id())
