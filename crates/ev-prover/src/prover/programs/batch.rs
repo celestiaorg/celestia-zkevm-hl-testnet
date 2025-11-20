@@ -296,9 +296,9 @@ impl BatchExecProver {
                 .await?;
 
             if current_mailbox_nonce > *mailbox_nonce {
-                // Ensure batch size stays within allowed range
+                // Ensure batch size meets minimum requirement
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
-                let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
+                let batch_size = blocks_elapsed.max(MIN_BATCH_SIZE);
                 *mailbox_nonce = current_mailbox_nonce;
                 debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
                 return Ok(batch_size);
