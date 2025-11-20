@@ -206,21 +206,27 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            // index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks
-            let mut start = status.trusted_height + 1;
-            while start <= output.new_height {
-                let stop = std::cmp::min(start + MAX_INDEXING_RANGE - 1, output.new_height);
+            // Index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks.
+            // The max range can be configured on reth using max_blocks_per_filter: u64 and max_logs_per_response: usize.
+            let mut from_block = status.trusted_height + 1;
+            debug!(
+                "Indexing mailbox events from block {from_block} to {}",
+                output.new_height
+            );
+            while from_block <= output.new_height {
+                let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, output.new_height);
                 indexer.filter = Filter::new()
                     .address(self.ctx.mailbox_address())
                     .event(&Dispatch::id())
-                    .from_block(start)
-                    .to_block(stop);
+                    // both from_block and to_block are inclusive
+                    .from_block(from_block)
+                    .to_block(to_block);
 
                 indexer
                     .index(self.hyperlane_message_store.clone(), self.ctx.evm_provider())
                     .await?;
 
-                start = stop + 1;
+                from_block = to_block + 1;
             }
 
             if let Err(e) = self.submit_proof_msg(&proof).await {
