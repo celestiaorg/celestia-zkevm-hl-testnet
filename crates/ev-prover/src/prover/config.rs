@@ -7,6 +7,7 @@ use tracing::warn;
 // TODO: move these values to config.yaml
 pub const BATCH_SIZE: u64 = 100;
 pub const MIN_BATCH_SIZE: u64 = 10;
+pub const MAX_BATCH_SIZE: u64 = 100000;
 pub const WARN_DISTANCE: u64 = 1500;
 pub const MAX_INDEXING_RANGE: u64 = 100000;
 
