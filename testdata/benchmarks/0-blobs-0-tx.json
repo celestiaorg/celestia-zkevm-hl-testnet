@@ -1,16 +1,44 @@
 {
-  "total_blobs": 0,
-  "total_blockexec_inputs": 0,
-  "total_tx_count": 0,
-  "total_gas": 4550602,
-  "total_instruction_count": 162229,
-  "total_syscall_count": 329,
+  // --------------------------------------------------------------------------
+  // Workload Metrics
+  // --------------------------------------------------------------------------
+  // Summary of the actual work payload. Currently, this indicates an idle state.
+  "workload": {
+    "total_blobs": 0,
+    "total_blockexec_inputs": 0,
+    "total_tx_count": 0
+  },
+
+  // --------------------------------------------------------------------------
+  // Resource Consumption
+  // --------------------------------------------------------------------------
+  // CRITICAL ALERT: High gas usage (4.5M) for zero transactions indicates 
+  // massive fixed overhead in the circuit or execution environment.
+  "resources": {
+    "total_gas": 4550602,
+    "total_instruction_count": 162229,
+    "total_syscall_count": 329,
+    // Derived Metric: Cycles per Instruction (CPI) approximation or Gas efficiency
+    "gas_per_instruction": 28.05
+  },
+
+  // --------------------------------------------------------------------------
+  // Cycle Tracker Breakdown (Profiler)
+  // --------------------------------------------------------------------------
   "cycle_tracker_results": {
-    "deserialize inputs": 76509,
-    "execute EVM blocks": 373,
-    "commit public outputs": 67639,
-    "verify blob-header equivalency": 419,
-    "filter signed data blobs and verify signatures": 486,
-    "verify namespace data": 13497
+    // BOTTLENECK: Input deserialization consumes ~47% of total instruction cycles.
+    // Recommendation: Switch to Zero-Copy deserialization (e.g., rkyv instead of serde).
+    "deserialize_inputs": 76509,
+
+    // The actual business logic execution is negligible (0.2%).
+    "execute_evm_blocks": 373,
+
+    // BOTTLENECK: Output commitment consumes ~41% of cycles.
+    "commit_public_outputs": 67639,
+
+    // Data Availability (DA) verification costs.
+    "verify_blob_header_equivalency": 419,
+    "filter_signed_data_blobs_and_verify_signatures": 486,
+    "verify_namespace_data": 13497
   }
 }
