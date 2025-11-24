@@ -32,16 +32,11 @@ pub trait HyperlaneMessageStorage: Send + Sync {
     fn reset_db(&self) -> MessageStorageResult<()>;
 }
 
-/// RocksDB-backed implementation of Hyperlane message storage.
-///
-/// Uses a shared database instance with the CF_MESSAGES column family.
-/// Keys are composite: [block_height (8 bytes) || index (8 bytes)]
 pub struct HyperlaneMessageStore {
     db: Arc<DB>,
 }
 
 impl HyperlaneMessageStore {
-    /// Creates a new message store using a shared database instance.
     pub fn new(db: Arc<DB>) -> Self {
         Self { db }
     }

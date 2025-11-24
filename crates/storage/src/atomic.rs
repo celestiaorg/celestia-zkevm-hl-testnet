@@ -87,10 +87,8 @@ mod tests {
         let prev_snapshot = HyperlaneSnapshot::new(0, MerkleTree::default());
         ops.finalize_snapshot(0, &prev_snapshot).unwrap();
 
-        // Commit atomically
         ops.commit().unwrap();
 
-        // Verify all operations succeeded
         let cf_snapshots = db.inner().cf_handle(CF_SNAPSHOTS).unwrap();
         let cf_proofs = db.inner().cf_handle(CF_MEMBERSHIP_PROOFS).unwrap();
 
@@ -98,7 +96,6 @@ mod tests {
         assert!(db.inner().get_cf(cf_proofs, 100u64.to_be_bytes()).unwrap().is_some());
         assert!(db.inner().get_cf(cf_snapshots, 0u64.to_be_bytes()).unwrap().is_some());
 
-        // Verify finalized snapshot is actually finalized
         let finalized_bytes = db.inner().get_cf(cf_snapshots, 0u64.to_be_bytes()).unwrap().unwrap();
         let finalized: HyperlaneSnapshot = bincode::deserialize(&finalized_bytes).unwrap();
         assert!(finalized.finalized);

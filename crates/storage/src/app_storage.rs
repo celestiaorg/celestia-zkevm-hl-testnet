@@ -1,8 +1,3 @@
-//! Application storage wrapper that combines all storage abstractions.
-//!
-//! This module provides `AppStorage`, a unified interface to all storage subsystems
-//! (proofs, messages, snapshots) backed by a single shared database instance.
-
 use anyhow::Result;
 use ev_zkevm_types::programs::hyperlane::tree::MerkleTree;
 use std::path::Path;
@@ -14,13 +9,9 @@ use crate::hyperlane::snapshot::{HyperlaneSnapshotStorage, HyperlaneSnapshotStor
 use crate::proofs::{ProofStorage, RocksDbProofStorage};
 
 pub struct AppStorage {
-    /// Unified database instance
     db: UnifiedDB,
-    /// Proof storage abstraction
     proofs: Arc<dyn ProofStorage>,
-    /// Hyperlane message storage abstraction
     messages: Arc<dyn HyperlaneMessageStorage>,
-    /// Hyperlane snapshot storage abstraction
     snapshots: Arc<dyn HyperlaneSnapshotStorage>,
 }
 
@@ -41,31 +32,22 @@ impl AppStorage {
         })
     }
 
-    /// Returns a reference to the proof storage.
     pub fn proofs(&self) -> &Arc<dyn ProofStorage> {
         &self.proofs
     }
 
-    /// Returns a reference to the message storage.
     pub fn messages(&self) -> &Arc<dyn HyperlaneMessageStorage> {
         &self.messages
     }
 
-    /// Returns a reference to the snapshot storage.
     pub fn snapshots(&self) -> &Arc<dyn HyperlaneSnapshotStorage> {
         &self.snapshots
     }
 
-    /// Returns a reference to the underlying unified database.
-    ///
-    /// This can be used for advanced operations like atomic cross-store transactions.
     pub fn db(&self) -> &UnifiedDB {
         &self.db
     }
 
-    /// Resets all storage by deleting all keys in all column families.
-    ///
-    /// WARNING: This destroys all data. Only use for testing.
     pub fn unsafe_reset_all(&self) -> Result<()> {
         self.db.unsafe_reset()
     }

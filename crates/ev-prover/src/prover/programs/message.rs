@@ -83,7 +83,6 @@ pub struct HyperlaneMessageProver {
     pub snapshot_store: Arc<dyn HyperlaneSnapshotStorage>,
     pub proof_store: Arc<dyn ProofStorage>,
     pub state_query_provider: Arc<dyn StateQueryProvider>,
-    /// Direct reference to the underlying database for atomic operations
     pub db: Arc<rocksdb::DB>,
 }
 
@@ -277,6 +276,8 @@ impl HyperlaneMessageProver {
 
         // Atomically: insert new snapshot + store membership proof + finalize previous snapshot
         // This ensures consistency if the process crashes during these operations
+        // TODO: check for unfinalized shapshots and retry
+        // this is a necessary mainnet optimization
         let proof_data = bincode::serialize(&message_proof.0)?;
         let public_values = bincode::serialize(&message_proof.1)?;
         let stored_proof = storage::proofs::StoredMembershipProof {
@@ -292,11 +293,9 @@ impl HyperlaneMessageProver {
         atomic_ops.insert_snapshot(snapshot_index, &snapshot)?;
         atomic_ops.store_membership_proof(committed_height, &stored_proof)?;
 
-        // Load the trusted snapshot to finalize it
         let trusted_snapshot = self.snapshot_store.get_snapshot(trusted_snapshot_index)?;
         atomic_ops.finalize_snapshot(trusted_snapshot_index, &trusted_snapshot)?;
 
-        // Commit all operations atomically
         atomic_ops.commit()?;
 
         info!(
