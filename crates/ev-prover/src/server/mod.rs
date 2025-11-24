@@ -196,14 +196,13 @@ pub async fn start_server(config: Config) -> Result<()> {
                         continue;
                     }
                 };
-                let message_prover =
-                    match prepare_message_prover(ctx.clone(), app_storage_clone.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
+                let message_prover = match prepare_message_prover(ctx.clone(), app_storage_clone.clone()) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
                 let server = Server::new(
                     Arc::new(message_prover),
                     Arc::new(block_prover),
@@ -270,17 +269,15 @@ pub async fn start_server(config: Config) -> Result<()> {
         tokio::spawn(async move {
             loop {
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-                let batch_prover = match BatchExecProver::new(ctx.clone(), tx_range, app_storage_clone.messages().clone()) {
-                    Ok(prover) => prover,
-                    Err(e) => {
-                        error!("Failed to create batch prover: {e:?}");
-                        continue;
-                    }
-                };
-                let message_prover = match prepare_message_prover(
-                    ctx.clone(),
-                    app_storage_clone.clone(),
-                ) {
+                let batch_prover =
+                    match BatchExecProver::new(ctx.clone(), tx_range, app_storage_clone.messages().clone()) {
+                        Ok(prover) => prover,
+                        Err(e) => {
+                            error!("Failed to create batch prover: {e:?}");
+                            continue;
+                        }
+                    };
+                let message_prover = match prepare_message_prover(ctx.clone(), app_storage_clone.clone()) {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create message prover: {e:?}");

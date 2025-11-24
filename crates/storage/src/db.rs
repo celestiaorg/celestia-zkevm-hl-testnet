@@ -5,7 +5,7 @@
 //! This design reduces resource overhead while maintaining logical separation.
 
 use anyhow::Result;
-use rocksdb::{ColumnFamilyDescriptor, Options, SliceTransform, DB};
+use rocksdb::{ColumnFamilyDescriptor, DB, Options, SliceTransform};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -27,15 +27,6 @@ pub struct UnifiedDB {
 }
 
 impl UnifiedDB {
-    /// Creates a new unified database at the specified path.
-    ///
-    /// This initializes a single RocksDB instance with all required column families:
-    /// - block_proofs: Block execution proofs
-    /// - range_proofs: Range aggregation proofs
-    /// - membership_proofs: Hyperlane message membership proofs
-    /// - metadata: Cursor and other metadata
-    /// - messages: Hyperlane messages indexed by block
-    /// - snapshots: Hyperlane merkle tree snapshots
     pub fn new<P: AsRef<Path>>(base_path: P) -> Result<Self> {
         let db_path = base_path.as_ref().join("storage.db");
 
@@ -43,9 +34,7 @@ impl UnifiedDB {
         db_opts.create_if_missing(true);
         db_opts.create_missing_column_families(true);
 
-        // Configure column families with optimized settings
         let cfs = vec![
-            // Proof storage column families
             ColumnFamilyDescriptor::new(CF_BLOCK_PROOFS, Self::proof_cf_opts()),
             ColumnFamilyDescriptor::new(CF_RANGE_PROOFS, Self::proof_cf_opts()),
             ColumnFamilyDescriptor::new(CF_MEMBERSHIP_PROOFS, Self::proof_cf_opts()),
@@ -60,23 +49,16 @@ impl UnifiedDB {
         Ok(Self { db: Arc::new(db) })
     }
 
-    /// Returns a reference to the underlying database.
     pub fn inner(&self) -> &Arc<DB> {
         &self.db
     }
 
-    /// Column family options optimized for large proof storage.
     fn proof_cf_opts() -> Options {
         Options::default()
     }
 
-    /// Column family options optimized for message storage.
-    ///
-    /// Messages use composite keys (block_height + index) and are often
-    /// queried by block prefix, so we enable prefix extraction.
     fn message_cf_opts() -> Options {
         let mut opts = Options::default();
-        // Enable prefix extraction for block_height (first 8 bytes)
         opts.set_prefix_extractor(SliceTransform::create_fixed_prefix(8));
         opts
     }

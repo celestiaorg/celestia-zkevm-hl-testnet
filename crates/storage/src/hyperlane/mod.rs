@@ -21,8 +21,8 @@ mod tests {
     use crate::db::UnifiedDB;
     use crate::hyperlane::{
         StoredHyperlaneMessage,
-        message::{HyperlaneMessageStore, HyperlaneMessageStorage},
-        snapshot::{HyperlaneSnapshot, HyperlaneSnapshotStore, HyperlaneSnapshotStorage},
+        message::{HyperlaneMessageStorage, HyperlaneMessageStore},
+        snapshot::{HyperlaneSnapshot, HyperlaneSnapshotStorage, HyperlaneSnapshotStore},
     };
     use ev_zkevm_types::{hyperlane::decode_hyperlane_message, programs::hyperlane::tree::MerkleTree};
     use tempfile::TempDir;

@@ -10,32 +10,6 @@ use crate::db::{CF_MEMBERSHIP_PROOFS, CF_SNAPSHOTS};
 use crate::hyperlane::snapshot::HyperlaneSnapshot;
 use crate::proofs::StoredMembershipProof;
 
-/// Helper to atomically perform snapshot and proof operations.
-///
-/// This ensures that snapshot insertion, proof storage, and snapshot finalization
-/// happen atomically, preventing inconsistent state if the process crashes.
-///
-/// # Example
-/// ```no_run
-/// use storage::atomic::AtomicSnapshotProofOps;
-/// use storage::app_storage::AppStorage;
-/// use std::path::Path;
-///
-/// # fn main() -> anyhow::Result<()> {
-/// let storage = AppStorage::new(Path::new("./data"), None)?;
-///
-/// let mut ops = AtomicSnapshotProofOps::new(storage.db().inner());
-///
-/// // Add operations
-/// // ops.insert_snapshot(...);
-/// // ops.store_membership_proof(...);
-/// // ops.finalize_snapshot(...);
-///
-/// // Commit atomically
-/// ops.commit()?;
-/// # Ok(())
-/// # }
-/// ```
 pub struct AtomicSnapshotProofOps<'a> {
     db: &'a rocksdb::DB,
     batch: WriteBatch,
@@ -50,7 +24,6 @@ impl<'a> AtomicSnapshotProofOps<'a> {
         }
     }
 
-    /// Adds a snapshot insertion to the atomic batch.
     pub fn insert_snapshot(&mut self, index: u64, snapshot: &HyperlaneSnapshot) -> Result<()> {
         let cf = self
             .db
@@ -62,7 +35,6 @@ impl<'a> AtomicSnapshotProofOps<'a> {
         Ok(())
     }
 
-    /// Adds a membership proof storage to the atomic batch.
     pub fn store_membership_proof(&mut self, height: u64, proof: &StoredMembershipProof) -> Result<()> {
         let cf = self
             .db
@@ -74,9 +46,6 @@ impl<'a> AtomicSnapshotProofOps<'a> {
         Ok(())
     }
 
-    /// Adds a snapshot finalization to the atomic batch.
-    ///
-    /// This loads the snapshot, marks it as finalized, and updates it.
     pub fn finalize_snapshot(&mut self, index: u64, snapshot: &HyperlaneSnapshot) -> Result<()> {
         let cf = self
             .db
@@ -91,9 +60,6 @@ impl<'a> AtomicSnapshotProofOps<'a> {
         Ok(())
     }
 
-    /// Commits all operations atomically.
-    ///
-    /// All operations will be applied together, or none will be applied if an error occurs.
     pub fn commit(self) -> Result<()> {
         self.db.write(self.batch)?;
         Ok(())

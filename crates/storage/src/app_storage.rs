@@ -13,33 +13,6 @@ use crate::hyperlane::message::{HyperlaneMessageStorage, HyperlaneMessageStore};
 use crate::hyperlane::snapshot::{HyperlaneSnapshotStorage, HyperlaneSnapshotStore};
 use crate::proofs::{ProofStorage, RocksDbProofStorage};
 
-/// Unified application storage containing all storage subsystems.
-///
-/// This struct provides a single entry point for all storage operations,
-/// backed by a single shared RocksDB instance with multiple column families.
-/// This design reduces operational overhead while maintaining logical separation.
-///
-/// # Benefits
-/// - Single database instance = reduced resource overhead (1× WAL, threads, file descriptors)
-/// - Simplified operations (one backup, one monitor location, one migration)
-/// - Atomic cross-store operations via WriteBatch
-/// - Maintained logical separation via traits and column families
-///
-/// # Example
-/// ```no_run
-/// use storage::app_storage::AppStorage;
-/// use std::path::Path;
-///
-/// # fn main() -> anyhow::Result<()> {
-/// let storage = AppStorage::new(Path::new("~/.ev-prover/data"), None)?;
-///
-/// // Access individual stores
-/// let proofs = storage.proofs();
-/// let messages = storage.messages();
-/// let snapshots = storage.snapshots();
-/// # Ok(())
-/// # }
-/// ```
 pub struct AppStorage {
     /// Unified database instance
     db: UnifiedDB,
@@ -52,23 +25,10 @@ pub struct AppStorage {
 }
 
 impl AppStorage {
-    /// Creates a new AppStorage instance at the specified path.
-    ///
-    /// This initializes a single RocksDB instance with all required column families
-    /// and creates the storage abstractions for proofs, messages, and snapshots.
-    ///
-    /// # Arguments
-    /// * `base_path` - Directory where the database will be stored
-    /// * `trusted_snapshot` - Optional initial Merkle tree snapshot for Hyperlane
-    ///
-    /// # Errors
-    /// Returns an error if database initialization fails or if snapshot insertion fails.
     pub fn new<P: AsRef<Path>>(base_path: P, trusted_snapshot: Option<MerkleTree>) -> Result<Self> {
-        // Initialize unified database
         let db = UnifiedDB::new(base_path)?;
         let db_arc = db.inner().clone();
 
-        // Create storage abstractions using the shared DB
         let proofs = Arc::new(RocksDbProofStorage::new(db_arc.clone()));
         let messages = Arc::new(HyperlaneMessageStore::new(db_arc.clone()));
         let snapshots = Arc::new(HyperlaneSnapshotStore::new(db_arc, trusted_snapshot)?);

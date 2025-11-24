@@ -115,7 +115,6 @@ impl HyperlaneSnapshotStore {
         }
         snapshot
     }
-
 }
 
 impl HyperlaneSnapshotStorage for HyperlaneSnapshotStore {
@@ -277,10 +276,10 @@ pub mod testing {
                 snapshots: Mutex::new(HashMap::new()),
             };
             // Insert default snapshot at index 0
-            mock.snapshots.lock().unwrap().insert(
-                0,
-                HyperlaneSnapshot::new(0, MerkleTree::default()),
-            );
+            mock.snapshots
+                .lock()
+                .unwrap()
+                .insert(0, HyperlaneSnapshot::new(0, MerkleTree::default()));
             mock
         }
 

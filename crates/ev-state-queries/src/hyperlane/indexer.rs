@@ -42,18 +42,24 @@ impl HyperlaneIndexer {
         Ok(Self::new(filter))
     }
 
-    pub async fn index(&self, message_store: Arc<dyn HyperlaneMessageStorage>, provider: DefaultProvider) -> Result<()> {
+    pub async fn index(
+        &self,
+        message_store: Arc<dyn HyperlaneMessageStorage>,
+        provider: DefaultProvider,
+    ) -> Result<()> {
         let logs = provider.get_logs(&self.filter).await?;
         for log in logs {
             match Dispatch::decode_log_data(log.data()) {
                 Ok(event) => {
                     let dispatch_event: DispatchEvent = event.into();
-                    let current_index = message_store.current_index()
+                    let current_index = message_store
+                        .current_index()
                         .map_err(|e| anyhow::anyhow!("Failed to get current index: {}", e))?;
                     let hyperlane_message =
                         decode_hyperlane_message(&dispatch_event.message).expect("Failed to decode Hyperlane message");
                     let stored_message = StoredHyperlaneMessage::new(hyperlane_message, log.block_number);
-                    message_store.insert_message(current_index, stored_message)
+                    message_store
+                        .insert_message(current_index, stored_message)
                         .map_err(|e| anyhow::anyhow!("Failed to insert message: {}", e))?;
                     debug!("Inserted Hyperlane Message at index: {current_index}");
                 }

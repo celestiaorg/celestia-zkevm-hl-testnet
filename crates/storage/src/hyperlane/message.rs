@@ -22,22 +22,13 @@ pub enum MessageStorageError {
 
 pub type MessageStorageResult<T> = Result<T, MessageStorageError>;
 
-/// Trait for Hyperlane message storage operations.
-///
-/// This trait abstracts message storage to enable testing and different implementations.
 pub trait HyperlaneMessageStorage: Send + Sync {
-    /// Insert a Hyperlane message into storage at the given index.
     fn insert_message(&self, index: u64, message: StoredHyperlaneMessage) -> MessageStorageResult<()>;
 
-    /// Get all Hyperlane messages for a specific block height.
     fn get_by_block(&self, block: u64) -> MessageStorageResult<Vec<StoredHyperlaneMessage>>;
 
-    /// Get the next available index for message insertion.
     fn current_index(&self) -> MessageStorageResult<u64>;
 
-    /// Reset the database, removing all messages.
-    ///
-    /// WARNING: This destroys all data. Only use for testing.
     fn reset_db(&self) -> MessageStorageResult<()>;
 }
 
@@ -60,7 +51,6 @@ impl HyperlaneMessageStore {
             .cf_handle(CF_MESSAGES)
             .ok_or_else(|| MessageStorageError::ColumnFamilyNotFound(CF_MESSAGES.to_string()))
     }
-
 }
 
 impl HyperlaneMessageStorage for HyperlaneMessageStore {
@@ -126,19 +116,11 @@ impl HyperlaneMessageStorage for HyperlaneMessageStore {
     }
 }
 
-/// Testing utilities for HyperlaneMessageStorage implementations.
-///
-/// This module provides an in-memory mock implementation of HyperlaneMessageStorage
-/// that can be used in tests across all crates that depend on the storage trait.
 pub mod testing {
     use super::*;
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    /// In-memory implementation of HyperlaneMessageStorage for testing.
-    ///
-    /// Uses HashMaps and Mutex for thread-safe, deterministic testing
-    /// without requiring a real database.
     pub struct MockMessageStorage {
         messages: Mutex<HashMap<(u64, u64), StoredHyperlaneMessage>>, // (block, index) -> message
         current_index: Mutex<u64>,
@@ -152,7 +134,6 @@ pub mod testing {
             }
         }
 
-        /// Insert a message directly for testing
         pub fn insert_test_message(&self, block: u64, index: u64, message: StoredHyperlaneMessage) {
             self.messages.lock().unwrap().insert((block, index), message);
             let mut current = self.current_index.lock().unwrap();
