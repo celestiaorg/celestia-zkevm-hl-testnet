@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::prover::abi::MailboxContract;
 use crate::prover::chain::ChainContext;
+use crate::prover::config::{MAX_BATCH_SIZE, MAX_INDEXING_RANGE};
 use crate::prover::{
     config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
     MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
@@ -205,19 +206,24 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            // index if new ev blocks were included
-            if status.trusted_height < output.new_height {
+            // Index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks.
+            // The max range can be configured on reth using max_blocks_per_filter: u64 and max_logs_per_response: usize.
+            let mut from_block = status.trusted_height + 1;
+            while from_block <= output.new_height {
+                let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, output.new_height);
+                debug!("Indexing mailbox events from block {from_block} to {to_block}");
                 indexer.filter = Filter::new()
                     .address(self.ctx.mailbox_address())
                     .event(&Dispatch::id())
-                    // start indexing from the first ev block after our last checkpoint
-                    .from_block(status.trusted_height + 1)
-                    .to_block(output.new_height);
+                    // both from_block and to_block are inclusive
+                    .from_block(from_block)
+                    .to_block(to_block);
 
-                // run the indexer to get all messages that occurred since the last trusted height
                 indexer
                     .index(self.hyperlane_message_store.clone(), self.ctx.evm_provider())
                     .await?;
+
+                from_block = to_block + 1;
             }
 
             if let Err(e) = self.submit_proof_msg(&proof).await {
@@ -290,9 +296,9 @@ impl BatchExecProver {
                 .await?;
 
             if current_mailbox_nonce > *mailbox_nonce {
-                // Ensure batch size stays within allowed range
+                // Ensure batch size meets minimum requirement
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
-                let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, BATCH_SIZE);
+                let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, MAX_BATCH_SIZE);
                 *mailbox_nonce = current_mailbox_nonce;
                 debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
                 return Ok(batch_size);
