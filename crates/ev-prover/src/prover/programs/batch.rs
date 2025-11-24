@@ -205,8 +205,7 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            // Index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks.
-            // The max range can be configured on reth using max_blocks_per_filter: u64 and max_logs_per_response: usize.
+            // Index if new ev blocks were included.
             self.index_messages(&indexer, status.trusted_height + 1, output.new_height)
                 .await?;
 
@@ -223,26 +222,6 @@ impl BatchExecProver {
             let request = MessageProofRequest::with_permit(commit, permit);
             self.range_tx.send(request).await?;
         }
-    }
-
-    async fn index_messages(&self, indexer: &HyperlaneIndexer, start_block: u64, end_block: u64) -> Result<()> {
-        if start_block > end_block {
-            return Ok(());
-        }
-
-        let mut from_block = start_block;
-        while from_block <= end_block {
-            let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, end_block);
-            debug!("Indexing mailbox events from block {from_block} to {to_block}");
-
-            let filter = indexer.filter_with_range(from_block, to_block);
-            indexer
-                .process(filter, self.ctx.evm_provider(), self.hyperlane_message_store.clone())
-                .await?;
-            from_block = to_block + 1;
-        }
-
-        Ok(())
     }
 
     /// Loads the ProverStatus by querying the trusted state from the on-chain ism and the
@@ -310,6 +289,30 @@ impl BatchExecProver {
         }
 
         Ok(BATCH_SIZE)
+    }
+
+    /// Fetches and stores Hyperlane mailbox events across the provided inclusive block range,
+    /// chunking requests to respect `MAX_INDEXING_RANGE`.
+    /// The `MAX_INDEXING_RANGE` const is configured to respect the default value of 100,000 blocks.
+    /// This setting can be configured via the EVM execution client using `max_blocks_per_filter: u64` and `max_logs_per_response: usize`.
+    async fn index_messages(&self, indexer: &HyperlaneIndexer, start_block: u64, end_block: u64) -> Result<()> {
+        if start_block > end_block {
+            return Ok(());
+        }
+
+        let mut from_block = start_block;
+        while from_block <= end_block {
+            let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, end_block);
+            debug!("Indexing mailbox events from block {from_block} to {to_block}");
+
+            let filter = indexer.filter_with_range(from_block, to_block);
+            indexer
+                .process(filter, self.ctx.evm_provider(), self.hyperlane_message_store.clone())
+                .await?;
+            from_block = to_block + 1;
+        }
+
+        Ok(())
     }
 
     /// Submits a state transition proof msg to the zk verifier on-chain.
