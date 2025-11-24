@@ -23,7 +23,6 @@ use crate::proto::celestia::prover::v1::{
 use crate::prover::programs::batch::BATCH_ELF;
 use crate::prover::programs::message::EV_HYPERLANE_ELF;
 use crate::server::start_server;
-use storage::proofs::{ProofStorage, RocksDbProofStorage};
 
 pub mod cli;
 pub use cli::{Cli, Commands};
@@ -46,8 +45,8 @@ pub fn unsafe_reset_db() -> Result<()> {
     let storage_path = Config::storage_path();
     info!("Resetting db state at {}", storage_path.display());
 
-    let mut storage = RocksDbProofStorage::new(storage_path)?;
-    storage.unsafe_reset()?;
+    let app_storage = storage::app_storage::AppStorage::new(storage_path, None)?;
+    app_storage.unsafe_reset_all()?;
     Ok(())
 }
 

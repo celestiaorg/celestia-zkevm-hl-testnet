@@ -4,13 +4,14 @@ use ev_zkevm_types::programs::{
     block::{BlockExecOutput, BlockRangeExecOutput},
     hyperlane::types::HyperlaneMessageOutputs,
 };
-use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, DB, Options};
+use rocksdb::{ColumnFamily, DB};
 use serde::{Deserialize, Serialize};
 use sp1_sdk::SP1ProofWithPublicValues;
 use std::convert::TryInto;
-use std::path::Path;
 use std::sync::Arc;
 use thiserror::Error;
+
+use crate::db::{CF_BLOCK_PROOFS, CF_MEMBERSHIP_PROOFS, CF_METADATA, CF_RANGE_PROOFS};
 
 #[derive(Debug, Error)]
 pub enum ProofStorageError {
@@ -112,33 +113,19 @@ pub trait ProofStorage: Send + Sync {
     fn unsafe_reset(&mut self) -> Result<(), ProofStorageError>;
 }
 
+/// RocksDB-backed implementation of proof storage.
+///
+/// Uses a shared database instance with multiple column families for different proof types.
 pub struct RocksDbProofStorage {
     db: Arc<DB>,
 }
 
-const CF_BLOCK_PROOFS: &str = "block_proofs";
-const CF_RANGE_PROOFS: &str = "range_proofs";
-const CF_MEMBERSHIP_PROOFS: &str = "membership_proofs";
-const CF_METADATA: &str = "metadata";
 const KEY_RANGE_CURSOR: &[u8] = b"range_cursor";
 
 impl RocksDbProofStorage {
-    pub fn new<P: AsRef<Path>>(base_path: P) -> Result<Self, ProofStorageError> {
-        let db_path = base_path.as_ref().join("proofs.db");
-
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-        opts.create_missing_column_families(true);
-
-        let cfs = vec![
-            ColumnFamilyDescriptor::new(CF_BLOCK_PROOFS, Options::default()),
-            ColumnFamilyDescriptor::new(CF_RANGE_PROOFS, Options::default()),
-            ColumnFamilyDescriptor::new(CF_MEMBERSHIP_PROOFS, Options::default()),
-            ColumnFamilyDescriptor::new(CF_METADATA, Options::default()),
-        ];
-
-        let db = DB::open_cf_descriptors(&opts, db_path, cfs)?;
-        Ok(Self { db: Arc::new(db) })
+    /// Creates a new proof storage using a shared database instance.
+    pub fn new(db: Arc<DB>) -> Self {
+        Self { db }
     }
 
     fn get_cf(&self, name: &str) -> Result<&ColumnFamily, ProofStorageError> {
@@ -365,24 +352,23 @@ impl ProofStorage for RocksDbProofStorage {
     }
 
     fn unsafe_reset(&mut self) -> Result<(), ProofStorageError> {
-        let db = Arc::get_mut(&mut self.db).ok_or_else(|| ProofStorageError::General(anyhow!("storage is shared")))?;
+        // Since the DB is shared, we delete all keys in our column families
+        // rather than dropping/recreating them
+        let mut batch = rocksdb::WriteBatch::default();
 
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-        opts.create_missing_column_families(true);
+        let cf_names = [CF_BLOCK_PROOFS, CF_RANGE_PROOFS, CF_MEMBERSHIP_PROOFS, CF_METADATA];
 
-        let cfs = vec![
-            ColumnFamilyDescriptor::new(CF_BLOCK_PROOFS, Options::default()),
-            ColumnFamilyDescriptor::new(CF_RANGE_PROOFS, Options::default()),
-            ColumnFamilyDescriptor::new(CF_MEMBERSHIP_PROOFS, Options::default()),
-            ColumnFamilyDescriptor::new(CF_METADATA, Options::default()),
-        ];
+        for cf_name in cf_names {
+            let cf = self.get_cf(cf_name)?;
+            let iter = self.db.iterator_cf(cf, rocksdb::IteratorMode::Start);
 
-        for cf in cfs {
-            db.drop_cf(cf.name()).ok();
-            db.create_cf(cf.name(), &opts).ok();
+            for item in iter {
+                let (key, _) = item?;
+                batch.delete_cf(cf, key);
+            }
         }
 
+        self.db.write(batch)?;
         Ok(())
     }
 }

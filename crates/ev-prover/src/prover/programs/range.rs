@@ -11,7 +11,7 @@ use sp1_sdk::{
     include_elf, HashableKey, SP1Proof, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin,
     SP1VerifyingKey,
 };
-use storage::hyperlane::message::HyperlaneMessageStore;
+use storage::hyperlane::message::HyperlaneMessageStorage;
 use storage::proofs::ProofStorage;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Semaphore;
@@ -191,7 +191,7 @@ pub struct BlockRangeExecService {
     client: CelestiaIsmClient,
     prover: Arc<BlockRangeExecProver>,
     proof_store: Arc<dyn ProofStorage>,
-    hyperlane_message_store: Arc<HyperlaneMessageStore>,
+    hyperlane_message_store: Arc<dyn HyperlaneMessageStorage>,
     rx_block: Receiver<BlockProofCommitted>,
     tx_range: Sender<MessageProofRequest>,
 
@@ -209,7 +209,7 @@ impl BlockRangeExecService {
         client: CelestiaIsmClient,
         prover: Arc<BlockRangeExecProver>,
         proof_store: Arc<dyn ProofStorage>,
-        hyperlane_message_store: Arc<HyperlaneMessageStore>,
+        hyperlane_message_store: Arc<dyn HyperlaneMessageStorage>,
         rx_block: Receiver<BlockProofCommitted>,
         tx_range: Sender<MessageProofRequest>,
         batch_size: usize,

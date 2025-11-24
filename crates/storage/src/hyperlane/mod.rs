@@ -18,10 +18,11 @@ impl StoredHyperlaneMessage {
 
 #[cfg(test)]
 mod tests {
+    use crate::db::UnifiedDB;
     use crate::hyperlane::{
         StoredHyperlaneMessage,
-        message::HyperlaneMessageStore,
-        snapshot::{HyperlaneSnapshot, HyperlaneSnapshotStore},
+        message::{HyperlaneMessageStore, HyperlaneMessageStorage},
+        snapshot::{HyperlaneSnapshot, HyperlaneSnapshotStore, HyperlaneSnapshotStorage},
     };
     use ev_zkevm_types::{hyperlane::decode_hyperlane_message, programs::hyperlane::tree::MerkleTree};
     use tempfile::TempDir;
@@ -32,19 +33,19 @@ mod tests {
     fn test_insert_messages() {
         let tmp = TempDir::new().expect("cannot create temp directory");
         let message = hex::decode(DEFAULT_MESSAGE).unwrap();
-        let storage_path = dirs::home_dir()
-            .expect("cannot find home directory")
-            .join(&tmp)
-            .join("data");
-        let store = HyperlaneMessageStore::new(storage_path).unwrap();
+        let db = UnifiedDB::new(tmp.path()).unwrap();
+        let store = HyperlaneMessageStore::new(db.inner().clone());
+
         let message = decode_hyperlane_message(&message).unwrap();
         let message = StoredHyperlaneMessage::new(message, Some(100));
         let mut current_index = store.current_index().unwrap();
+
         for _i in 0..10 {
             let message = StoredHyperlaneMessage::new(message.message.clone(), Some(100));
             store.insert_message(current_index, message.clone()).unwrap();
             current_index += 1;
         }
+
         for i in 0..200 {
             let retrieved_messages = store.get_by_block(i).unwrap();
             if i == 100 {
@@ -56,24 +57,26 @@ mod tests {
                 assert_eq!(retrieved_messages.len(), 0);
             }
         }
+
         store.reset_db().unwrap();
     }
 
     #[test]
     fn test_insert_snapshot() {
         let tmp = TempDir::new().expect("cannot create temp directory");
-        let storage_path = dirs::home_dir()
-            .expect("cannot find home directory")
-            .join(&tmp)
-            .join("data");
-        let store = HyperlaneSnapshotStore::new(storage_path, None).unwrap();
+        let db = UnifiedDB::new(tmp.path()).unwrap();
+        let store = HyperlaneSnapshotStore::new(db.inner().clone(), None).unwrap();
+
         let snapshot = MerkleTree::default();
         let current_index = store.current_index().unwrap();
+
         store
             .insert_snapshot(current_index, HyperlaneSnapshot::new(0, snapshot.clone()))
             .unwrap();
+
         let retrieved_snapshot = store.get_snapshot(current_index).unwrap();
         assert_eq!(retrieved_snapshot, HyperlaneSnapshot::new(0, snapshot));
+
         store.reset_db().unwrap();
     }
 }

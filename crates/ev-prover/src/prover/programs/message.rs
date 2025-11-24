@@ -19,8 +19,9 @@ use ev_zkevm_types::programs::hyperlane::types::{
 };
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use std::{env, sync::Arc};
+use storage::atomic::AtomicSnapshotProofOps;
 use storage::hyperlane::StoredHyperlaneMessage;
-use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore};
+use storage::hyperlane::{message::HyperlaneMessageStorage, snapshot::HyperlaneSnapshotStorage};
 use storage::proofs::ProofStorage;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info};
@@ -78,10 +79,12 @@ pub struct HyperlaneMessageProver {
     pub ctx: Arc<ChainContext>,
     pub config: MessageProverConfig,
     pub prover: Arc<SP1Prover>,
-    pub message_store: Arc<HyperlaneMessageStore>,
-    pub snapshot_store: Arc<HyperlaneSnapshotStore>,
+    pub message_store: Arc<dyn HyperlaneMessageStorage>,
+    pub snapshot_store: Arc<dyn HyperlaneSnapshotStorage>,
     pub proof_store: Arc<dyn ProofStorage>,
     pub state_query_provider: Arc<dyn StateQueryProvider>,
+    /// Direct reference to the underlying database for atomic operations
+    pub db: Arc<rocksdb::DB>,
 }
 
 impl ProgramProver for HyperlaneMessageProver {
@@ -113,10 +116,11 @@ impl ProgramProver for HyperlaneMessageProver {
 impl HyperlaneMessageProver {
     pub fn new(
         ctx: Arc<ChainContext>,
-        message_store: Arc<HyperlaneMessageStore>,
-        snapshot_store: Arc<HyperlaneSnapshotStore>,
+        message_store: Arc<dyn HyperlaneMessageStorage>,
+        snapshot_store: Arc<dyn HyperlaneSnapshotStorage>,
         proof_store: Arc<dyn ProofStorage>,
         state_query_provider: Arc<dyn StateQueryProvider>,
+        db: Arc<rocksdb::DB>,
     ) -> Result<Self> {
         let prover = prover_from_env();
         let config = HyperlaneMessageProver::default_config(prover.as_ref());
@@ -129,6 +133,7 @@ impl HyperlaneMessageProver {
             snapshot_store,
             proof_store,
             state_query_provider,
+            db,
         })
     }
 
@@ -255,12 +260,11 @@ impl HyperlaneMessageProver {
             ism_client.signer_address().to_string(),
         );
 
-        // Store the unfinalized snapshot
+        // Prepare snapshot data
         snapshot.height = committed_height;
         let snapshot_index = self.snapshot_store.current_index()? + 1;
-        self.snapshot_store.insert_snapshot(snapshot_index, snapshot)?;
 
-        // Submit the proof to ZKISM
+        // Submit the proof to ZKISM first (external operation, cannot be in atomic transaction)
         info!("Submitting Hyperlane tree proof to ZKISM...");
         let response = ism_client.send_tx(message_proof_msg).await?;
 
@@ -270,13 +274,35 @@ impl HyperlaneMessageProver {
         }
 
         info!("ZKISM was updated successfully");
-        self.proof_store
-            .store_membership_proof(committed_height, &message_proof.0, &message_proof.1)
-            .await?;
 
-        // TODO: check for unfinalized shapshots and retry
-        // this is a necessary mainnet optimization
-        self.snapshot_store.finalize_snapshot(trusted_snapshot_index)?;
+        // Atomically: insert new snapshot + store membership proof + finalize previous snapshot
+        // This ensures consistency if the process crashes during these operations
+        let proof_data = bincode::serialize(&message_proof.0)?;
+        let public_values = bincode::serialize(&message_proof.1)?;
+        let stored_proof = storage::proofs::StoredMembershipProof {
+            proof_data,
+            public_values,
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        };
+
+        let mut atomic_ops = AtomicSnapshotProofOps::new(self.db.as_ref());
+        atomic_ops.insert_snapshot(snapshot_index, &snapshot)?;
+        atomic_ops.store_membership_proof(committed_height, &stored_proof)?;
+
+        // Load the trusted snapshot to finalize it
+        let trusted_snapshot = self.snapshot_store.get_snapshot(trusted_snapshot_index)?;
+        atomic_ops.finalize_snapshot(trusted_snapshot_index, &trusted_snapshot)?;
+
+        // Commit all operations atomically
+        atomic_ops.commit()?;
+
+        info!(
+            "Atomically stored snapshot {}, membership proof at height {}, and finalized snapshot {}",
+            snapshot_index, committed_height, trusted_snapshot_index
+        );
 
         // Relay all verified messages to Celestia
         // TODO: add a finality flag to each message and retry
