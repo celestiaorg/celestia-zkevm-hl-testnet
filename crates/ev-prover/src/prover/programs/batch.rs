@@ -10,7 +10,6 @@ use crate::prover::{
 };
 use alloy_primitives::FixedBytes;
 use alloy_provider::Provider;
-use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use celestia_grpc_client::{MsgUpdateZkExecutionIsm, QueryIsmRequest};
@@ -19,8 +18,8 @@ use celestia_types::{
     nmt::{Namespace, NamespaceProof},
     Blob,
 };
+use ev_state_queries::hyperlane::indexer::HyperlaneIndexer;
 use ev_types::v1::SignedData;
-use ev_zkevm_types::events::Dispatch;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
 use prost::Message;
 use rsp_client_executor::io::EthClientExecutorInput;
@@ -161,7 +160,7 @@ impl BatchExecProver {
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
         let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
         let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
-        let mut indexer = self.ctx.hyperlane_indexer();
+        let indexer = self.ctx.hyperlane_indexer();
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
@@ -208,23 +207,8 @@ impl BatchExecProver {
 
             // Index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks.
             // The max range can be configured on reth using max_blocks_per_filter: u64 and max_logs_per_response: usize.
-            let mut from_block = status.trusted_height + 1;
-            while from_block <= output.new_height {
-                let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, output.new_height);
-                debug!("Indexing mailbox events from block {from_block} to {to_block}");
-                indexer.filter = Filter::new()
-                    .address(self.ctx.mailbox_address())
-                    .event(&Dispatch::id())
-                    // both from_block and to_block are inclusive
-                    .from_block(from_block)
-                    .to_block(to_block);
-
-                indexer
-                    .index(self.hyperlane_message_store.clone(), self.ctx.evm_provider())
-                    .await?;
-
-                from_block = to_block + 1;
-            }
+            self.index_messages(&indexer, status.trusted_height + 1, output.new_height)
+                .await?;
 
             if let Err(e) = self.submit_proof_msg(&proof).await {
                 error!(?e, "Failed to submit tx to ism");
@@ -239,6 +223,26 @@ impl BatchExecProver {
             let request = MessageProofRequest::with_permit(commit, permit);
             self.range_tx.send(request).await?;
         }
+    }
+
+    async fn index_messages(&self, indexer: &HyperlaneIndexer, start_block: u64, end_block: u64) -> Result<()> {
+        if start_block > end_block {
+            return Ok(());
+        }
+
+        let mut from_block = start_block;
+        while from_block <= end_block {
+            let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, end_block);
+            debug!("Indexing mailbox events from block {from_block} to {to_block}");
+
+            let filter = indexer.filter_with_range(from_block, to_block);
+            indexer
+                .process(filter, self.ctx.evm_provider(), self.hyperlane_message_store.clone())
+                .await?;
+            from_block = to_block + 1;
+        }
+
+        Ok(())
     }
 
     /// Loads the ProverStatus by querying the trusted state from the on-chain ism and the

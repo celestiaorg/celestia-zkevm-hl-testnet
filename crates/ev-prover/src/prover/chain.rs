@@ -159,7 +159,7 @@ impl ChainContext {
     /// Creates the Hyperlane message indexer.
     pub fn hyperlane_indexer(&self) -> HyperlaneIndexer {
         let filter = Filter::new().address(self.mailbox_address()).event(&Dispatch::id());
-        HyperlaneIndexer::new(filter.clone())
+        HyperlaneIndexer::new(filter)
     }
 
     /// Generates STF inputs for the configured chain at the requested block height.

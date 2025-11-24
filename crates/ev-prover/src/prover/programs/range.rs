@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 use std::{collections::BTreeSet, env, sync::Arc};
 
-use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use celestia_grpc_client::{CelestiaIsmClient, StateTransitionProofMsg};
-use ev_zkevm_types::events::Dispatch;
+use ev_state_queries::hyperlane::indexer::HyperlaneIndexer;
 use ev_zkevm_types::programs::block::{BlockRangeExecInput, BlockRangeExecOutput};
 use sp1_sdk::{
     include_elf, HashableKey, SP1Proof, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin,
@@ -256,7 +255,7 @@ impl BlockRangeExecService {
                 let prover = self.prover.clone();
                 let proof_store = self.proof_store.clone();
                 let tx = self.tx_range.clone();
-                let mut indexer_clone = indexer.clone();
+                let indexer_clone = indexer.clone();
                 let ctx = self.ctx.clone();
                 let hyperlane_message_store = self.hyperlane_message_store.clone();
 
@@ -277,17 +276,14 @@ impl BlockRangeExecService {
 
                             // Index Hyperlane messages if new EV blocks were included
                             if output.trusted_height < output.new_height {
-                                indexer_clone.filter = Filter::new()
-                                    .address(ctx.mailbox_address())
-                                    .event(&Dispatch::id())
-                                    // start indexing from the first ev block after our last checkpoint
-                                    .from_block(output.trusted_height + 1)
-                                    .to_block(output.new_height);
-
-                                // Run the indexer to get all messages that occurred since the last trusted height
-                                if let Err(e) = indexer_clone
-                                    .index(hyperlane_message_store.clone(), ctx.evm_provider())
-                                    .await
+                                if let Err(e) = Self::index_messages(
+                                    ctx.clone(),
+                                    &indexer_clone,
+                                    hyperlane_message_store.clone(),
+                                    output.trusted_height + 1,
+                                    output.new_height,
+                                )
+                                .await
                                 {
                                     error!(?e, "Failed to index hyperlane messages");
                                 }
@@ -306,6 +302,21 @@ impl BlockRangeExecService {
             }
         }
         Ok(())
+    }
+
+    async fn index_messages(
+        ctx: Arc<ChainContext>,
+        indexer: &HyperlaneIndexer,
+        message_store: Arc<HyperlaneMessageStore>,
+        from_block: u64,
+        to_block: u64,
+    ) -> Result<()> {
+        if from_block > to_block {
+            return Ok(());
+        }
+
+        let filter = indexer.filter_with_range(from_block, to_block);
+        indexer.process(filter, ctx.evm_provider(), message_store).await
     }
 
     /// Calculate the next provable range bounded by batch size.
