@@ -1,8 +1,3 @@
-//! Atomic transaction utilities for cross-store operations.
-//!
-//! This module provides helpers for performing atomic operations
-//! across multiple storage abstractions.
-
 use anyhow::Result;
 use rocksdb::WriteBatch;
 
@@ -16,7 +11,6 @@ pub struct AtomicSnapshotProofOps<'a> {
 }
 
 impl<'a> AtomicSnapshotProofOps<'a> {
-    /// Creates a new atomic operation builder.
     pub fn new(db: &'a rocksdb::DB) -> Self {
         Self {
             db,

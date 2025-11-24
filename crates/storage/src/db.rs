@@ -1,15 +1,8 @@
-//! Unified database module for consolidated RocksDB storage.
-//!
-//! This module provides a single physical RocksDB instance with multiple
-//! column families for different logical stores (proofs, messages, snapshots).
-//! This design reduces resource overhead while maintaining logical separation.
-
 use anyhow::Result;
 use rocksdb::{ColumnFamilyDescriptor, DB, Options, SliceTransform};
 use std::path::Path;
 use std::sync::Arc;
 
-/// Column family names for different storage types
 pub const CF_BLOCK_PROOFS: &str = "block_proofs";
 pub const CF_RANGE_PROOFS: &str = "range_proofs";
 pub const CF_MEMBERSHIP_PROOFS: &str = "membership_proofs";
@@ -92,69 +85,16 @@ impl UnifiedDB {
         Ok(())
     }
 
-    /// Creates an atomic transaction builder for cross-store operations.
-    ///
-    /// This allows multiple operations across different stores to be committed atomically.
-    ///
-    /// # Example
-    /// ```no_run
-    /// use storage::db::UnifiedDB;
-    /// use std::path::Path;
-    ///
-    /// # fn main() -> anyhow::Result<()> {
-    /// let db = UnifiedDB::new(Path::new("./data"))?;
-    /// let tx = db.begin_transaction();
-    ///
-    /// // Add operations from different stores
-    /// // tx.put_cf(...);
-    /// // tx.delete_cf(...);
-    ///
-    /// // Commit atomically
-    /// db.commit_transaction(tx)?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub fn begin_transaction(&self) -> rocksdb::WriteBatch {
         rocksdb::WriteBatch::default()
     }
 
-    /// Commits an atomic transaction.
-    ///
-    /// All operations in the batch will be applied atomically, or none will be applied.
     pub fn commit_transaction(&self, batch: rocksdb::WriteBatch) -> Result<()> {
         self.db.write(batch)?;
         Ok(())
     }
 }
 
-/// Transaction builder for atomic cross-store operations.
-///
-/// This provides a higher-level API for building atomic transactions
-/// that span multiple storage abstractions.
-///
-/// # Example
-/// ```no_run
-/// use storage::db::{UnifiedDB, AtomicTransaction};
-/// use storage::hyperlane::snapshot::HyperlaneSnapshot;
-/// use ev_zkevm_types::programs::hyperlane::tree::MerkleTree;
-/// use std::path::Path;
-///
-/// # fn main() -> anyhow::Result<()> {
-/// let db = UnifiedDB::new(Path::new("./data"))?;
-/// let mut tx = AtomicTransaction::new(&db);
-///
-/// // Example: Store snapshot and update metadata atomically
-/// let snapshot = HyperlaneSnapshot::new(100, MerkleTree::default());
-/// let serialized = bincode::serialize(&snapshot)?;
-///
-/// let cf_snapshots = db.inner().cf_handle("snapshots").unwrap();
-/// tx.put_cf(cf_snapshots, 1u64.to_be_bytes(), &serialized);
-///
-/// // Commit all operations atomically
-/// tx.commit()?;
-/// # Ok(())
-/// # }
-/// ```
 pub struct AtomicTransaction<'a> {
     db: &'a UnifiedDB,
     batch: rocksdb::WriteBatch,
@@ -186,9 +126,6 @@ impl<'a> AtomicTransaction<'a> {
         self.batch.delete_cf(cf, key);
     }
 
-    /// Commits the transaction atomically.
-    ///
-    /// All operations will be applied atomically, or none will be applied if an error occurs.
     pub fn commit(self) -> Result<()> {
         self.db.commit_transaction(self.batch)
     }
@@ -204,7 +141,6 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let db = UnifiedDB::new(temp_dir.path()).unwrap();
 
-        // Verify all column families exist
         let cf_names = [
             CF_BLOCK_PROOFS,
             CF_RANGE_PROOFS,

@@ -123,7 +123,6 @@ pub struct RocksDbProofStorage {
 const KEY_RANGE_CURSOR: &[u8] = b"range_cursor";
 
 impl RocksDbProofStorage {
-    /// Creates a new proof storage using a shared database instance.
     pub fn new(db: Arc<DB>) -> Self {
         Self { db }
     }
@@ -352,8 +351,6 @@ impl ProofStorage for RocksDbProofStorage {
     }
 
     fn unsafe_reset(&mut self) -> Result<(), ProofStorageError> {
-        // Since the DB is shared, we delete all keys in our column families
-        // rather than dropping/recreating them
         let mut batch = rocksdb::WriteBatch::default();
 
         let cf_names = [CF_BLOCK_PROOFS, CF_RANGE_PROOFS, CF_MEMBERSHIP_PROOFS, CF_METADATA];
