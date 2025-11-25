@@ -18,7 +18,7 @@ impl Name for MsgSetToken {
 }
 
 impl Name for MsgCreateEvolveEvmIsm {
-    const NAME: &'static str = "MsgCreateEvolveEvmIsm";
+    const NAME: &'static str = "MsgCreateEvolveEvmISM";
     const PACKAGE: &'static str = "celestia.zkism.v1";
 }
 
@@ -35,7 +35,7 @@ impl MsgUpdateEvolveEvmIsm {
 }
 
 impl Name for MsgUpdateEvolveEvmIsm {
-    const NAME: &'static str = "MsgUpdateEvolveEvmIsm";
+    const NAME: &'static str = "MsgUpdateEvolveEvmISM";
     const PACKAGE: &'static str = "celestia.zkism.v1";
 }
 
