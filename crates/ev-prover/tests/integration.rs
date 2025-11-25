@@ -7,7 +7,11 @@ use ev_prover::{
 };
 use ev_state_queries::MockStateQueryProvider;
 use storage::{
-    hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore},
+    db::UnifiedDB,
+    hyperlane::{
+        message::{HyperlaneMessageStorage, HyperlaneMessageStore},
+        snapshot::{HyperlaneSnapshotStorage, HyperlaneSnapshotStore},
+    },
     proofs::RocksDbProofStorage,
 };
 use tempfile::TempDir;
@@ -30,9 +34,10 @@ async fn test_run_message_prover() {
     let tmp = TempDir::new().expect("cannot create temp directory");
     let storage_path = tmp.path();
 
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(storage_path, None).unwrap());
-    let proof_store = Arc::new(RocksDbProofStorage::new(storage_path).unwrap());
+    let db = UnifiedDB::new(storage_path).unwrap();
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(db.inner().clone()));
+    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(db.inner().clone(), None).unwrap());
+    let proof_store = Arc::new(RocksDbProofStorage::new(db.inner().clone()));
 
     hyperlane_message_store.reset_db().unwrap();
     hyperlane_snapshot_store.reset_db().unwrap();
@@ -47,6 +52,7 @@ async fn test_run_message_prover() {
             hyperlane_snapshot_store,
             proof_store,
             Arc::new(MockStateQueryProvider::new(ctx.evm_provider())),
+            db.inner().clone(),
         )
         .unwrap(),
     );

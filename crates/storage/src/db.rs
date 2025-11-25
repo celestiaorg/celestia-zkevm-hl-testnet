@@ -141,8 +141,7 @@ mod tests {
         for cf_name in cf_names {
             assert!(
                 db.inner().cf_handle(cf_name).is_some(),
-                "Column family {} should exist",
-                cf_name
+                "Column family {cf_name} should exist"
             );
         }
     }

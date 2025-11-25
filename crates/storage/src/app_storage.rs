@@ -63,10 +63,10 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let storage = AppStorage::new(temp_dir.path(), None).unwrap();
 
-        // Verify all stores are accessible
-        assert!(storage.proofs() as *const _ as *const () != std::ptr::null());
-        assert!(storage.messages() as *const _ as *const () != std::ptr::null());
-        assert!(storage.snapshots() as *const _ as *const () != std::ptr::null());
+        // Verify all stores are accessible (they are all references so they can't be null)
+        let _ = storage.proofs();
+        let _ = storage.messages();
+        let _ = storage.snapshots();
     }
 
     #[test]

@@ -54,13 +54,13 @@ impl HyperlaneIndexer {
                     let dispatch_event: DispatchEvent = event.into();
                     let current_index = message_store
                         .current_index()
-                        .map_err(|e| anyhow::anyhow!("Failed to get current index: {}", e))?;
+                        .map_err(|e| anyhow::anyhow!("Failed to get current index: {e}"))?;
                     let hyperlane_message =
                         decode_hyperlane_message(&dispatch_event.message).expect("Failed to decode Hyperlane message");
                     let stored_message = StoredHyperlaneMessage::new(hyperlane_message, log.block_number);
                     message_store
                         .insert_message(current_index, stored_message)
-                        .map_err(|e| anyhow::anyhow!("Failed to insert message: {}", e))?;
+                        .map_err(|e| anyhow::anyhow!("Failed to insert message: {e}"))?;
                     debug!("Inserted Hyperlane Message at index: {current_index}");
                 }
                 Err(e) => {
