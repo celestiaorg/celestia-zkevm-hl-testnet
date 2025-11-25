@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use alloy_primitives::FixedBytes;
 use anyhow::Result;
+use celestia_grpc_client::proto::celestia::zkism::v1::query_ism_response::Ism;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::{CelestiaIsmClient, QueryIsmRequest};
 use ev_state_queries::MockStateQueryProvider;
@@ -386,7 +387,11 @@ pub async fn get_trusted_state(client: &CelestiaIsmClient) -> Result<TrustedStat
         })
         .await?;
 
-    let ism = resp.ism.unwrap();
+    let ism_wrapped = resp.ism.unwrap();
+    let ism = match ism_wrapped {
+        Ism::EvolveEvmIsm(ism) => ism,
+        _ => return Err(anyhow::anyhow!("Unexpected ISM type")),
+    };
 
     Ok(TrustedState::new(ism.height, FixedBytes::from_slice(&ism.state_root)))
 }

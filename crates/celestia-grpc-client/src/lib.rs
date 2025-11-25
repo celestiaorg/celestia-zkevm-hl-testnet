@@ -14,8 +14,7 @@ pub use client::CelestiaIsmClient;
 pub use error::{IsmClientError, Result};
 pub use message::{StateInclusionProofMsg, StateTransitionProofMsg};
 pub use proto::celestia::zkism::v1::{
-    MsgSubmitMessages, MsgSubmitMessagesResponse, MsgUpdateZkExecutionIsm, MsgUpdateZkExecutionIsmResponse,
-    QueryIsmRequest,
+    MsgSubmitMessages, MsgSubmitMessagesResponse, MsgUpdateEvolveEvmIsm, MsgUpdateEvolveEvmIsmResponse, QueryIsmRequest,
 };
 pub use proto::hyperlane::core::v1::MsgProcessMessage;
 pub use proto::hyperlane::warp::v1::MsgRemoteTransfer;

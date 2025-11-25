@@ -13,7 +13,8 @@ use alloy_provider::Provider;
 use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use celestia_grpc_client::{MsgUpdateZkExecutionIsm, QueryIsmRequest};
+use celestia_grpc_client::proto::celestia::zkism::v1::query_ism_response::Ism;
+use celestia_grpc_client::{MsgUpdateEvolveEvmIsm, QueryIsmRequest};
 use celestia_rpc::{BlobClient, HeaderClient, ShareClient};
 use celestia_types::{
     nmt::{Namespace, NamespaceProof},
@@ -251,7 +252,11 @@ impl BatchExecProver {
                 id: self.ctx.ism_id().to_string(),
             })
             .await?;
-        let ism = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
+        let ism_wrapped = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
+        let ism = match ism_wrapped {
+            Ism::EvolveEvmIsm(ism) => ism,
+            _ => return Err(anyhow::anyhow!("Unexpected ISM type")),
+        };
         let trusted_root = FixedBytes::from_slice(&ism.state_root);
         let celestia_head = self.ctx.celestia_client().header_local_head().await?.height().value();
 
@@ -314,7 +319,7 @@ impl BatchExecProver {
         let public_values = proof.public_values.as_slice().to_vec();
         let signer = self.ctx.ism_client().signer_address().to_string();
 
-        let msg = MsgUpdateZkExecutionIsm::new(id, proof.bytes(), public_values, signer);
+        let msg = MsgUpdateEvolveEvmIsm::new(id, proof.bytes(), public_values, signer);
 
         info!("Updating ZKISM on Celestia...");
         let response = self.ctx.ism_client().send_tx(msg).await?;

@@ -1,6 +1,6 @@
 use alloy_provider::{Provider, ProviderBuilder};
 use anyhow::Result;
-use celestia_grpc_client::proto::celestia::zkism::v1::MsgCreateZkExecutionIsm;
+use celestia_grpc_client::proto::celestia::zkism::v1::MsgCreateEvolveEvmIsm;
 use celestia_grpc_client::proto::hyperlane::warp::v1::MsgSetToken;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::CelestiaIsmClient;
@@ -96,7 +96,7 @@ pub async fn create_zkism() -> Result<()> {
 
     let groth16_vkey = Config::groth16_vkey();
 
-    let create_message = MsgCreateZkExecutionIsm {
+    let create_message = MsgCreateEvolveEvmIsm {
         creator: ism_client.signer_address().to_string(),
         state_root: last_blob_state_root.to_vec(),
         height: last_blob_height,

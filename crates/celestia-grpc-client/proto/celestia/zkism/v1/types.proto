@@ -7,18 +7,36 @@ option go_package = "github.com/celestiaorg/celestia-app/x/zkism/types";
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 
-// ZKExecutionISM defines the Hyperlane interchain security module (ISM).
-message ZKExecutionISM {
+// ConsensusISM defines the generic Consensus verification module.
+message ConsensusISM{
   option (gogoproto.goproto_getters) = false;
 
   // unique hyperlane identifier
   string id = 1 [
-    (gogoproto.customtype) =
-        "github.com/bcp-innovations/hyperlane-cosmos/util.HexAddress",
-    (gogoproto.nullable) = false
+    (gogoproto.customtype) = "github.com/bcp-innovations/hyperlane-cosmos/util.HexAddress",
+    (gogoproto.nullable)   = false
+  ];
+  
+  // the owner or creator 
+  string owner = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  bytes trusted_state = 3;
+  // the sp1 groth16 verifier key (hex-encoded)
+  bytes groth16_vkey = 4;
+  // hash-based commitment to the verifier key used for state transition (hex-encoded)
+  bytes state_transition_vkey = 5;
+}
+
+// EvolveEvmISM defines the Hyperlane interchain security module (ISM).
+message EvolveEvmISM {
+  option (gogoproto.goproto_getters) = false;
+
+  // unique hyperlane identifier
+  string id = 1 [
+    (gogoproto.customtype) = "github.com/bcp-innovations/hyperlane-cosmos/util.HexAddress",
+    (gogoproto.nullable)   = false
   ];
   // the owner or creator of the ism
-  string owner = 2 [ (cosmos_proto.scalar) = "cosmos.AddressString" ];
+  string owner = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
   // state commitment root of the remote chain
   bytes state_root = 3;
   // latest tracked height of the remote chain

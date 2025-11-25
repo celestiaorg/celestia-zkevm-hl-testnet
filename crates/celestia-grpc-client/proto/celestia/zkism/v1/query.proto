@@ -28,11 +28,16 @@ service Query {
 }
 
 // QueryIsmRequest is the request type for the Ism rpc method.
-message QueryIsmRequest { string id = 1; }
+message QueryIsmRequest {
+  string id = 1;
+}
 
 // QueryIsmResponse is the response type for the Ism rpc method.
 message QueryIsmResponse {
-  ZKExecutionISM ism = 1 [ (gogoproto.nullable) = false ];
+  oneof ism {
+    ConsensusISM consensus_ism = 1;
+    EvolveEvmISM evolve_evm_ism = 2;
+  }
 }
 
 // QueryIsmsRequest is the request type for the Isms rpc method.
@@ -43,8 +48,8 @@ message QueryIsmsRequest {
 
 // QueryIsmsResponse is the response type for the Isms rpc method.
 message QueryIsmsResponse {
-  // isms is a list of zk execution isms.
-  repeated ZKExecutionISM isms = 1 [ (gogoproto.nullable) = false ];
+  // ism_ids is a list of all registered ISM IDs (from both EvolveEvmISM and ConsensusISM).
+  repeated string ism_ids = 1;
   // pagination defines the pagination in the response.
   cosmos.base.query.v1beta1.PageResponse pagination = 2;
 }
@@ -55,5 +60,5 @@ message QueryParamsRequest {}
 // QueryParamsResponse is the response type for the Params rpc method.
 message QueryParamsResponse {
   // params contains the module parameters
-  Params params = 1 [ (gogoproto.nullable) = false ];
+  Params params = 1 [(gogoproto.nullable) = false];
 }
