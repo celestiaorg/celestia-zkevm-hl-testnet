@@ -51,7 +51,7 @@ pub fn unsafe_reset_db() -> Result<()> {
     Ok(())
 }
 
-pub async fn create_zkism() -> Result<()> {
+pub async fn create_ism() -> Result<()> {
     let config = Config::load()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(ClientConfig::from_env()?).await?);
     let chain_ctx = ChainContext::from_config(config.clone(), ism_client.clone()).await?;
@@ -104,7 +104,12 @@ pub async fn create_zkism() -> Result<()> {
     };
 
     let response = ism_client.send_tx(create_message).await?;
-    assert!(response.success);
+    if !response.success {
+        let tx_hash = response.tx_hash;
+        let error_msg = response.error_message.unwrap_or("unknown error".to_string());
+        return Err(anyhow::anyhow!("Tx {tx_hash} failed to create ism: {error_msg}",));
+    }
+
     info!("ISM created successfully");
     Ok(())
 }
