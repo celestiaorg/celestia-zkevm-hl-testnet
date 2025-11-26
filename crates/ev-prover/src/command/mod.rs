@@ -1,14 +1,13 @@
-use alloy_provider::{Provider, ProviderBuilder};
+use std::sync::Arc;
+
+use alloy_provider::Provider;
+use alloy_rpc_types::{BlockId, BlockNumberOrTag};
 use anyhow::Result;
 use celestia_grpc_client::proto::celestia::zkism::v1::MsgCreateZkExecutionIsm;
 use celestia_grpc_client::proto::hyperlane::warp::v1::MsgSetToken;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::CelestiaIsmClient;
-use celestia_rpc::{BlobClient, Client, HeaderClient};
-use celestia_types::nmt::Namespace;
-use celestia_types::{Blob, ExtendedHeader};
-use ev_types::v1::SignedData;
-use prost::Message;
+use celestia_rpc::HeaderClient;
 use sp1_sdk::{HashableKey, Prover, ProverClient};
 use tracing::info;
 
@@ -20,6 +19,7 @@ use crate::proto::celestia::prover::v1::{
     GetBlockProofRequest, GetBlockProofsInRangeRequest, GetLatestBlockProofRequest, GetLatestMembershipProofRequest,
     GetMembershipProofRequest, GetRangeProofsRequest,
 };
+use crate::prover::chain::ChainContext;
 use crate::prover::programs::batch::BATCH_ELF;
 use crate::prover::programs::message::EV_HYPERLANE_ELF;
 use crate::server::start_server;
@@ -51,55 +51,49 @@ pub fn unsafe_reset_db() -> Result<()> {
     Ok(())
 }
 
-pub async fn create_zkism() -> Result<()> {
+pub async fn create_ism() -> Result<()> {
     let config = Config::load()?;
-    let ism_client = CelestiaIsmClient::new(ClientConfig::from_env()?).await?;
+    let ism_client = Arc::new(CelestiaIsmClient::new(ClientConfig::from_env()?).await?);
+    let chain_ctx = ChainContext::from_config(config.clone(), ism_client.clone()).await?;
 
-    let auth_token = config.rpc.celestia_auth_token.as_deref();
-    let celestia_client = Client::new(&config.rpc.celestia_rpc, auth_token).await?;
-    let namespace = config.namespace;
+    let celestia_client = chain_ctx.celestia_client();
+    let namespace = chain_ctx.namespace();
 
-    // Find a Celestia height with at least one blob (brute force backwards starting from head)
-    let (header, blobs) = brute_force_head(&celestia_client, namespace).await?;
-    // DA HEIGHT
+    // Find the most recent Celestia height with a blob and retrieve the associated EVM block height.
+    let mut search_height: u64 = celestia_client.header_local_head().await?.height().value();
+    let (header, ev_block_height) = loop {
+        let header = celestia_client.header_get_by_height(search_height).await?;
+        if let Some(block_height) = chain_ctx.latest_block_for_height(search_height).await? {
+            break (header, block_height);
+        }
+
+        if search_height == 0 {
+            return Err(anyhow::anyhow!("No SignedData blobs found in chain"));
+        }
+        search_height -= 1;
+    };
+
     let height: u64 = header.height().value();
-    // DA BLOCK HASH
     let block_hash = header.hash().as_bytes().to_vec();
-    let last_blob = blobs.last().expect("User Error: Can't use a 0-blob checkpoint");
-    let data = SignedData::decode(last_blob.data.as_slice())?;
 
-    // EV BLOCK HEIGHT
-    let last_blob_height = data.data.unwrap().metadata.unwrap().height;
-
-    let provider = ProviderBuilder::new().connect_http(config.rpc.evreth_rpc.parse()?);
-
-    let block = provider
-        .get_block(alloy_rpc_types::BlockId::Number(
-            alloy_rpc_types::BlockNumberOrTag::Number(last_blob_height),
-        ))
+    let block = chain_ctx
+        .evm_provider()
+        .get_block(BlockId::Number(BlockNumberOrTag::Number(ev_block_height)))
         .await?
         .ok_or_else(|| anyhow::anyhow!("Block not found"))?;
 
-    // EV STATE ROOT
-    let last_blob_state_root = block.header.state_root;
+    let ev_state_root = block.header.state_root;
+
     // todo: deploy the ISM and Update
     let pub_key = get_sequencer_pubkey(config.rpc.evnode_rpc).await?;
 
-    info!("Setting up ELF for state proofs");
-    let prover = ProverClient::builder().cpu().build();
-    let (_, vk) = prover.setup(BATCH_ELF);
-    let state_transition_vkey = vk.bytes32_raw().to_vec();
-
-    info!("Setting up ELF for membership proofs");
-    let (_, vk) = prover.setup(EV_HYPERLANE_ELF);
-    let state_membership_vkey = vk.bytes32_raw().to_vec();
-
     let groth16_vkey = Config::groth16_vkey();
+    let (state_transition_vkey, state_membership_vkey) = setup_state_vkeys();
 
     let create_message = MsgCreateZkExecutionIsm {
         creator: ism_client.signer_address().to_string(),
-        state_root: last_blob_state_root.to_vec(),
-        height: last_blob_height,
+        state_root: ev_state_root.to_vec(),
+        height: ev_block_height,
         celestia_header_hash: block_hash,
         celestia_height: height,
         namespace: namespace.as_bytes().to_vec(),
@@ -110,9 +104,28 @@ pub async fn create_zkism() -> Result<()> {
     };
 
     let response = ism_client.send_tx(create_message).await?;
-    assert!(response.success);
+    if !response.success {
+        let tx_hash = response.tx_hash;
+        let error_msg = response.error_message.unwrap_or("unknown error".to_string());
+        return Err(anyhow::anyhow!("Tx {tx_hash} failed to create ism: {error_msg}",));
+    }
+
     info!("ISM created successfully");
     Ok(())
+}
+
+fn setup_state_vkeys() -> (Vec<u8>, Vec<u8>) {
+    info!("Setting up ELF for state proofs");
+    let prover = ProverClient::builder().cpu().build();
+    let (_, state_transition_vkey) = prover.setup(BATCH_ELF);
+
+    info!("Setting up ELF for membership proofs");
+    let (_, state_membership_vkey) = prover.setup(EV_HYPERLANE_ELF);
+
+    (
+        state_transition_vkey.bytes32_raw().to_vec(),
+        state_membership_vkey.bytes32_raw().to_vec(),
+    )
 }
 
 pub async fn update_ism(ism_id: String, token_id: String) -> Result<()> {
@@ -256,43 +269,4 @@ pub async fn query(query_cmd: QueryCommands) -> Result<()> {
     }
 
     Ok(())
-}
-
-async fn brute_force_head(celestia_client: &Client, namespace: Namespace) -> Result<(ExtendedHeader, Vec<Blob>)> {
-    // Find a Celestia height with at least one blob (brute force backwards starting from head)
-    let mut search_height: u64 = celestia_client.header_local_head().await.unwrap().height().value();
-    let (celestia_state, blobs) = loop {
-        match celestia_client.header_get_by_height(search_height).await {
-            Ok(state) => {
-                let current_height = state.height().value();
-                match celestia_client.blob_get_all(current_height, &[namespace]).await {
-                    Ok(Some(blobs)) if !blobs.is_empty() => {
-                        info!("Found {} blob(s) at Celestia height {}", blobs.len(), current_height);
-                        break (state, blobs);
-                    }
-                    Ok(_) => {
-                        info!("No blobs at height {}, trying next height", current_height);
-                        if search_height == 0 {
-                            return Err(anyhow::anyhow!("No blobs found in chain"));
-                        }
-                        search_height -= 1;
-                    }
-                    Err(e) => {
-                        info!(
-                            "Error fetching blobs at height {}: {}, trying next height",
-                            current_height, e
-                        );
-                        if search_height == 0 {
-                            return Err(anyhow::anyhow!("No blobs found in chain"));
-                        }
-                        search_height -= 1;
-                    }
-                }
-            }
-            Err(e) => {
-                return Err(anyhow::anyhow!("Failed to get header at height {search_height}: {e}"));
-            }
-        }
-    };
-    Ok((celestia_state, blobs))
 }

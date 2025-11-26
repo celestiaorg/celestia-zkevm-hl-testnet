@@ -104,7 +104,7 @@ docker-build-hyperlane:
 
 deploy-ism: 
 	@echo "--> Deploying ISM"
-	@RUST_LOG="ev_prover=info" cargo run -p ev-prover create
+	@RUST_LOG="ev_prover=info" cargo run -p ev-prover create-ism
 .PHONY: deploy-ism
 
 update-ism:

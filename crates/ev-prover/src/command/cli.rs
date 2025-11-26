@@ -17,8 +17,8 @@ pub enum Commands {
     /// Start the gRPC server
     Start {},
 
-    /// Create ZKISM
-    Create {},
+    /// Create zk ISM
+    CreateIsm {},
 
     /// Update
     Update { ism_id: String, token_id: String },

@@ -6,12 +6,14 @@ use alloy_provider::ProviderBuilder;
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, Filter};
 use anyhow::{anyhow, Context, Result};
 use celestia_grpc_client::CelestiaIsmClient;
-use celestia_rpc::client::Client;
-use celestia_types::nmt::Namespace;
+use celestia_rpc::{client::Client, BlobClient};
+use celestia_types::{nmt::Namespace, Blob};
 use ev_state_queries::{
     hyperlane::indexer::HyperlaneIndexer, DefaultProvider, MockStateQueryProvider, StateQueryProvider,
 };
+use ev_types::v1::SignedData;
 use ev_zkevm_types::events::Dispatch;
+use prost::Message;
 use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;
 use rsp_host_executor::EthHostExecutor;
@@ -194,6 +196,33 @@ impl ChainContext {
             .await?;
 
         Ok(executor_input)
+    }
+
+    /// Queries the namespace for all blobs for the provided height.
+    /// Iterates blobs in reverse order attempting to decode the payload to a SignedData.
+    /// Returns the block height on the associated SignedData metadata.
+    pub async fn latest_block_for_height(&self, height: u64) -> Result<Option<u64>> {
+        let blobs: Vec<Blob> = self
+            .celestia_client()
+            .blob_get_all(height, &[self.namespace()])
+            .await?
+            .unwrap_or_default();
+
+        if blobs.is_empty() {
+            return Ok(None);
+        }
+
+        for blob in blobs.iter().rev() {
+            if let Ok(signed_data) = SignedData::decode(blob.data.as_slice()) {
+                if let Some(data) = signed_data.data {
+                    if let Some(metadata) = data.metadata {
+                        return Ok(Some(metadata.height));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     fn celestia_ws_url(&self) -> Result<Url> {
