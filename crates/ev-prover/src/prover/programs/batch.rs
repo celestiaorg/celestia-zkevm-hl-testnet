@@ -257,17 +257,17 @@ impl BatchExecProver {
         }
 
         for height in scan_start..=latest_head {
-            let Some(last_blob_height) = self.get_last_blob_height(height).await? else {
+            let Some(block_number) = self.ctx.latest_block_for_height(height).await? else {
                 continue;
             };
 
-            let current_mailbox_nonce = self.ctx.mailbox_nonce_at(last_blob_height).await?;
+            let nonce = self.ctx.mailbox_nonce_at(block_number).await?;
 
-            if current_mailbox_nonce > *mailbox_nonce {
+            if nonce > *mailbox_nonce {
                 // Ensure batch size meets minimum requirement
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
                 let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, MAX_BATCH_SIZE);
-                *mailbox_nonce = current_mailbox_nonce;
+                *mailbox_nonce = nonce;
                 debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
                 return Ok(batch_size);
             }
@@ -319,30 +319,6 @@ impl BatchExecProver {
         info!("Proof tx submitted to ism with hash: {}", response.tx_hash);
 
         Ok(())
-    }
-
-    async fn get_last_blob_height(&self, height: u64) -> Result<Option<u64>> {
-        let blobs: Vec<Blob> = self
-            .ctx
-            .celestia_client()
-            .blob_get_all(height, &[self.ctx.namespace()])
-            .await?
-            .unwrap_or_default();
-        if blobs.is_empty() {
-            return Ok(None);
-        }
-
-        let last_blob = blobs.last().ok_or_else(|| anyhow!("No blobs found"))?;
-        let last_blob_signed_data = match SignedData::decode(last_blob.data.as_slice()) {
-            Ok(data) => data,
-            Err(_) => return Err(anyhow!("Failed to decode last blob signed data")),
-        };
-        let last_blob_data = last_blob_signed_data.data.ok_or_else(|| anyhow!("Data not found"))?;
-        let last_blob_height = last_blob_data
-            .metadata
-            .ok_or_else(|| anyhow!("Metadata not found"))?
-            .height;
-        Ok(Some(last_blob_height))
     }
 
     /// Builds the proof input structure for the given batch size starting from the provided height.
