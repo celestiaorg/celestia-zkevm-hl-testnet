@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::prover::abi::MailboxContract;
 use crate::prover::chain::ChainContext;
 use crate::prover::config::{MAX_BATCH_SIZE, MAX_INDEXING_RANGE};
 use crate::prover::{
@@ -10,7 +9,6 @@ use crate::prover::{
 };
 use alloy_primitives::FixedBytes;
 use alloy_provider::Provider;
-use alloy_rpc_types::Filter;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use celestia_grpc_client::{MsgUpdateInterchainSecurityModule, QueryIsmRequest};
@@ -157,11 +155,9 @@ impl BatchExecProver {
     /// Starts the batched prover loop.
     pub async fn run(self: Arc<Self>, message_sync: Arc<MessageProofSync>) -> Result<()> {
         let mut batch_size = BATCH_SIZE;
+        let mut mailbox_nonce = self.ctx.mailbox_nonce().await?;
         let mut scan_head: Option<u64> = None;
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
-        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
-        let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
-        let mut indexer = self.ctx.hyperlane_indexer();
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
@@ -206,25 +202,9 @@ impl BatchExecProver {
             let (proof, output) = self.prove(input).await?;
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
-            // Index if new ev blocks were included, the maximum range that reth supports by default is 100000 blocks.
-            // The max range can be configured on reth using max_blocks_per_filter: u64 and max_logs_per_response: usize.
-            let mut from_block = status.trusted_height + 1;
-            while from_block <= output.new_state.height {
-                let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, output.new_state.height);
-                debug!("Indexing mailbox events from block {from_block} to {to_block}");
-                indexer.filter = Filter::new()
-                    .address(self.ctx.mailbox_address())
-                    .event(&Dispatch::id())
-                    // both from_block and to_block are inclusive
-                    .from_block(from_block)
-                    .to_block(to_block);
-
-                indexer
-                    .index(self.hyperlane_message_store.clone(), self.ctx.evm_provider())
-                    .await?;
-
-                from_block = to_block + 1;
-            }
+            // Index if new ev blocks were included.
+            self.index_messages(status.trusted_height + 1, output.new_height)
+                .await?;
 
             if let Err(e) = self.submit_proof_msg(&proof).await {
                 error!(?e, "Failed to submit tx to ism");
@@ -274,39 +254,53 @@ impl BatchExecProver {
         current_batch: u64,
         mailbox_nonce: &mut u32,
     ) -> Result<u64> {
-        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
-
         if scan_start >= latest_head {
             return Ok(current_batch);
         }
 
         for height in scan_start..=latest_head {
-            let last_blob_height = self.get_last_blob_height(height).await?;
-            if last_blob_height.is_none() {
+            let Some(block_number) = self.ctx.latest_block_for_height(height).await? else {
                 continue;
-            }
+            };
 
-            let current_mailbox_nonce = mailbox_contract
-                .nonce()
-                .call()
-                .block(alloy_rpc_types::BlockId::Number(
-                    alloy_rpc_types::BlockNumberOrTag::Number(
-                        last_blob_height.ok_or_else(|| anyhow!("No blobs found but Mailbox nonce increased"))?,
-                    ),
-                ))
-                .await?;
+            let nonce = self.ctx.mailbox_nonce_at(block_number).await?;
 
-            if current_mailbox_nonce > *mailbox_nonce {
+            if nonce > *mailbox_nonce {
                 // Ensure batch size meets minimum requirement
                 let blocks_elapsed = height.saturating_sub(trusted_celestia_height);
                 let batch_size = blocks_elapsed.clamp(MIN_BATCH_SIZE, MAX_BATCH_SIZE);
-                *mailbox_nonce = current_mailbox_nonce;
+                *mailbox_nonce = nonce;
                 debug!("Found non-empty block at height {height}, adjusting batch size to {batch_size}");
                 return Ok(batch_size);
             }
         }
 
         Ok(BATCH_SIZE)
+    }
+
+    /// Queries and stores Hyperlane mailbox events from the provided block range (inclusive),
+    /// chunking requests to respect `MAX_INDEXING_RANGE`.
+    /// The `MAX_INDEXING_RANGE` const is set to align with the default value of 100,000 blocks.
+    /// This setting can be configured via the EVM execution client using `max_blocks_per_filter: u64` and `max_logs_per_response: usize`.
+    async fn index_messages(&self, start_block: u64, end_block: u64) -> Result<()> {
+        if start_block > end_block {
+            return Ok(());
+        }
+
+        let indexer = self.ctx.hyperlane_indexer();
+        let mut from_block = start_block;
+        while from_block <= end_block {
+            let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, end_block);
+            debug!("Indexing mailbox events from block {from_block} to {to_block}");
+
+            let filter = indexer.filter_with_range(from_block, to_block);
+            indexer
+                .process(filter, self.ctx.evm_provider(), self.hyperlane_message_store.clone())
+                .await?;
+            from_block = to_block + 1;
+        }
+
+        Ok(())
     }
 
     /// Submits a state transition proof msg to the zk verifier on-chain.
@@ -327,30 +321,6 @@ impl BatchExecProver {
         info!("Proof tx submitted to ism with hash: {}", response.tx_hash);
 
         Ok(())
-    }
-
-    async fn get_last_blob_height(&self, height: u64) -> Result<Option<u64>> {
-        let blobs: Vec<Blob> = self
-            .ctx
-            .celestia_client()
-            .blob_get_all(height, &[self.ctx.namespace()])
-            .await?
-            .unwrap_or_default();
-        if blobs.is_empty() {
-            return Ok(None);
-        }
-
-        let last_blob = blobs.last().ok_or_else(|| anyhow!("No blobs found"))?;
-        let last_blob_signed_data = match SignedData::decode(last_blob.data.as_slice()) {
-            Ok(data) => data,
-            Err(_) => return Err(anyhow!("Failed to decode last blob signed data")),
-        };
-        let last_blob_data = last_blob_signed_data.data.ok_or_else(|| anyhow!("Data not found"))?;
-        let last_blob_height = last_blob_data
-            .metadata
-            .ok_or_else(|| anyhow!("Metadata not found"))?
-            .height;
-        Ok(Some(last_blob_height))
     }
 
     /// Builds the proof input structure for the given batch size starting from the provided height.

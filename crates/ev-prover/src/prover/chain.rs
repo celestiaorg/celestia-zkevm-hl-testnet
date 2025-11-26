@@ -3,15 +3,17 @@ use std::sync::Arc;
 
 use alloy_primitives::Address;
 use alloy_provider::ProviderBuilder;
-use alloy_rpc_types::Filter;
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, Filter};
 use anyhow::{anyhow, Context, Result};
 use celestia_grpc_client::CelestiaIsmClient;
-use celestia_rpc::client::Client;
-use celestia_types::nmt::Namespace;
+use celestia_rpc::{client::Client, BlobClient};
+use celestia_types::{nmt::Namespace, Blob};
 use ev_state_queries::{
     hyperlane::indexer::HyperlaneIndexer, DefaultProvider, MockStateQueryProvider, StateQueryProvider,
 };
+use ev_types::v1::SignedData;
 use ev_zkevm_types::events::Dispatch;
+use prost::Message;
 use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;
 use rsp_host_executor::EthHostExecutor;
@@ -20,6 +22,7 @@ use rsp_rpc_db::RpcDb;
 use url::Url;
 
 use crate::config::Config;
+use crate::prover::abi::{MailboxContract, MailboxContract::MailboxContractInstance};
 
 /// Shared chain context constructed from configuration and long-lived clients.
 ///
@@ -130,6 +133,26 @@ impl ChainContext {
         Address::from_str(&self.config.hyperlane.evm.mailbox_address).expect("invalid Hyperlane mailbox address")
     }
 
+    /// Returns a new instance of the Hyperlane mailbox contract bound to the default provider.
+    pub fn mailbox_contract(&self) -> MailboxContractInstance<DefaultProvider> {
+        MailboxContract::new(self.mailbox_address(), self.evm_provider())
+    }
+
+    /// Returns the current mailbox nonce at the latest head.
+    pub async fn mailbox_nonce(&self) -> Result<u32> {
+        Ok(self.mailbox_contract().nonce().call().await?)
+    }
+
+    /// Returns the mailbox nonce at the specified block number.
+    pub async fn mailbox_nonce_at(&self, block_number: u64) -> Result<u32> {
+        Ok(self
+            .mailbox_contract()
+            .nonce()
+            .call()
+            .block(BlockId::Number(BlockNumberOrTag::Number(block_number)))
+            .await?)
+    }
+
     /// Returns the Hyperlane merkle tree contract address.
     pub fn merkle_tree_address(&self) -> Address {
         Address::from_str(&self.config.hyperlane.evm.merkle_tree_address)
@@ -159,7 +182,7 @@ impl ChainContext {
     /// Creates the Hyperlane message indexer.
     pub fn hyperlane_indexer(&self) -> HyperlaneIndexer {
         let filter = Filter::new().address(self.mailbox_address()).event(&Dispatch::id());
-        HyperlaneIndexer::new(filter.clone())
+        HyperlaneIndexer::new(filter)
     }
 
     /// Generates STF inputs for the configured chain at the requested block height.
@@ -173,6 +196,33 @@ impl ChainContext {
             .await?;
 
         Ok(executor_input)
+    }
+
+    /// Queries the namespace for all blobs for the provided height.
+    /// Iterates blobs in reverse order attempting to decode the payload to a SignedData.
+    /// Returns the block height on the associated SignedData metadata.
+    pub async fn latest_block_for_height(&self, height: u64) -> Result<Option<u64>> {
+        let blobs: Vec<Blob> = self
+            .celestia_client()
+            .blob_get_all(height, &[self.namespace()])
+            .await?
+            .unwrap_or_default();
+
+        if blobs.is_empty() {
+            return Ok(None);
+        }
+
+        for blob in blobs.iter().rev() {
+            if let Ok(signed_data) = SignedData::decode(blob.data.as_slice()) {
+                if let Some(data) = signed_data.data {
+                    if let Some(metadata) = data.metadata {
+                        return Ok(Some(metadata.height));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     fn celestia_ws_url(&self) -> Result<Url> {

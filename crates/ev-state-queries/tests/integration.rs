@@ -22,12 +22,16 @@ async fn test_run_indexer() {
         .expect("cannot find home directory")
         .join(".ev-prover")
         .join("data");
+
     let indexer = HyperlaneIndexer::default();
-    let message_store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
-    message_store.reset_db().unwrap();
+    let store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
+    store.reset_db().unwrap();
+
     let provider = ProviderBuilder::new()
         .connect_ws(WsConnect::new("ws://127.0.0.1:8546"))
         .await
         .unwrap();
-    indexer.index(message_store, provider).await.unwrap();
+
+    let filter = indexer.filter();
+    indexer.process(filter, provider, store).await.unwrap();
 }
