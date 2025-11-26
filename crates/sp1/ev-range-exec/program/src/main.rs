@@ -17,7 +17,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, BlockRangeExecOutput, Buffer, State};
+use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, Buffer, State};
 use sha2::{Digest, Sha256};
 
 pub fn main() {
@@ -117,17 +117,13 @@ pub fn main() {
     };
 
     let state_serialized = bincode::serialize(&state).expect("failed to serialize state");
+    let new_state_serialized = bincode::serialize(&new_state).expect("failed to serialize new state");
     let state_len_le_64_bytes = (state_serialized.len() as u64).to_le_bytes().to_vec();
 
-    let output = BlockRangeExecOutput {
-        state_len_le_u64_bytes: state_len_le_64_bytes,
-        state: state,
-        new_state: new_state,
-    };
+    let mut output: Vec<u8> = Vec::new();
+    output.extend_from_slice(&state_len_le_64_bytes);
+    output.extend_from_slice(&state_serialized);
+    output.extend_from_slice(&new_state_serialized);
 
-    sp1_zkvm::io::commit_slice(
-        bincode::serialize(&output)
-            .expect("failed to serialize output")
-            .as_slice(),
-    );
+    sp1_zkvm::io::commit_slice(&output);
 }

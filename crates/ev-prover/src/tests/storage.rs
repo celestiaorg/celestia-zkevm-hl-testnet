@@ -35,7 +35,7 @@ mod tests {
 
     fn create_mock_range_output() -> BlockRangeExecOutput {
         BlockRangeExecOutput {
-            state_len_le_u64_bytes: vec![0],
+            state_len_le_u64_bytes: [0; 8],
             state: State {
                 state_root: [1; 32],
                 celestia_header_hash: [2; 32],

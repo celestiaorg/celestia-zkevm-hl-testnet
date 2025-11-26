@@ -7,7 +7,11 @@ use celestia_types::{
 };
 use hex::encode;
 use rsp_client_executor::io::EthClientExecutorInput;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{
+    Deserialize, Serialize,
+    de::{DeserializeOwned, Deserializer},
+    ser::Serializer,
+};
 use std::collections::HashSet;
 use std::error::Error;
 use std::sync::Arc;
@@ -95,11 +99,57 @@ pub struct BatchExecInput {
     pub blocks: Vec<BlockExecInput>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct BlockRangeExecOutput {
-    pub state_len_le_u64_bytes: Vec<u8>,
+    pub state_len_le_u64_bytes: [u8; 8],
     pub state: State,
     pub new_state: State,
+}
+
+impl Serialize for BlockRangeExecOutput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::Error;
+        let state_bytes =
+            bincode::serialize(&self.state).map_err(|e| Error::custom(format!("Failed to serialize state: {}", e)))?;
+        let new_state_bytes = bincode::serialize(&self.new_state)
+            .map_err(|e| Error::custom(format!("Failed to serialize new_state: {}", e)))?;
+
+        let mut output = Vec::with_capacity(8 + state_bytes.len() + new_state_bytes.len());
+        output.extend_from_slice(&self.state_len_le_u64_bytes);
+        output.extend_from_slice(&state_bytes);
+        output.extend_from_slice(&new_state_bytes);
+
+        serializer.serialize_bytes(&output)
+    }
+}
+
+impl<'de> Deserialize<'de> for BlockRangeExecOutput {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let input = Vec::<u8>::deserialize(deserializer)?;
+        let state_len = u64::from_le_bytes(
+            input[..8]
+                .try_into()
+                .map_err(|_| Error::custom("Invalid state length bytes"))?,
+        );
+        let state = bincode::deserialize(&input[8..8 + state_len as usize])
+            .map_err(|e| Error::custom(format!("Failed to deserialize state: {}", e)))?;
+        let new_state = bincode::deserialize(&input[8 + state_len as usize..])
+            .map_err(|e| Error::custom(format!("Failed to deserialize new_state: {}", e)))?;
+        Ok(BlockRangeExecOutput {
+            state_len_le_u64_bytes: input[..8]
+                .try_into()
+                .map_err(|_| Error::custom("Invalid state length bytes"))?,
+            state,
+            new_state,
+        })
+    }
 }
 
 impl Display for BlockRangeExecOutput {
@@ -116,7 +166,7 @@ impl Display for BlockRangeExecOutput {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct State {
     pub state_root: [u8; 32],
     pub celestia_header_hash: [u8; 32],
@@ -445,7 +495,7 @@ impl BlockVerifier {
         let length_prefix = bincode::serialize(&state).expect("failed to serialize state").len() as u64;
 
         let output = BlockRangeExecOutput {
-            state_len_le_u64_bytes: length_prefix.to_le_bytes().to_vec(),
+            state_len_le_u64_bytes: length_prefix.to_le_bytes(),
             state: state,
             new_state: new_state,
         };
@@ -470,4 +520,111 @@ impl BlockVerifier {
 
 fn get_height(data: &Data) -> Option<u64> {
     data.metadata.as_ref().map(|m| m.height)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_range_exec_output_serialization_roundtrip() {
+        // Create test data
+        let state = State {
+            state_root: [1u8; 32],
+            celestia_header_hash: [2u8; 32],
+            celestia_height: 100,
+            height: 50,
+            namespace: [3u8; 29],
+            public_key: [4u8; 32],
+        };
+
+        let new_state = State {
+            state_root: [5u8; 32],
+            celestia_header_hash: [6u8; 32],
+            celestia_height: 101,
+            height: 51,
+            namespace: [3u8; 29],
+            public_key: [4u8; 32],
+        };
+
+        let state_len = bincode::serialize(&state).unwrap().len() as u64;
+        let output = BlockRangeExecOutput {
+            state_len_le_u64_bytes: state_len.to_le_bytes(),
+            state: state.clone(),
+            new_state: new_state.clone(),
+        };
+
+        // Serialize
+        let serialized = bincode::serialize(&output).unwrap();
+
+        // Deserialize
+        let deserialized: BlockRangeExecOutput = bincode::deserialize(&serialized).unwrap();
+
+        // Verify round-trip
+        assert_eq!(output.state_len_le_u64_bytes, deserialized.state_len_le_u64_bytes);
+        assert_eq!(output.state.state_root, deserialized.state.state_root);
+        assert_eq!(
+            output.state.celestia_header_hash,
+            deserialized.state.celestia_header_hash
+        );
+        assert_eq!(output.state.celestia_height, deserialized.state.celestia_height);
+        assert_eq!(output.state.height, deserialized.state.height);
+        assert_eq!(output.state.namespace, deserialized.state.namespace);
+        assert_eq!(output.state.public_key, deserialized.state.public_key);
+        assert_eq!(output.new_state.state_root, deserialized.new_state.state_root);
+        assert_eq!(
+            output.new_state.celestia_header_hash,
+            deserialized.new_state.celestia_header_hash
+        );
+        assert_eq!(output.new_state.celestia_height, deserialized.new_state.celestia_height);
+        assert_eq!(output.new_state.height, deserialized.new_state.height);
+        assert_eq!(output.new_state.namespace, deserialized.new_state.namespace);
+        assert_eq!(output.new_state.public_key, deserialized.new_state.public_key);
+    }
+
+    #[test]
+    fn test_block_range_exec_output_format() {
+        // Create test data
+        let state = State {
+            state_root: [1u8; 32],
+            celestia_header_hash: [2u8; 32],
+            celestia_height: 100,
+            height: 50,
+            namespace: [3u8; 29],
+            public_key: [4u8; 32],
+        };
+
+        let new_state = State {
+            state_root: [5u8; 32],
+            celestia_header_hash: [6u8; 32],
+            celestia_height: 101,
+            height: 51,
+            namespace: [3u8; 29],
+            public_key: [4u8; 32],
+        };
+
+        let state_bytes = bincode::serialize(&state).unwrap();
+        let new_state_bytes = bincode::serialize(&new_state).unwrap();
+        let state_len = state_bytes.len() as u64;
+
+        let output = BlockRangeExecOutput {
+            state_len_le_u64_bytes: state_len.to_le_bytes(),
+            state,
+            new_state,
+        };
+
+        // Serialize
+        let serialized = bincode::serialize(&output).unwrap();
+
+        // The serialized output should contain the concatenated bytes
+        // We need to extract the actual byte array from bincode's output
+        // bincode adds its own framing, so we deserialize to Vec<u8> first
+        let bytes: Vec<u8> = bincode::deserialize(&serialized).unwrap();
+
+        // Verify format: state_len_le_u64_bytes (8 bytes) + state_bytes + new_state_bytes
+        assert_eq!(bytes.len(), 8 + state_bytes.len() + new_state_bytes.len());
+        assert_eq!(&bytes[..8], &state_len.to_le_bytes());
+        assert_eq!(&bytes[8..8 + state_bytes.len()], &state_bytes);
+        assert_eq!(&bytes[8 + state_bytes.len()..], &new_state_bytes);
+    }
 }
