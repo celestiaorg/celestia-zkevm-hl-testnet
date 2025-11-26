@@ -276,9 +276,9 @@ impl BatchExecProver {
         Ok(BATCH_SIZE)
     }
 
-    /// Fetches and stores Hyperlane mailbox events across the provided inclusive block range,
+    /// Queries and stores Hyperlane mailbox events from the provided block range (inclusive),
     /// chunking requests to respect `MAX_INDEXING_RANGE`.
-    /// The `MAX_INDEXING_RANGE` const is configured to respect the default value of 100,000 blocks.
+    /// The `MAX_INDEXING_RANGE` const is set to align with the default value of 100,000 blocks.
     /// This setting can be configured via the EVM execution client using `max_blocks_per_filter: u64` and `max_logs_per_response: usize`.
     async fn index_messages(&self, start_block: u64, end_block: u64) -> Result<()> {
         if start_block > end_block {
