@@ -17,11 +17,11 @@ pub enum Commands {
     /// Start the gRPC server
     Start {},
 
-    /// Create zk ISM
+    /// Create a new ism using the application config.
     CreateIsm {},
 
-    /// Update
-    Update { ism_id: String, token_id: String },
+    /// Sets the ism on a token using the provided identifiers.
+    SetTokenIsm { ism_id: String, token_id: String },
 
     /// Show the service version
     Version {},

@@ -128,11 +128,10 @@ fn setup_state_vkeys() -> (Vec<u8>, Vec<u8>) {
     )
 }
 
-pub async fn update_ism(ism_id: String, token_id: String) -> Result<()> {
+pub async fn set_token_ism(ism_id: String, token_id: String) -> Result<()> {
     let config = ClientConfig::from_env()?;
     let ism_client = CelestiaIsmClient::new(config).await?;
 
-    //todo update
     let message = MsgSetToken {
         owner: ism_client.signer_address().to_string(),
         token_id,
@@ -141,9 +140,14 @@ pub async fn update_ism(ism_id: String, token_id: String) -> Result<()> {
         renounce_ownership: false,
     };
 
-    ism_client.send_tx(message).await?;
-    info!("ISM updated successfully");
+    let response = ism_client.send_tx(message).await?;
+    if !response.success {
+        let tx_hash = response.tx_hash;
+        let error_msg = response.error_message.unwrap_or("unknown error".to_string());
+        return Err(anyhow::anyhow!("Tx {tx_hash} failed to set token ism: {error_msg}",));
+    }
 
+    info!("ISM updated successfully");
     Ok(())
 }
 
