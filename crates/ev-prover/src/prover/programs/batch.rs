@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::prover::abi::MailboxContract;
 use crate::prover::chain::ChainContext;
 use crate::prover::config::{MAX_BATCH_SIZE, MAX_INDEXING_RANGE};
 use crate::prover::{
@@ -18,7 +17,6 @@ use celestia_types::{
     nmt::{Namespace, NamespaceProof},
     Blob,
 };
-use ev_state_queries::hyperlane::indexer::HyperlaneIndexer;
 use ev_types::v1::SignedData;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
 use prost::Message;
@@ -156,11 +154,9 @@ impl BatchExecProver {
     /// Starts the batched prover loop.
     pub async fn run(self: Arc<Self>, message_sync: Arc<MessageProofSync>) -> Result<()> {
         let mut batch_size = BATCH_SIZE;
+        let mut mailbox_nonce = self.ctx.mailbox_nonce().await?;
         let mut scan_head: Option<u64> = None;
         let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
-        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
-        let mut mailbox_nonce = mailbox_contract.nonce().call().await?;
-        let indexer = self.ctx.hyperlane_indexer();
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
@@ -206,7 +202,7 @@ impl BatchExecProver {
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
             // Index if new ev blocks were included.
-            self.index_messages(&indexer, status.trusted_height + 1, output.new_height)
+            self.index_messages(status.trusted_height + 1, output.new_height)
                 .await?;
 
             if let Err(e) = self.submit_proof_msg(&proof).await {
@@ -256,27 +252,16 @@ impl BatchExecProver {
         current_batch: u64,
         mailbox_nonce: &mut u32,
     ) -> Result<u64> {
-        let mailbox_contract = MailboxContract::new(self.ctx.mailbox_address(), self.ctx.evm_provider());
-
         if scan_start >= latest_head {
             return Ok(current_batch);
         }
 
         for height in scan_start..=latest_head {
-            let last_blob_height = self.get_last_blob_height(height).await?;
-            if last_blob_height.is_none() {
+            let Some(last_blob_height) = self.get_last_blob_height(height).await? else {
                 continue;
-            }
+            };
 
-            let current_mailbox_nonce = mailbox_contract
-                .nonce()
-                .call()
-                .block(alloy_rpc_types::BlockId::Number(
-                    alloy_rpc_types::BlockNumberOrTag::Number(
-                        last_blob_height.ok_or_else(|| anyhow!("No blobs found but Mailbox nonce increased"))?,
-                    ),
-                ))
-                .await?;
+            let current_mailbox_nonce = self.ctx.mailbox_nonce_at(last_blob_height).await?;
 
             if current_mailbox_nonce > *mailbox_nonce {
                 // Ensure batch size meets minimum requirement
@@ -295,11 +280,12 @@ impl BatchExecProver {
     /// chunking requests to respect `MAX_INDEXING_RANGE`.
     /// The `MAX_INDEXING_RANGE` const is configured to respect the default value of 100,000 blocks.
     /// This setting can be configured via the EVM execution client using `max_blocks_per_filter: u64` and `max_logs_per_response: usize`.
-    async fn index_messages(&self, indexer: &HyperlaneIndexer, start_block: u64, end_block: u64) -> Result<()> {
+    async fn index_messages(&self, start_block: u64, end_block: u64) -> Result<()> {
         if start_block > end_block {
             return Ok(());
         }
 
+        let indexer = self.ctx.hyperlane_indexer();
         let mut from_block = start_block;
         while from_block <= end_block {
             let to_block = std::cmp::min(from_block + MAX_INDEXING_RANGE - 1, end_block);

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use alloy_primitives::Address;
 use alloy_provider::ProviderBuilder;
-use alloy_rpc_types::Filter;
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, Filter};
 use anyhow::{anyhow, Context, Result};
 use celestia_grpc_client::CelestiaIsmClient;
 use celestia_rpc::client::Client;
@@ -20,6 +20,7 @@ use rsp_rpc_db::RpcDb;
 use url::Url;
 
 use crate::config::Config;
+use crate::prover::abi::{MailboxContract, MailboxContract::MailboxContractInstance};
 
 /// Shared chain context constructed from configuration and long-lived clients.
 ///
@@ -128,6 +129,26 @@ impl ChainContext {
     /// Returns the Hyperlane mailbox contract address.
     pub fn mailbox_address(&self) -> Address {
         Address::from_str(&self.config.hyperlane.evm.mailbox_address).expect("invalid Hyperlane mailbox address")
+    }
+
+    /// Returns a new instance of the Hyperlane mailbox contract bound to the default provider.
+    pub fn mailbox_contract(&self) -> MailboxContractInstance<DefaultProvider> {
+        MailboxContract::new(self.mailbox_address(), self.evm_provider())
+    }
+
+    /// Returns the current mailbox nonce at the latest head.
+    pub async fn mailbox_nonce(&self) -> Result<u32> {
+        Ok(self.mailbox_contract().nonce().call().await?)
+    }
+
+    /// Returns the mailbox nonce at the specified block number.
+    pub async fn mailbox_nonce_at(&self, block_number: u64) -> Result<u32> {
+        Ok(self
+            .mailbox_contract()
+            .nonce()
+            .call()
+            .block(BlockId::Number(BlockNumberOrTag::Number(block_number)))
+            .await?)
     }
 
     /// Returns the Hyperlane merkle tree contract address.
