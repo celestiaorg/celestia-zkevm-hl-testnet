@@ -1,6 +1,5 @@
 use alloy_primitives::{FixedBytes, hex::FromHex};
 use alloy_provider::ProviderBuilder;
-use celestia_grpc_client::proto::celestia::zkism::v1::query_ism_response::Ism;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::{MsgProcessMessage, MsgSubmitMessages, QueryIsmRequest, client::CelestiaIsmClient};
 use celestia_grpc_client::{MsgRemoteTransfer, MsgUpdateInterchainSecurityModule};
@@ -11,6 +10,7 @@ use e2e::utils::message::prove_messages;
 use ev_prover::inclusion_height;
 use ev_state_queries::MockStateQueryProvider;
 use ev_zkevm_types::hyperlane::encode_hyperlane_message;
+use ev_zkevm_types::programs::block::State;
 use sp1_sdk::{EnvProver, ProverClient};
 use std::env;
 use std::time::Duration;
@@ -51,13 +51,10 @@ async fn main() {
         .await
         .unwrap();
 
-    let ism_wrapped = resp.ism.expect("ZKISM not found");
-    let ism = match ism_wrapped {
-        Ism::InterchainSecurityModule(ism) => ism,
-        _ => panic!("Unexpected ISM type"),
-    };
-    let trusted_root_hex = alloy::hex::encode(ism.state_root);
-    let trusted_height = ism.height;
+    let ism = resp.ism.expect("ZKISM not found");
+    let state: State = bincode::deserialize(&ism.state).unwrap();
+    let trusted_root_hex = alloy::hex::encode(state.state_root);
+    let trusted_height = state.height;
 
     let transfer_msg = MsgRemoteTransfer::new(
         ism_client.signer_address().to_string(),
@@ -72,7 +69,7 @@ async fn main() {
     assert!(response.success);
     // we can choose this as our start height, because the state root has not changed in between the hyperlane deployments
     // and this transfer.
-    let celestia_start_height = ism.celestia_height + 1;
+    let celestia_start_height = state.celestia_height + 1;
     info!("Celestia start height: {}", celestia_start_height);
     info!("Waiting for Evolve balance to be updated...");
 

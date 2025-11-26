@@ -255,7 +255,7 @@ pub async fn parallel_prover(
     let public_values: BlockRangeExecOutput = bincode::deserialize(proof.public_values.as_slice())?;
     debug!(
         "Final EVM state height: {:?} and root: {:?}, which should be used for proving messages using ./message.rs",
-        public_values.new_height, public_values.new_state_root
+        public_values.new_state.height, public_values.new_state.state_root
     );
 
     Ok(proof)
@@ -354,7 +354,7 @@ pub async fn synchronous_prover(
         .expect("failed to generate proof");
 
     let public_values: BlockRangeExecOutput = bincode::deserialize(proof.public_values.as_slice())?;
-    debug!("Target state root: {:?}", public_values.new_state_root);
+    debug!("Target state root: {:?}", public_values.new_state.state_root);
 
     Ok(proof)
 }
