@@ -92,10 +92,10 @@ pub async fn create_ism() -> Result<()> {
     let (state_transition_vkey, state_membership_vkey) = setup_state_vkeys();
 
     let initial_state = State {
-        state_root: last_blob_state_root.0,
+        state_root: ev_state_root.0,
         celestia_header_hash: block_hash.try_into().unwrap(),
         celestia_height: height,
-        height: last_blob_height,
+        height: ev_block_height,
         namespace: namespace.as_bytes().try_into().unwrap(),
         public_key: pub_key.try_into().unwrap(),
     };

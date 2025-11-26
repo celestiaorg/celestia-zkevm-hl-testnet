@@ -18,7 +18,6 @@ use celestia_types::{
     Blob,
 };
 use ev_types::v1::SignedData;
-use ev_zkevm_types::events::Dispatch;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput, State};
 use prost::Message;
 use rsp_client_executor::io::EthClientExecutorInput;
@@ -203,7 +202,7 @@ impl BatchExecProver {
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
             // Index if new ev blocks were included.
-            self.index_messages(status.trusted_height + 1, output.new_height)
+            self.index_messages(status.trusted_height + 1, output.new_state.height)
                 .await?;
 
             if let Err(e) = self.submit_proof_msg(&proof).await {

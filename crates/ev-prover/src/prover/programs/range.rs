@@ -275,12 +275,12 @@ impl BlockRangeExecService {
                             let message = MessageProofRequest::new(event);
 
                             // Index Hyperlane messages if new EV blocks were included
-                            if output.trusted_height < output.new_height {
+                            if output.state.height < output.new_state.height {
                                 if let Err(e) = Self::index_messages(
                                     ctx.clone(),
                                     &indexer_clone,
                                     hyperlane_message_store.clone(),
-                                    output.trusted_height + 1,
+                                    output.state.height + 1,
                                     output.new_height,
                                 )
                                 .await
