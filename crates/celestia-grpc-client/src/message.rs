@@ -1,6 +1,6 @@
 use crate::{
     proto::{
-        celestia::zkism::v1::{MsgCreateEvolveEvmIsm, MsgUpdateEvolveEvmIsm},
+        celestia::zkism::v1::{MsgCreateInterchainSecurityModule, MsgUpdateInterchainSecurityModule},
         hyperlane::warp::v1::MsgSetToken,
     },
     MsgProcessMessage, MsgRemoteTransfer, MsgSubmitMessages,
@@ -8,7 +8,7 @@ use crate::{
 use prost::Name;
 
 // Legacy aliases for backward compatibility
-pub type StateTransitionProofMsg = MsgUpdateEvolveEvmIsm;
+pub type StateTransitionProofMsg = MsgUpdateInterchainSecurityModule;
 pub type StateInclusionProofMsg = MsgSubmitMessages;
 pub type HyperlaneMessage = MsgProcessMessage;
 
@@ -17,12 +17,12 @@ impl Name for MsgSetToken {
     const PACKAGE: &'static str = "hyperlane.warp.v1";
 }
 
-impl Name for MsgCreateEvolveEvmIsm {
-    const NAME: &'static str = "MsgCreateEvolveEvmISM";
+impl Name for MsgCreateInterchainSecurityModule {
+    const NAME: &'static str = "MsgCreateInterchainSecurityModule";
     const PACKAGE: &'static str = "celestia.zkism.v1";
 }
 
-impl MsgUpdateEvolveEvmIsm {
+impl MsgUpdateInterchainSecurityModule {
     /// Create a new ZK execution ISM update message
     pub fn new(id: String, proof: Vec<u8>, public_values: Vec<u8>, signer: String) -> Self {
         Self {
@@ -34,8 +34,8 @@ impl MsgUpdateEvolveEvmIsm {
     }
 }
 
-impl Name for MsgUpdateEvolveEvmIsm {
-    const NAME: &'static str = "MsgUpdateEvolveEvmISM";
+impl Name for MsgUpdateInterchainSecurityModule {
+    const NAME: &'static str = "MsgUpdateInterchainSecurityModule";
     const PACKAGE: &'static str = "celestia.zkism.v1";
 }
 

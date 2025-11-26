@@ -97,45 +97,43 @@ pub struct BatchExecInput {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BlockRangeExecOutput {
-    // prev_celestia_header_hash is the merkle hash of the previous Celestia block header.
-    pub prev_celestia_header_hash: [u8; 32],
-    // prev_celestia_height is the height of the previous Celestia block.
-    pub prev_celestia_height: u64,
-    // celestia_header_hash is the hash of the celestia header at which new_height is available.
-    pub celestia_header_hash: [u8; 32],
-    // new_celestia_height is the height of the new Celestia block.
-    pub celestia_height: u64,
-    // trusted_height is the trusted height of the EVM application.
-    pub trusted_height: u64,
-    // trusted_state_root is the state commitment root of the EVM application at trusted_height.
-    pub trusted_state_root: [u8; 32],
-    // new_height is the EVM application block number after N state transitions.
-    pub new_height: u64,
-    // new_state_root is the computed state root of the EVM application after
-    // executing N blocks from trusted_height to new_height.
-    pub new_state_root: [u8; 32],
-    // namespace is the Celestia namespace that contains the blob data.
-    pub namespace: [u8; 29],
-    // public_key is the sequencer's public key used to verify the signatures of the signed data.
-    pub public_key: [u8; 32],
+    pub state_len_le_u64_bytes: Vec<u8>,
+    pub state: State,
+    pub new_state: State,
 }
 
-/// Display trait implementation to format hashes as hex encoded output.
 impl Display for BlockRangeExecOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(f, "BlockRangeExecOutput {{")?;
         writeln!(
             f,
-            "  prev_celestia_header_hash: {}",
-            encode(self.prev_celestia_header_hash)
+            "  state_len: {}",
+            u64::from_le_bytes(self.state_len_le_u64_bytes.clone().try_into().unwrap())
         )?;
-        writeln!(f, "  prev_celestia_height: {}", self.prev_celestia_height)?;
+        writeln!(f, "  state: {}", self.state)?;
+        writeln!(f, "  new_state: {}", self.new_state)?;
+        writeln!(f, "}}")
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct State {
+    pub state_root: [u8; 32],
+    pub celestia_header_hash: [u8; 32],
+    pub celestia_height: u64,
+    pub height: u64,
+    pub namespace: [u8; 29],
+    pub public_key: [u8; 32],
+}
+
+/// Display trait implementation to format hashes as hex encoded output.
+impl Display for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        writeln!(f, "BlockRangeExecOutput {{")?;
+        writeln!(f, "  state_root: {}", encode(self.state_root))?;
         writeln!(f, "  celestia_header_hash: {}", encode(self.celestia_header_hash))?;
         writeln!(f, "  celestia_height: {}", self.celestia_height)?;
-        writeln!(f, "  trusted_height: {}", self.trusted_height)?;
-        writeln!(f, "  trusted_state_root: {}", encode(self.trusted_state_root))?;
-        writeln!(f, "  new_height: {}", self.new_height)?;
-        writeln!(f, "  new_state_root: {}", encode(self.new_state_root))?;
+        writeln!(f, "  height: {}", self.height)?;
         writeln!(f, "  namespace: {}", encode(self.namespace))?;
         writeln!(f, "  public_key: {}", encode(self.public_key))?;
         writeln!(f, "}}")
@@ -420,21 +418,36 @@ impl BlockVerifier {
         let first = outputs.first().expect("No outputs provided");
         let last = outputs.last().expect("No outputs provided");
 
-        let output = BlockRangeExecOutput {
-            prev_celestia_height: first.prev_celestia_height,
-            prev_celestia_header_hash: first.prev_celestia_header_hash,
-            celestia_height: first.prev_celestia_height + outputs.len() as u64,
+        let state = State {
+            state_root: first.prev_state_root,
+            celestia_header_hash: first.prev_celestia_header_hash,
+            celestia_height: first.prev_celestia_height,
+            height: first.prev_height,
+            namespace: first
+                .namespace
+                .as_bytes()
+                .try_into()
+                .expect("namespace must be 29 bytes"),
+            public_key: first.public_key,
+        };
+        let new_state = State {
+            state_root: last.new_state_root,
             celestia_header_hash: last.celestia_header_hash,
-            trusted_height: first.prev_height,
-            trusted_state_root: first.prev_state_root,
-            new_state_root: last.new_state_root,
-            new_height: last.new_height,
+            celestia_height: last.prev_celestia_height + outputs.len() as u64,
+            height: last.new_height,
             namespace: last
                 .namespace
                 .as_bytes()
                 .try_into()
                 .expect("namespace must be 29 bytes"),
             public_key: last.public_key,
+        };
+        let length_prefix = bincode::serialize(&state).expect("failed to serialize state").len() as u64;
+
+        let output = BlockRangeExecOutput {
+            state_len_le_u64_bytes: length_prefix.to_le_bytes().to_vec(),
+            state: state,
+            new_state: new_state,
         };
         Ok(output)
     }

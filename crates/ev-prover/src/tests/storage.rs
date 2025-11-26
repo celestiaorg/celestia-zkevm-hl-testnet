@@ -2,7 +2,7 @@
 mod tests {
     use crate::prover::programs::block::EV_EXEC_ELF;
     use celestia_types::nmt::Namespace;
-    use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecOutput};
+    use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecOutput, State};
     use sp1_sdk::{ProverClient, SP1ProofMode, SP1ProofWithPublicValues, SP1PublicValues, SP1_CIRCUIT_VERSION};
     use storage::proofs::{ProofStorage, ProofStorageError, RocksDbProofStorage};
     use tempfile::TempDir;
@@ -35,16 +35,23 @@ mod tests {
 
     fn create_mock_range_output() -> BlockRangeExecOutput {
         BlockRangeExecOutput {
-            celestia_header_hash: [6; 32],
-            prev_celestia_height: 90,
-            prev_celestia_header_hash: [6; 32],
-            celestia_height: 100,
-            trusted_height: 90,
-            trusted_state_root: [7; 32],
-            new_height: 100,
-            new_state_root: [8; 32],
-            namespace: [9; 29],
-            public_key: [10; 32],
+            state_len_le_u64_bytes: vec![0],
+            state: State {
+                state_root: [1; 32],
+                celestia_header_hash: [2; 32],
+                celestia_height: 3,
+                height: 4,
+                namespace: [5; 29],
+                public_key: [6; 32],
+            },
+            new_state: State {
+                state_root: [7; 32],
+                celestia_header_hash: [8; 32],
+                celestia_height: 9,
+                height: 10,
+                namespace: [11; 29],
+                public_key: [12; 32],
+            },
         }
     }
 

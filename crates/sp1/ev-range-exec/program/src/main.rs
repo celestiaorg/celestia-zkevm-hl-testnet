@@ -17,7 +17,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, BlockRangeExecOutput, Buffer};
+use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, BlockRangeExecOutput, Buffer, State};
 use sha2::{Digest, Sha256};
 
 pub fn main() {
@@ -91,15 +91,23 @@ pub fn main() {
     let first = outputs.first().expect("No outputs provided");
     let last = outputs.last().expect("No outputs provided");
 
-    let output = BlockRangeExecOutput {
-        prev_celestia_height: first.prev_celestia_height,
-        prev_celestia_header_hash: first.prev_celestia_header_hash,
-        celestia_height: first.prev_celestia_height + inputs.public_values.len() as u64,
+    let state = State {
+        state_root: first.prev_state_root,
+        celestia_header_hash: first.prev_celestia_header_hash,
+        celestia_height: first.prev_celestia_height,
+        height: first.prev_height,
+        namespace: first
+            .namespace
+            .as_bytes()
+            .try_into()
+            .expect("namespace must be 29 bytes"),
+        public_key: first.public_key,
+    };
+    let new_state = State {
+        state_root: last.new_state_root,
         celestia_header_hash: last.celestia_header_hash,
-        trusted_height: first.prev_height,
-        trusted_state_root: first.prev_state_root,
-        new_state_root: last.new_state_root,
-        new_height: last.new_height,
+        celestia_height: last.prev_celestia_height + inputs.public_values.len() as u64,
+        height: last.new_height,
         namespace: last
             .namespace
             .as_bytes()
@@ -108,5 +116,18 @@ pub fn main() {
         public_key: last.public_key,
     };
 
-    sp1_zkvm::io::commit(&output);
+    let state_serialized = bincode::serialize(&state).expect("failed to serialize state");
+    let state_len_le_64_bytes = (state_serialized.len() as u64).to_le_bytes().to_vec();
+
+    let output = BlockRangeExecOutput {
+        state_len_le_u64_bytes: state_len_le_64_bytes,
+        state: state,
+        new_state: new_state,
+    };
+
+    sp1_zkvm::io::commit_slice(
+        bincode::serialize(&output)
+            .expect("failed to serialize output")
+            .as_slice(),
+    );
 }

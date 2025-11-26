@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use alloy_primitives::FixedBytes;
 use anyhow::Result;
-use celestia_grpc_client::proto::celestia::zkism::v1::query_ism_response::Ism;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::{CelestiaIsmClient, QueryIsmRequest};
 use ev_state_queries::MockStateQueryProvider;
 use ev_types::v1::get_block_request::Identifier;
 use ev_types::v1::store_service_client::StoreServiceClient;
 use ev_types::v1::GetBlockRequest;
+use ev_zkevm_types::programs::block::State;
 use storage::hyperlane::message::HyperlaneMessageStore;
 use storage::hyperlane::snapshot::HyperlaneSnapshotStore;
 use storage::proofs::RocksDbProofStorage;
@@ -387,11 +387,11 @@ pub async fn get_trusted_state(client: &CelestiaIsmClient) -> Result<TrustedStat
         })
         .await?;
 
-    let ism_wrapped = resp.ism.unwrap();
-    let ism = match ism_wrapped {
-        Ism::EvolveEvmIsm(ism) => ism,
-        _ => return Err(anyhow::anyhow!("Unexpected ISM type")),
-    };
+    let ism = resp.ism.unwrap();
 
-    Ok(TrustedState::new(ism.height, FixedBytes::from_slice(&ism.state_root)))
+    let state: State = bincode::deserialize(&ism.state).unwrap();
+    Ok(TrustedState::new(
+        state.height,
+        FixedBytes::from_slice(&state.state_root),
+    ))
 }

@@ -272,17 +272,17 @@ impl BlockRangeExecService {
                                 error!(?e, "Failed to submit tx to ism");
                             }
 
-                            let event = RangeProofCommitted::new(output.new_height, output.new_state_root);
+                            let event = RangeProofCommitted::new(output.new_state.height, output.new_state.state_root);
                             let message = MessageProofRequest::new(event);
 
                             // Index Hyperlane messages if new EV blocks were included
-                            if output.trusted_height < output.new_height {
+                            if output.state.height < output.new_state.height {
                                 indexer_clone.filter = Filter::new()
                                     .address(ctx.mailbox_address())
                                     .event(&Dispatch::id())
                                     // start indexing from the first ev block after our last checkpoint
-                                    .from_block(output.trusted_height + 1)
-                                    .to_block(output.new_height);
+                                    .from_block(output.state.height + 1)
+                                    .to_block(output.new_state.height);
 
                                 // Run the indexer to get all messages that occurred since the last trusted height
                                 if let Err(e) = indexer_clone

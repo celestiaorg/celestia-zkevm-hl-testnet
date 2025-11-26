@@ -514,11 +514,11 @@ pub mod msg_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        pub async fn create_consensus_ism(
+        pub async fn create_interchain_security_module(
             &mut self,
-            request: impl tonic::IntoRequest<super::MsgCreateConsensusIsm>,
+            request: impl tonic::IntoRequest<super::MsgCreateInterchainSecurityModule>,
         ) -> std::result::Result<
-            tonic::Response<super::MsgCreateConsensusIsmResponse>,
+            tonic::Response<super::MsgCreateInterchainSecurityModuleResponse>,
             tonic::Status,
         > {
             self.inner
@@ -532,18 +532,23 @@ pub mod msg_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/celestia.zkism.v1.Msg/CreateConsensusISM",
+                "/celestia.zkism.v1.Msg/CreateInterchainSecurityModule",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("celestia.zkism.v1.Msg", "CreateConsensusISM"));
+                .insert(
+                    GrpcMethod::new(
+                        "celestia.zkism.v1.Msg",
+                        "CreateInterchainSecurityModule",
+                    ),
+                );
             self.inner.unary(req, path, codec).await
         }
-        pub async fn update_consensus_ism(
+        pub async fn update_interchain_security_module(
             &mut self,
-            request: impl tonic::IntoRequest<super::MsgUpdateConsensusIsm>,
+            request: impl tonic::IntoRequest<super::MsgUpdateInterchainSecurityModule>,
         ) -> std::result::Result<
-            tonic::Response<super::MsgUpdateConsensusIsmResponse>,
+            tonic::Response<super::MsgUpdateInterchainSecurityModuleResponse>,
             tonic::Status,
         > {
             self.inner
@@ -557,61 +562,16 @@ pub mod msg_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/celestia.zkism.v1.Msg/UpdateConsensusISM",
+                "/celestia.zkism.v1.Msg/UpdateInterchainSecurityModule",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("celestia.zkism.v1.Msg", "UpdateConsensusISM"));
-            self.inner.unary(req, path, codec).await
-        }
-        pub async fn create_evolve_evm_ism(
-            &mut self,
-            request: impl tonic::IntoRequest<super::MsgCreateEvolveEvmIsm>,
-        ) -> std::result::Result<
-            tonic::Response<super::MsgCreateEvolveEvmIsmResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/celestia.zkism.v1.Msg/CreateEvolveEvmISM",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("celestia.zkism.v1.Msg", "CreateEvolveEvmISM"));
-            self.inner.unary(req, path, codec).await
-        }
-        pub async fn update_evolve_evm_ism(
-            &mut self,
-            request: impl tonic::IntoRequest<super::MsgUpdateEvolveEvmIsm>,
-        ) -> std::result::Result<
-            tonic::Response<super::MsgUpdateEvolveEvmIsmResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/celestia.zkism.v1.Msg/UpdateEvolveEvmISM",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("celestia.zkism.v1.Msg", "UpdateEvolveEvmISM"));
+                .insert(
+                    GrpcMethod::new(
+                        "celestia.zkism.v1.Msg",
+                        "UpdateInterchainSecurityModule",
+                    ),
+                );
             self.inner.unary(req, path, codec).await
         }
         pub async fn submit_messages(
@@ -673,32 +633,18 @@ pub mod msg_server {
     /// Generated trait containing gRPC methods that should be implemented for use with MsgServer.
     #[async_trait]
     pub trait Msg: Send + Sync + 'static {
-        async fn create_consensus_ism(
+        async fn create_interchain_security_module(
             &self,
-            request: tonic::Request<super::MsgCreateConsensusIsm>,
+            request: tonic::Request<super::MsgCreateInterchainSecurityModule>,
         ) -> std::result::Result<
-            tonic::Response<super::MsgCreateConsensusIsmResponse>,
+            tonic::Response<super::MsgCreateInterchainSecurityModuleResponse>,
             tonic::Status,
         >;
-        async fn update_consensus_ism(
+        async fn update_interchain_security_module(
             &self,
-            request: tonic::Request<super::MsgUpdateConsensusIsm>,
+            request: tonic::Request<super::MsgUpdateInterchainSecurityModule>,
         ) -> std::result::Result<
-            tonic::Response<super::MsgUpdateConsensusIsmResponse>,
-            tonic::Status,
-        >;
-        async fn create_evolve_evm_ism(
-            &self,
-            request: tonic::Request<super::MsgCreateEvolveEvmIsm>,
-        ) -> std::result::Result<
-            tonic::Response<super::MsgCreateEvolveEvmIsmResponse>,
-            tonic::Status,
-        >;
-        async fn update_evolve_evm_ism(
-            &self,
-            request: tonic::Request<super::MsgUpdateEvolveEvmIsm>,
-        ) -> std::result::Result<
-            tonic::Response<super::MsgUpdateEvolveEvmIsmResponse>,
+            tonic::Response<super::MsgUpdateInterchainSecurityModuleResponse>,
             tonic::Status,
         >;
         async fn submit_messages(
@@ -792,25 +738,32 @@ pub mod msg_server {
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             match req.uri().path() {
-                "/celestia.zkism.v1.Msg/CreateConsensusISM" => {
+                "/celestia.zkism.v1.Msg/CreateInterchainSecurityModule" => {
                     #[allow(non_camel_case_types)]
-                    struct CreateConsensusISMSvc<T: Msg>(pub Arc<T>);
+                    struct CreateInterchainSecurityModuleSvc<T: Msg>(pub Arc<T>);
                     impl<
                         T: Msg,
-                    > tonic::server::UnaryService<super::MsgCreateConsensusIsm>
-                    for CreateConsensusISMSvc<T> {
-                        type Response = super::MsgCreateConsensusIsmResponse;
+                    > tonic::server::UnaryService<
+                        super::MsgCreateInterchainSecurityModule,
+                    > for CreateInterchainSecurityModuleSvc<T> {
+                        type Response = super::MsgCreateInterchainSecurityModuleResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::MsgCreateConsensusIsm>,
+                            request: tonic::Request<
+                                super::MsgCreateInterchainSecurityModule,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as Msg>::create_consensus_ism(&inner, request).await
+                                <T as Msg>::create_interchain_security_module(
+                                        &inner,
+                                        request,
+                                    )
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -821,7 +774,7 @@ pub mod msg_server {
                     let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
-                        let method = CreateConsensusISMSvc(inner);
+                        let method = CreateInterchainSecurityModuleSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -837,25 +790,32 @@ pub mod msg_server {
                     };
                     Box::pin(fut)
                 }
-                "/celestia.zkism.v1.Msg/UpdateConsensusISM" => {
+                "/celestia.zkism.v1.Msg/UpdateInterchainSecurityModule" => {
                     #[allow(non_camel_case_types)]
-                    struct UpdateConsensusISMSvc<T: Msg>(pub Arc<T>);
+                    struct UpdateInterchainSecurityModuleSvc<T: Msg>(pub Arc<T>);
                     impl<
                         T: Msg,
-                    > tonic::server::UnaryService<super::MsgUpdateConsensusIsm>
-                    for UpdateConsensusISMSvc<T> {
-                        type Response = super::MsgUpdateConsensusIsmResponse;
+                    > tonic::server::UnaryService<
+                        super::MsgUpdateInterchainSecurityModule,
+                    > for UpdateInterchainSecurityModuleSvc<T> {
+                        type Response = super::MsgUpdateInterchainSecurityModuleResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::MsgUpdateConsensusIsm>,
+                            request: tonic::Request<
+                                super::MsgUpdateInterchainSecurityModule,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as Msg>::update_consensus_ism(&inner, request).await
+                                <T as Msg>::update_interchain_security_module(
+                                        &inner,
+                                        request,
+                                    )
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -866,97 +826,7 @@ pub mod msg_server {
                     let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
-                        let method = UpdateConsensusISMSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/celestia.zkism.v1.Msg/CreateEvolveEvmISM" => {
-                    #[allow(non_camel_case_types)]
-                    struct CreateEvolveEvmISMSvc<T: Msg>(pub Arc<T>);
-                    impl<
-                        T: Msg,
-                    > tonic::server::UnaryService<super::MsgCreateEvolveEvmIsm>
-                    for CreateEvolveEvmISMSvc<T> {
-                        type Response = super::MsgCreateEvolveEvmIsmResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::MsgCreateEvolveEvmIsm>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as Msg>::create_evolve_evm_ism(&inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = CreateEvolveEvmISMSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/celestia.zkism.v1.Msg/UpdateEvolveEvmISM" => {
-                    #[allow(non_camel_case_types)]
-                    struct UpdateEvolveEvmISMSvc<T: Msg>(pub Arc<T>);
-                    impl<
-                        T: Msg,
-                    > tonic::server::UnaryService<super::MsgUpdateEvolveEvmIsm>
-                    for UpdateEvolveEvmISMSvc<T> {
-                        type Response = super::MsgUpdateEvolveEvmIsmResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::MsgUpdateEvolveEvmIsm>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as Msg>::update_evolve_evm_ism(&inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = UpdateEvolveEvmISMSvc(inner);
+                        let method = UpdateInterchainSecurityModuleSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

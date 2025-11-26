@@ -13,17 +13,11 @@ option go_package = "github.com/celestiaorg/celestia-app/x/zkism/types";
 service Msg {
   option (cosmos.msg.v1.service) = true;
 
-  // Create a generic State Transition Verifier
-  rpc CreateConsensusISM(MsgCreateConsensusISM) returns (MsgCreateConsensusISMResponse);
+  // CreateInterchainSecurityModule defines the rpc method for creating a new ZK execution ISM.
+  rpc CreateInterchainSecurityModule(MsgCreateInterchainSecurityModule) returns (MsgCreateInterchainSecurityModuleResponse);
 
-  // Update a generic State Transition Verifier
-  rpc UpdateConsensusISM(MsgUpdateConsensusISM) returns (MsgUpdateConsensusISMResponse);
-
-  // CreateEvolveEvmISM defines the rpc method for creating a new ZK execution ISM.
-  rpc CreateEvolveEvmISM(MsgCreateEvolveEvmISM) returns (MsgCreateEvolveEvmISMResponse);
-
-  // UpdateEvolveEvmISM defines the rpc method for updating an existing ZK execution ISM.
-  rpc UpdateEvolveEvmISM(MsgUpdateEvolveEvmISM) returns (MsgUpdateEvolveEvmISMResponse);
+  // UpdateInterchainSecurityModule defines the rpc method for updating an existing ZK execution ISM.
+  rpc UpdateInterchainSecurityModule(MsgUpdateInterchainSecurityModule) returns (MsgUpdateInterchainSecurityModuleResponse);
 
   // SubmitMessages defines the rpc method for verifying state membership of messages.
   rpc SubmitMessages(MsgSubmitMessages) returns (MsgSubmitMessagesResponse);
@@ -32,81 +26,31 @@ service Msg {
   rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
 }
 
-// MsgCreateConsensusISM is the request type for CreateConsensusISM
-message MsgCreateConsensusISM{
+// MsgCreateInterchainSecurityModule is the request type for CreateInterchainSecurityModule.
+message MsgCreateInterchainSecurityModule {
   option (cosmos.msg.v1.signer) = "creator";
   // creator is the message sender.
   string creator = 1;
-  // the initial trusted state that must be used to generate the first proof
-  bytes trusted_state = 2;
+  // initial state
+  bytes state = 2;
   // the sp1 groth16 verifier key
   bytes groth16_vkey = 3;
   // hash-based commitment to the verifier key used for state transition
   bytes state_transition_vkey = 4;
-}
-
-// MsgCreateConsensusISMResponse is the response type for CreateConsensusISM
-message MsgCreateConsensusISMResponse{
-  bytes trusted_state = 1;
-}
-
-// MsgUpdateConsensusISM is the request type for UpdateEvolveEvmISM.
-message MsgUpdateConsensusISM {
-  option (cosmos.msg.v1.signer) = "signer";
-
-  // ism identifier
-  string id = 1 [
-    (gogoproto.customtype) = "github.com/bcp-innovations/hyperlane-cosmos/util.HexAddress",
-    (gogoproto.nullable)   = false
-  ];
-  // proof is the ZK proof bytes (groth16).
-  bytes proof = 2;
-  // the public values used for proof verification.
-  bytes public_values = 3;
-  // the tx signer address
-  string signer = 4;
-}
-
-// MsgUpdateConsensusISMResponse is the response type for State Transition Verifier.
-message MsgUpdateConsensusISMResponse {
-  bytes trusted_state = 1;
-}
-
-// MsgCreateEvolveEvmISM is the request type for CreateEvolveEvmISM.
-message MsgCreateEvolveEvmISM {
-  option (cosmos.msg.v1.signer) = "creator";
-  // creator is the message sender.
-  string creator = 1;
-  // state commitment root of the remote chain
-  bytes state_root = 2;
-  // latest tracked height of the remote chain
-  uint64 height = 3;
-  // trusted celestia header hash
-  bytes celestia_header_hash = 4;
-  // trusted celestia height
-  uint64 celestia_height = 5;
-  // the celestia namespace identifier used by the application
-  bytes namespace = 6;
-  // the public key of the sequencer
-  bytes sequencer_public_key = 7;
-  // the sp1 groth16 verifier key
-  bytes groth16_vkey = 8;
-  // hash-based commitment to the verifier key used for state transition
-  bytes state_transition_vkey = 9;
   // hash-based commitment to the verifier key used for state membership
-  bytes state_membership_vkey = 10;
+  bytes state_membership_vkey = 5;
 }
 
-// MsgCreateEvolveEvmISMResponse is the response type for CreateEvolveEvmISM.
-message MsgCreateEvolveEvmISMResponse {
+// MsgCreateInterchainSecurityModuleResponse is the response type for CreateInterchainSecurityModule.
+message MsgCreateInterchainSecurityModuleResponse {
   string id = 1 [
     (gogoproto.customtype) = "github.com/bcp-innovations/hyperlane-cosmos/util.HexAddress",
     (gogoproto.nullable)   = false
   ];
 }
 
-// MsgUpdateEvolveEvmISM is the request type for UpdateEvolveEvmISM.
-message MsgUpdateEvolveEvmISM {
+// MsgUpdateInterchainSecurityModule is the request type for UpdateInterchainSecurityModule.
+message MsgUpdateInterchainSecurityModule {
   option (cosmos.msg.v1.signer) = "signer";
 
   // ism identifier
@@ -122,16 +66,10 @@ message MsgUpdateEvolveEvmISM {
   string signer = 4;
 }
 
-// MsgUpdateEvolveEvmISMResponse is the response type for UpdateEvolveEvmISM.
-message MsgUpdateEvolveEvmISMResponse {
-  // state commitment root of the remote chain
-  string state_root = 1;
-  // latest tracked height of the remote chain
-  uint64 height = 2;
-  // trusted celestia header hash
-  string celestia_header_hash = 3;
-  // trusted celestia height
-  uint64 celestia_height = 4;
+// MsgUpdateInterchainSecurityModuleResponse is the response type for UpdateInterchainSecurityModule.
+message MsgUpdateInterchainSecurityModuleResponse {
+  // current ism state
+  bytes state = 1;
 }
 
 // MsgSubmitMessages is the request type for SubmitMessages.

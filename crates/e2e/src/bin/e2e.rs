@@ -3,7 +3,7 @@ use alloy_provider::ProviderBuilder;
 use celestia_grpc_client::proto::celestia::zkism::v1::query_ism_response::Ism;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::{MsgProcessMessage, MsgSubmitMessages, QueryIsmRequest, client::CelestiaIsmClient};
-use celestia_grpc_client::{MsgRemoteTransfer, MsgUpdateEvolveEvmIsm};
+use celestia_grpc_client::{MsgRemoteTransfer, MsgUpdateInterchainSecurityModule};
 use e2e::config::e2e::{CELESTIA_MAILBOX_ID, CELESTIA_TOKEN_ID, EV_RECIPIENT_ADDRESS, ISM_ID};
 use e2e::utils::block::prove_blocks;
 use e2e::utils::helpers::transfer_back;
@@ -53,7 +53,7 @@ async fn main() {
 
     let ism_wrapped = resp.ism.expect("ZKISM not found");
     let ism = match ism_wrapped {
-        Ism::EvolveEvmIsm(ism) => ism,
+        Ism::InterchainSecurityModule(ism) => ism,
         _ => panic!("Unexpected ISM type"),
     };
     let trusted_root_hex = alloy::hex::encode(ism.state_root);
@@ -100,7 +100,7 @@ async fn main() {
     .expect("Failed to prove blocks");
     info!("Done proving blocks");
 
-    let block_proof_msg = MsgUpdateEvolveEvmIsm::new(
+    let block_proof_msg = MsgUpdateInterchainSecurityModule::new(
         ISM_ID.to_string(),
         block_proof.bytes(),
         block_proof.public_values.as_slice().to_vec(),

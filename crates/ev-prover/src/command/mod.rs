@@ -1,6 +1,6 @@
 use alloy_provider::{Provider, ProviderBuilder};
 use anyhow::Result;
-use celestia_grpc_client::proto::celestia::zkism::v1::MsgCreateEvolveEvmIsm;
+use celestia_grpc_client::proto::celestia::zkism::v1::MsgCreateInterchainSecurityModule;
 use celestia_grpc_client::proto::hyperlane::warp::v1::MsgSetToken;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::CelestiaIsmClient;
@@ -23,6 +23,7 @@ use crate::proto::celestia::prover::v1::{
 use crate::prover::programs::batch::BATCH_ELF;
 use crate::prover::programs::message::EV_HYPERLANE_ELF;
 use crate::server::start_server;
+use ev_zkevm_types::programs::block::State;
 use storage::proofs::{ProofStorage, RocksDbProofStorage};
 
 pub mod cli;
@@ -96,14 +97,18 @@ pub async fn create_zkism() -> Result<()> {
 
     let groth16_vkey = Config::groth16_vkey();
 
-    let create_message = MsgCreateEvolveEvmIsm {
-        creator: ism_client.signer_address().to_string(),
-        state_root: last_blob_state_root.to_vec(),
-        height: last_blob_height,
-        celestia_header_hash: block_hash,
+    let initial_state = State {
+        state_root: last_blob_state_root.0,
+        celestia_header_hash: block_hash.try_into().unwrap(),
         celestia_height: height,
-        namespace: namespace.as_bytes().to_vec(),
-        sequencer_public_key: pub_key,
+        height: last_blob_height,
+        namespace: namespace.as_bytes().try_into().unwrap(),
+        public_key: pub_key.try_into().unwrap(),
+    };
+
+    let create_message = MsgCreateInterchainSecurityModule {
+        creator: ism_client.signer_address().to_string(),
+        state: bincode::serialize(&initial_state)?,
         groth16_vkey,
         state_transition_vkey,
         state_membership_vkey,
