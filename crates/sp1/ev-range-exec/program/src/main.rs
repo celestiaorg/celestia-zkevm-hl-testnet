@@ -103,6 +103,7 @@ pub fn main() {
             .expect("namespace must be 29 bytes"),
         public_key: first.public_key,
     };
+
     let new_state = State {
         state_root: last.new_state_root,
         celestia_header_hash: last.celestia_header_hash,
