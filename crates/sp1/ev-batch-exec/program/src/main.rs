@@ -37,5 +37,5 @@ use ev_zkevm_types::programs::block::{BatchExecInput, BlockVerifier};
 pub fn main() {
     let input: BatchExecInput = sp1_zkvm::io::read::<BatchExecInput>();
     let output = BlockVerifier::verify_range(input.blocks).expect("failed to verify range");
-    sp1_zkvm::io::commit_slice(&bincode::serialize(&output).expect("failed to serialize output"));
+    sp1_zkvm::io::commit(&output);
 }

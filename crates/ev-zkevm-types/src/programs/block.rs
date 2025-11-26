@@ -101,8 +101,11 @@ pub struct BatchExecInput {
 
 #[derive(Debug)]
 pub struct BlockRangeExecOutput {
+    // the length prefix of the state
     pub state_len_le_u64_bytes: [u8; 8],
+    // the starting point of the state transition
     pub state: State,
+    // the result of the state transition
     pub new_state: State,
 }
 
