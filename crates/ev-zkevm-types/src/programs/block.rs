@@ -502,7 +502,7 @@ impl BlockVerifier {
         let new_state = State {
             state_root: last.new_state_root,
             celestia_header_hash: last.celestia_header_hash,
-            celestia_height: last.prev_celestia_height + outputs.len() as u64,
+            celestia_height: first.prev_celestia_height + outputs.len() as u64,
             height: last.new_height,
             namespace: last
                 .namespace
