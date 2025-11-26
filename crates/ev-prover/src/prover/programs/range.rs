@@ -281,7 +281,7 @@ impl BlockRangeExecService {
                                     &indexer_clone,
                                     hyperlane_message_store.clone(),
                                     output.state.height + 1,
-                                    output.new_height,
+                                    output.new_state.height,
                                 )
                                 .await
                                 {
