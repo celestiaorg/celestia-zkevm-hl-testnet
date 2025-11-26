@@ -146,10 +146,10 @@ impl<'de> Deserialize<'de> for BlockRangeExecOutput {
 
                 // Deserialize state_len_le_u64_bytes (8 bytes)
                 let mut state_len_le_u64_bytes = [0u8; 8];
-                for i in 0..8 {
-                    state_len_le_u64_bytes[i] = seq
+                for (i, byte) in state_len_le_u64_bytes.iter_mut().enumerate() {
+                    *byte = seq
                         .next_element()?
-                        .ok_or_else(|| Error::custom(format!("Missing state_len_le_u64_bytes[{}]", i)))?;
+                        .ok_or_else(|| Error::custom(format!("Missing state_len_le_u64_bytes[{i}]")))?;
                 }
 
                 // Deserialize state
@@ -173,11 +173,7 @@ impl<'de> Deserialize<'de> for BlockRangeExecOutput {
 impl Display for BlockRangeExecOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(f, "BlockRangeExecOutput {{")?;
-        writeln!(
-            f,
-            "  state_len: {}",
-            u64::from_le_bytes(self.state_len_le_u64_bytes.clone().try_into().unwrap())
-        )?;
+        writeln!(f, "  state_len: {}", u64::from_le_bytes(self.state_len_le_u64_bytes))?;
         writeln!(f, "  state: {}", self.state)?;
         writeln!(f, "  new_state: {}", self.new_state)?;
         writeln!(f, "}}")
@@ -516,8 +512,8 @@ impl BlockVerifier {
 
         let output = BlockRangeExecOutput {
             state_len_le_u64_bytes: length_prefix.to_le_bytes(),
-            state: state,
-            new_state: new_state,
+            state,
+            new_state,
         };
         Ok(output)
     }
