@@ -10,20 +10,17 @@ pub struct EventCreateInterchainSecurityModule {
     /// the owner or creator of the ism
     #[prost(string, tag="2")]
     pub owner: ::prost::alloc::string::String,
-    /// state commitment root of the remote chain
-    #[prost(string, tag="3")]
-    pub state_root: ::prost::alloc::string::String,
     /// latest state
-    #[prost(bytes="vec", tag="4")]
-    pub state: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="3")]
+    pub state: ::prost::alloc::string::String,
     /// the sp1 groth16 verifier key (hex-encoded)
-    #[prost(string, tag="5")]
+    #[prost(string, tag="4")]
     pub groth16_vkey: ::prost::alloc::string::String,
     /// hash-based commitment to the verifier key used for state transition (hex-encoded)
-    #[prost(string, tag="6")]
+    #[prost(string, tag="5")]
     pub state_transition_vkey: ::prost::alloc::string::String,
     /// hash-based commitment to the verifier key used for state membership (hex-encoded)
-    #[prost(string, tag="7")]
+    #[prost(string, tag="6")]
     pub state_membership_vkey: ::prost::alloc::string::String,
 }
 /// EventUpdateInterchainSecurityModule defines the event type emitted when updating a InterchainSecurityModule.
@@ -34,8 +31,8 @@ pub struct EventUpdateInterchainSecurityModule {
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
     /// new state
-    #[prost(bytes="vec", tag="2")]
-    pub state: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="2")]
+    pub state: ::prost::alloc::string::String,
 }
 /// EventSubmitMessages defines the event type emitted after successful message submission.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -146,7 +143,7 @@ pub struct MsgCreateInterchainSecurityModule {
     /// creator is the message sender.
     #[prost(string, tag="1")]
     pub creator: ::prost::alloc::string::String,
-    /// initial state
+    /// initial trusted state
     #[prost(bytes="vec", tag="2")]
     pub state: ::prost::alloc::vec::Vec<u8>,
     /// the sp1 groth16 verifier key
@@ -187,7 +184,7 @@ pub struct MsgUpdateInterchainSecurityModule {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MsgUpdateInterchainSecurityModuleResponse {
-    /// current ism state
+    /// new ism state
     #[prost(bytes="vec", tag="1")]
     pub state: ::prost::alloc::vec::Vec<u8>,
 }

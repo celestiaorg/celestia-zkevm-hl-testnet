@@ -44,6 +44,7 @@ mod tests {
                 namespace: [5; 29],
                 public_key: [6; 32],
             },
+            new_state_len_le_u64_bytes: [0; 8],
             new_state: State {
                 state_root: [7; 32],
                 celestia_header_hash: [8; 32],

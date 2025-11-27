@@ -105,6 +105,8 @@ pub struct BlockRangeExecOutput {
     pub state_len_le_u64_bytes: [u8; 8],
     // the starting point of the state transition
     pub state: State,
+    // the length prefix of the new state
+    pub new_state_len_le_u64_bytes: [u8; 8],
     // the result of the state transition
     pub new_state: State,
 }
@@ -115,11 +117,15 @@ impl Serialize for BlockRangeExecOutput {
         S: Serializer,
     {
         use serde::ser::SerializeTuple;
-        let mut tuple = serializer.serialize_tuple(8 + std::mem::size_of::<State>() * 2)?;
+        let mut tuple =
+            serializer.serialize_tuple(8 + std::mem::size_of::<State>() + 8 + std::mem::size_of::<State>())?;
         for byte in &self.state_len_le_u64_bytes {
             tuple.serialize_element(byte)?;
         }
         tuple.serialize_element(&self.state)?;
+        for byte in &self.new_state_len_le_u64_bytes {
+            tuple.serialize_element(byte)?;
+        }
         tuple.serialize_element(&self.new_state)?;
         tuple.end()
     }
@@ -158,18 +164,30 @@ impl<'de> Deserialize<'de> for BlockRangeExecOutput {
                 // Deserialize state
                 let state: State = seq.next_element()?.ok_or_else(|| Error::custom("Missing state"))?;
 
+                // Deserialize new_state_len_le_u64_bytes (8 bytes)
+                let mut new_state_len_le_u64_bytes = [0u8; 8];
+                for (i, byte) in new_state_len_le_u64_bytes.iter_mut().enumerate() {
+                    *byte = seq
+                        .next_element()?
+                        .ok_or_else(|| Error::custom(format!("Missing new_state_len_le_u64_bytes[{i}]")))?;
+                }
+
                 // Deserialize new_state
                 let new_state: State = seq.next_element()?.ok_or_else(|| Error::custom("Missing new_state"))?;
 
                 Ok(BlockRangeExecOutput {
                     state_len_le_u64_bytes,
                     state,
+                    new_state_len_le_u64_bytes,
                     new_state,
                 })
             }
         }
 
-        deserializer.deserialize_tuple(8 + std::mem::size_of::<State>() * 2, BlockRangeExecOutputVisitor)
+        deserializer.deserialize_tuple(
+            8 + std::mem::size_of::<State>() + 8 + std::mem::size_of::<State>(),
+            BlockRangeExecOutputVisitor,
+        )
     }
 }
 
@@ -178,6 +196,11 @@ impl Display for BlockRangeExecOutput {
         writeln!(f, "BlockRangeExecOutput {{")?;
         writeln!(f, "  state_len: {}", u64::from_le_bytes(self.state_len_le_u64_bytes))?;
         writeln!(f, "  state: {}", self.state)?;
+        writeln!(
+            f,
+            "  new_state_len: {}",
+            u64::from_le_bytes(self.new_state_len_le_u64_bytes)
+        )?;
         writeln!(f, "  new_state: {}", self.new_state)?;
         writeln!(f, "}}")
     }
@@ -511,11 +534,15 @@ impl BlockVerifier {
             public_key: last.public_key,
         };
 
-        let length_prefix = bincode::serialize(&state).expect("failed to serialize state").len() as u64;
+        let state_length_prefix = bincode::serialize(&state).expect("failed to serialize state").len() as u64;
+        let new_state_length_prefix = bincode::serialize(&new_state)
+            .expect("failed to serialize new_state")
+            .len() as u64;
 
         let output = BlockRangeExecOutput {
-            state_len_le_u64_bytes: length_prefix.to_le_bytes(),
+            state_len_le_u64_bytes: state_length_prefix.to_le_bytes(),
             state,
+            new_state_len_le_u64_bytes: new_state_length_prefix.to_le_bytes(),
             new_state,
         };
         Ok(output)
@@ -567,21 +594,23 @@ mod tests {
         };
 
         let state_len = bincode::serialize(&state).unwrap().len() as u64;
+        let new_state_len = bincode::serialize(&new_state).unwrap().len() as u64;
         let output = BlockRangeExecOutput {
             state_len_le_u64_bytes: state_len.to_le_bytes(),
             state: state.clone(),
+            new_state_len_le_u64_bytes: new_state_len.to_le_bytes(),
             new_state: new_state.clone(),
         };
 
         // Serialize
         let serialized = bincode::serialize(&output).unwrap();
 
-        // Verify no length prefix was added - should be exactly 290 bytes
-        // (8 bytes for state_len + 141 bytes for state + 141 bytes for new_state)
+        // Verify no length prefix was added - should be exactly 298 bytes
+        // (8 bytes for state_len + 141 bytes for state + 8 bytes for new_state_len + 141 bytes for new_state)
         assert_eq!(
             serialized.len(),
-            290,
-            "Serialized output should be exactly 290 bytes with no length prefix"
+            298,
+            "Serialized output should be exactly 298 bytes with no length prefix"
         );
 
         // Verify byte layout: first 8 bytes should be state_len_le_u64_bytes
@@ -595,7 +624,8 @@ mod tests {
 
         // Verify the byte layout matches our expected format
         assert_eq!(&serialized[8..149], state_bytes.as_slice());
-        assert_eq!(&serialized[149..290], new_state_bytes.as_slice());
+        assert_eq!(&serialized[149..157], new_state_len.to_le_bytes());
+        assert_eq!(&serialized[157..298], new_state_bytes.as_slice());
 
         // Deserialize
         let deserialized: BlockRangeExecOutput = bincode::deserialize(&serialized).unwrap();
@@ -611,6 +641,10 @@ mod tests {
         assert_eq!(output.state.height, deserialized.state.height);
         assert_eq!(output.state.namespace, deserialized.state.namespace);
         assert_eq!(output.state.public_key, deserialized.state.public_key);
+        assert_eq!(
+            output.new_state_len_le_u64_bytes,
+            deserialized.new_state_len_le_u64_bytes
+        );
         assert_eq!(output.new_state.state_root, deserialized.new_state.state_root);
         assert_eq!(
             output.new_state.celestia_header_hash,
