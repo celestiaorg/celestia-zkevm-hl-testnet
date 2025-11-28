@@ -17,8 +17,9 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, BlockRangeExecOutput, Buffer, State};
+use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, BlockRangeExecOutput, State};
 use sha2::{Digest, Sha256};
+use sp1_primitives::types::Buffer;
 
 pub fn main() {
     let inputs: BlockRangeExecInput = sp1_zkvm::io::read::<BlockRangeExecInput>();

@@ -69,6 +69,7 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 sha3 = "0.10"
 sp1-build = "=5.2.2"
 sp1-core-executor = { version = "=5.2.2", features = ["bigint-rug"] }
+sp1-primitives = "=5.2.2"
 sp1-prover = "=5.2.2"
 sp1-sdk = { version = "=5.2.2", features = ["native-gnark"] }
 sp1-zkvm = "=5.2.2"
