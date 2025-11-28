@@ -95,7 +95,7 @@ pub struct BatchExecInput {
     pub blocks: Vec<BlockExecInput>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct BlockRangeExecOutput {
     // the length prefix of the state, little-endian encoded bytes of the u64 length of the serialized state
     pub state_len_bytes: [u8; 8],
@@ -118,7 +118,7 @@ impl Display for BlockRangeExecOutput {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub state_root: [u8; 32],
     pub height: u64,
@@ -547,25 +547,6 @@ mod tests {
         let deserialized: BlockRangeExecOutput = bincode::deserialize(&serialized).unwrap();
 
         // Verify round-trip
-        assert_eq!(output.state_len_bytes, deserialized.state_len_bytes);
-        assert_eq!(output.state.state_root, deserialized.state.state_root);
-        assert_eq!(
-            output.state.celestia_header_hash,
-            deserialized.state.celestia_header_hash
-        );
-        assert_eq!(output.state.celestia_height, deserialized.state.celestia_height);
-        assert_eq!(output.state.height, deserialized.state.height);
-        assert_eq!(output.state.namespace, deserialized.state.namespace);
-        assert_eq!(output.state.public_key, deserialized.state.public_key);
-        assert_eq!(output.new_state_len_bytes, deserialized.new_state_len_bytes);
-        assert_eq!(output.new_state.state_root, deserialized.new_state.state_root);
-        assert_eq!(
-            output.new_state.celestia_header_hash,
-            deserialized.new_state.celestia_header_hash
-        );
-        assert_eq!(output.new_state.celestia_height, deserialized.new_state.celestia_height);
-        assert_eq!(output.new_state.height, deserialized.new_state.height);
-        assert_eq!(output.new_state.namespace, deserialized.new_state.namespace);
-        assert_eq!(output.new_state.public_key, deserialized.new_state.public_key);
+        assert_eq!(output, deserialized);
     }
 }
