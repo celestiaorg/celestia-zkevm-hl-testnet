@@ -7,11 +7,7 @@ use celestia_types::{
 };
 use hex::encode;
 use rsp_client_executor::io::EthClientExecutorInput;
-use serde::{
-    Deserialize, Serialize,
-    de::{DeserializeOwned, Deserializer},
-    ser::Serializer,
-};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::HashSet;
 use std::error::Error;
 use std::sync::Arc;
@@ -99,7 +95,7 @@ pub struct BatchExecInput {
     pub blocks: Vec<BlockExecInput>,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BlockRangeExecOutput {
     // the length prefix of the state
     pub state_len_le_u64_bytes: [u8; 8],
@@ -109,86 +105,6 @@ pub struct BlockRangeExecOutput {
     pub new_state_len_le_u64_bytes: [u8; 8],
     // the result of the state transition
     pub new_state: State,
-}
-
-impl Serialize for BlockRangeExecOutput {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        use serde::ser::SerializeTuple;
-        let mut tuple =
-            serializer.serialize_tuple(8 + std::mem::size_of::<State>() + 8 + std::mem::size_of::<State>())?;
-        for byte in &self.state_len_le_u64_bytes {
-            tuple.serialize_element(byte)?;
-        }
-        tuple.serialize_element(&self.state)?;
-        for byte in &self.new_state_len_le_u64_bytes {
-            tuple.serialize_element(byte)?;
-        }
-        tuple.serialize_element(&self.new_state)?;
-        tuple.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for BlockRangeExecOutput {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        use serde::de::{SeqAccess, Visitor};
-
-        struct BlockRangeExecOutputVisitor;
-
-        impl<'de> Visitor<'de> for BlockRangeExecOutputVisitor {
-            type Value = BlockRangeExecOutput;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a BlockRangeExecOutput tuple")
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: SeqAccess<'de>,
-            {
-                use serde::de::Error;
-
-                // Deserialize state_len_le_u64_bytes (8 bytes)
-                let mut state_len_le_u64_bytes = [0u8; 8];
-                for (i, byte) in state_len_le_u64_bytes.iter_mut().enumerate() {
-                    *byte = seq
-                        .next_element()?
-                        .ok_or_else(|| Error::custom(format!("Missing state_len_le_u64_bytes[{i}]")))?;
-                }
-
-                // Deserialize state
-                let state: State = seq.next_element()?.ok_or_else(|| Error::custom("Missing state"))?;
-
-                // Deserialize new_state_len_le_u64_bytes (8 bytes)
-                let mut new_state_len_le_u64_bytes = [0u8; 8];
-                for (i, byte) in new_state_len_le_u64_bytes.iter_mut().enumerate() {
-                    *byte = seq
-                        .next_element()?
-                        .ok_or_else(|| Error::custom(format!("Missing new_state_len_le_u64_bytes[{i}]")))?;
-                }
-
-                // Deserialize new_state
-                let new_state: State = seq.next_element()?.ok_or_else(|| Error::custom("Missing new_state"))?;
-
-                Ok(BlockRangeExecOutput {
-                    state_len_le_u64_bytes,
-                    state,
-                    new_state_len_le_u64_bytes,
-                    new_state,
-                })
-            }
-        }
-
-        deserializer.deserialize_tuple(
-            8 + std::mem::size_of::<State>() + 8 + std::mem::size_of::<State>(),
-            BlockRangeExecOutputVisitor,
-        )
-    }
 }
 
 impl Display for BlockRangeExecOutput {
@@ -214,6 +130,12 @@ pub struct State {
     pub celestia_height: u64,
     pub namespace: [u8; 29],
     pub public_key: [u8; 32],
+}
+
+impl State {
+    pub fn length(&self) -> usize {
+        bincode::serialize(self).unwrap().len()
+    }
 }
 
 /// Display trait implementation to format hashes as hex encoded output.
@@ -534,10 +456,8 @@ impl BlockVerifier {
             public_key: last.public_key,
         };
 
-        let state_length_prefix = bincode::serialize(&state).expect("failed to serialize state").len() as u64;
-        let new_state_length_prefix = bincode::serialize(&new_state)
-            .expect("failed to serialize new_state")
-            .len() as u64;
+        let state_length_prefix = state.length();
+        let new_state_length_prefix = new_state.length();
 
         let output = BlockRangeExecOutput {
             state_len_le_u64_bytes: state_length_prefix.to_le_bytes(),
