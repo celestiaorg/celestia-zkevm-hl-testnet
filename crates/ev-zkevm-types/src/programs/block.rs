@@ -97,12 +97,12 @@ pub struct BatchExecInput {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BlockRangeExecOutput {
-    // the length prefix of the state
-    pub state_len_le_u64_bytes: [u8; 8],
+    // the length prefix of the state, little-endian encoded bytes of the u64 length of the serialized state
+    pub state_len_bytes: [u8; 8],
     // the starting point of the state transition
     pub state: State,
-    // the length prefix of the new state
-    pub new_state_len_le_u64_bytes: [u8; 8],
+    // the length prefix of the new state, little-endian encoded bytes of the u64 length of the serialized new state
+    pub new_state_len_bytes: [u8; 8],
     // the result of the state transition
     pub new_state: State,
 }
@@ -110,13 +110,9 @@ pub struct BlockRangeExecOutput {
 impl Display for BlockRangeExecOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(f, "BlockRangeExecOutput {{")?;
-        writeln!(f, "  state_len: {}", u64::from_le_bytes(self.state_len_le_u64_bytes))?;
+        writeln!(f, "  state_len: {}", u64::from_le_bytes(self.state_len_bytes))?;
         writeln!(f, "  state: {}", self.state)?;
-        writeln!(
-            f,
-            "  new_state_len: {}",
-            u64::from_le_bytes(self.new_state_len_le_u64_bytes)
-        )?;
+        writeln!(f, "  new_state_len: {}", u64::from_le_bytes(self.new_state_len_bytes))?;
         writeln!(f, "  new_state: {}", self.new_state)?;
         writeln!(f, "}}")
     }
@@ -460,9 +456,9 @@ impl BlockVerifier {
         let new_state_length_prefix = new_state.length();
 
         let output = BlockRangeExecOutput {
-            state_len_le_u64_bytes: state_length_prefix.to_le_bytes(),
+            state_len_bytes: state_length_prefix.to_le_bytes(),
             state,
-            new_state_len_le_u64_bytes: new_state_length_prefix.to_le_bytes(),
+            new_state_len_bytes: new_state_length_prefix.to_le_bytes(),
             new_state,
         };
         Ok(output)
@@ -516,9 +512,9 @@ mod tests {
         let state_len = bincode::serialize(&state).unwrap().len() as u64;
         let new_state_len = bincode::serialize(&new_state).unwrap().len() as u64;
         let output = BlockRangeExecOutput {
-            state_len_le_u64_bytes: state_len.to_le_bytes(),
+            state_len_bytes: state_len.to_le_bytes(),
             state: state.clone(),
-            new_state_len_le_u64_bytes: new_state_len.to_le_bytes(),
+            new_state_len_bytes: new_state_len.to_le_bytes(),
             new_state: new_state.clone(),
         };
 
@@ -533,7 +529,7 @@ mod tests {
             "Serialized output should be exactly 298 bytes with no length prefix"
         );
 
-        // Verify byte layout: first 8 bytes should be state_len_le_u64_bytes
+        // Verify byte layout: first 8 bytes should be state_len_bytes
         assert_eq!(&serialized[..8], state_len.to_le_bytes());
 
         // Verify State serialization has no prefix (each State is 141 bytes)
@@ -551,7 +547,7 @@ mod tests {
         let deserialized: BlockRangeExecOutput = bincode::deserialize(&serialized).unwrap();
 
         // Verify round-trip
-        assert_eq!(output.state_len_le_u64_bytes, deserialized.state_len_le_u64_bytes);
+        assert_eq!(output.state_len_bytes, deserialized.state_len_bytes);
         assert_eq!(output.state.state_root, deserialized.state.state_root);
         assert_eq!(
             output.state.celestia_header_hash,
@@ -561,10 +557,7 @@ mod tests {
         assert_eq!(output.state.height, deserialized.state.height);
         assert_eq!(output.state.namespace, deserialized.state.namespace);
         assert_eq!(output.state.public_key, deserialized.state.public_key);
-        assert_eq!(
-            output.new_state_len_le_u64_bytes,
-            deserialized.new_state_len_le_u64_bytes
-        );
+        assert_eq!(output.new_state_len_bytes, deserialized.new_state_len_bytes);
         assert_eq!(output.new_state.state_root, deserialized.new_state.state_root);
         assert_eq!(
             output.new_state.celestia_header_hash,

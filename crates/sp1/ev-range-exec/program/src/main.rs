@@ -123,9 +123,9 @@ pub fn main() {
         .len() as u64;
 
     let output = BlockRangeExecOutput {
-        state_len_le_u64_bytes: state_length_prefix.to_le_bytes(),
+        state_len_bytes: state_length_prefix.to_le_bytes(),
         state,
-        new_state_len_le_u64_bytes: new_state_length_prefix.to_le_bytes(),
+        new_state_len_bytes: new_state_length_prefix.to_le_bytes(),
         new_state,
     };
 

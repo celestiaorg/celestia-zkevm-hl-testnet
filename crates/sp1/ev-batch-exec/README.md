@@ -27,6 +27,6 @@ These are the same as for `ev-range-exec`, because the circuits fulfill a simila
 ### BlockRangeExecOutput: Circuit outputs used for on-chain verification
 | Name | Type | Description |
 |---|---|---|
-| state_len_le_u64_bytes | [u8;8] | Little endian encoded bytes of the length of the State used by this program |
+| state_len_bytes | [u8;8] | Little endian encoded bytes of the length of the State used by this program |
 | state | State | The starting point of the state transition
 | new_state | State | The result of the state transition
