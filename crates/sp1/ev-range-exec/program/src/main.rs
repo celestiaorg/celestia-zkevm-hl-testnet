@@ -17,7 +17,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, Buffer, State};
+use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, BlockRangeExecOutput, Buffer, State};
 use sha2::{Digest, Sha256};
 
 pub fn main() {
@@ -93,9 +93,9 @@ pub fn main() {
 
     let state = State {
         state_root: first.prev_state_root,
+        height: first.prev_height,
         celestia_header_hash: first.prev_celestia_header_hash,
         celestia_height: first.prev_celestia_height,
-        height: first.prev_height,
         namespace: first
             .namespace
             .as_bytes()
@@ -106,9 +106,9 @@ pub fn main() {
 
     let new_state = State {
         state_root: last.new_state_root,
+        height: last.new_height,
         celestia_header_hash: last.celestia_header_hash,
         celestia_height: last.prev_celestia_height + inputs.public_values.len() as u64,
-        height: last.new_height,
         namespace: last
             .namespace
             .as_bytes()
@@ -117,14 +117,17 @@ pub fn main() {
         public_key: last.public_key,
     };
 
-    let state_serialized = bincode::serialize(&state).expect("failed to serialize state");
-    let new_state_serialized = bincode::serialize(&new_state).expect("failed to serialize new state");
-    let state_len_le_64_bytes = (state_serialized.len() as u64).to_le_bytes().to_vec();
+    let state_length_prefix = bincode::serialize(&state).expect("failed to serialize state").len() as u64;
+    let new_state_length_prefix = bincode::serialize(&new_state)
+        .expect("failed to serialize new_state")
+        .len() as u64;
 
-    let mut output: Vec<u8> = Vec::new();
-    output.extend_from_slice(&state_len_le_64_bytes);
-    output.extend_from_slice(&state_serialized);
-    output.extend_from_slice(&new_state_serialized);
+    let output = BlockRangeExecOutput {
+        state_len_le_u64_bytes: state_length_prefix.to_le_bytes(),
+        state,
+        new_state_len_le_u64_bytes: new_state_length_prefix.to_le_bytes(),
+        new_state,
+    };
 
-    sp1_zkvm::io::commit_slice(&output);
+    sp1_zkvm::io::commit(&output);
 }

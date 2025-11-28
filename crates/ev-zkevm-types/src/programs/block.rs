@@ -209,9 +209,9 @@ impl Display for BlockRangeExecOutput {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct State {
     pub state_root: [u8; 32],
+    pub height: u64,
     pub celestia_header_hash: [u8; 32],
     pub celestia_height: u64,
-    pub height: u64,
     pub namespace: [u8; 29],
     pub public_key: [u8; 32],
 }
@@ -510,9 +510,9 @@ impl BlockVerifier {
 
         let state = State {
             state_root: first.prev_state_root,
+            height: first.prev_height,
             celestia_header_hash: first.prev_celestia_header_hash,
             celestia_height: first.prev_celestia_height,
-            height: first.prev_height,
             namespace: first
                 .namespace
                 .as_bytes()
@@ -523,9 +523,9 @@ impl BlockVerifier {
 
         let new_state = State {
             state_root: last.new_state_root,
+            height: last.new_height,
             celestia_header_hash: last.celestia_header_hash,
             celestia_height: first.prev_celestia_height + outputs.len() as u64,
-            height: last.new_height,
             namespace: last
                 .namespace
                 .as_bytes()
@@ -577,18 +577,18 @@ mod tests {
         // Create test data
         let state = State {
             state_root: [1u8; 32],
+            height: 50,
             celestia_header_hash: [2u8; 32],
             celestia_height: 100,
-            height: 50,
             namespace: [3u8; 29],
             public_key: [4u8; 32],
         };
 
         let new_state = State {
             state_root: [5u8; 32],
+            height: 51,
             celestia_header_hash: [6u8; 32],
             celestia_height: 101,
-            height: 51,
             namespace: [3u8; 29],
             public_key: [4u8; 32],
         };
