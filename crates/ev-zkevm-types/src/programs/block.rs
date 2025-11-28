@@ -129,8 +129,8 @@ pub struct State {
 }
 
 impl State {
-    pub fn length(&self) -> usize {
-        bincode::serialize(self).unwrap().len()
+    pub fn length(&self) -> u64 {
+        bincode::serialize(self).unwrap().len() as u64
     }
 }
 
