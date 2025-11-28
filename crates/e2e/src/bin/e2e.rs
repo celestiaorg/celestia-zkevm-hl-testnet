@@ -1,10 +1,8 @@
 use alloy_primitives::{FixedBytes, hex::FromHex};
 use alloy_provider::ProviderBuilder;
-use celestia_grpc_client::MsgRemoteTransfer;
 use celestia_grpc_client::types::ClientConfig;
-use celestia_grpc_client::{
-    MsgProcessMessage, MsgSubmitMessages, MsgUpdateZkExecutionIsm, QueryIsmRequest, client::CelestiaIsmClient,
-};
+use celestia_grpc_client::{MsgProcessMessage, MsgSubmitMessages, QueryIsmRequest, client::CelestiaIsmClient};
+use celestia_grpc_client::{MsgRemoteTransfer, MsgUpdateInterchainSecurityModule};
 use e2e::config::e2e::{CELESTIA_MAILBOX_ID, CELESTIA_TOKEN_ID, EV_RECIPIENT_ADDRESS, ISM_ID};
 use e2e::utils::block::prove_blocks;
 use e2e::utils::helpers::transfer_back;
@@ -12,6 +10,7 @@ use e2e::utils::message::prove_messages;
 use ev_prover::inclusion_height;
 use ev_state_queries::MockStateQueryProvider;
 use ev_zkevm_types::hyperlane::encode_hyperlane_message;
+use ev_zkevm_types::programs::block::State;
 use sp1_sdk::{EnvProver, ProverClient};
 use std::env;
 use std::time::Duration;
@@ -55,8 +54,9 @@ async fn main() {
         .unwrap();
 
     let ism = resp.ism.expect("ZKISM not found");
-    let trusted_root_hex = alloy::hex::encode(ism.state_root);
-    let trusted_height = ism.height;
+    let state: State = bincode::deserialize(&ism.state).unwrap();
+    let trusted_root_hex = alloy::hex::encode(state.state_root);
+    let trusted_height = state.height;
 
     let transfer_msg = MsgRemoteTransfer::new(
         ism_client.signer_address().to_string(),
@@ -71,7 +71,7 @@ async fn main() {
     assert!(response.success);
     // we can choose this as our start height, because the state root has not changed in between the hyperlane deployments
     // and this transfer.
-    let celestia_start_height = ism.celestia_height + 1;
+    let celestia_start_height = state.celestia_height + 1;
     info!("Celestia start height: {}", celestia_start_height);
     info!("Waiting for Evolve balance to be updated...");
 
@@ -99,7 +99,7 @@ async fn main() {
     .expect("Failed to prove blocks");
     info!("Done proving blocks");
 
-    let block_proof_msg = MsgUpdateZkExecutionIsm::new(
+    let block_proof_msg = MsgUpdateInterchainSecurityModule::new(
         ISM_ID.to_string(),
         block_proof.bytes(),
         block_proof.public_values.as_slice().to_vec(),

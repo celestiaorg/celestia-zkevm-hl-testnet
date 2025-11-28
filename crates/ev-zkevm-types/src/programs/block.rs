@@ -95,47 +95,53 @@ pub struct BatchExecInput {
     pub blocks: Vec<BlockExecInput>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct BlockRangeExecOutput {
-    // prev_celestia_header_hash is the merkle hash of the previous Celestia block header.
-    pub prev_celestia_header_hash: [u8; 32],
-    // prev_celestia_height is the height of the previous Celestia block.
-    pub prev_celestia_height: u64,
-    // celestia_header_hash is the hash of the celestia header at which new_height is available.
-    pub celestia_header_hash: [u8; 32],
-    // new_celestia_height is the height of the new Celestia block.
-    pub celestia_height: u64,
-    // trusted_height is the trusted height of the EVM application.
-    pub trusted_height: u64,
-    // trusted_state_root is the state commitment root of the EVM application at trusted_height.
-    pub trusted_state_root: [u8; 32],
-    // new_height is the EVM application block number after N state transitions.
-    pub new_height: u64,
-    // new_state_root is the computed state root of the EVM application after
-    // executing N blocks from trusted_height to new_height.
-    pub new_state_root: [u8; 32],
-    // namespace is the Celestia namespace that contains the blob data.
-    pub namespace: [u8; 29],
-    // public_key is the sequencer's public key used to verify the signatures of the signed data.
-    pub public_key: [u8; 32],
+    // the length prefix of the state, little-endian encoded bytes of the u64 length of the serialized state
+    pub state_len_bytes: [u8; 8],
+    // the starting point of the state transition
+    pub state: State,
+    // the length prefix of the new state, little-endian encoded bytes of the u64 length of the serialized new state
+    pub new_state_len_bytes: [u8; 8],
+    // the result of the state transition
+    pub new_state: State,
 }
 
-/// Display trait implementation to format hashes as hex encoded output.
 impl Display for BlockRangeExecOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(f, "BlockRangeExecOutput {{")?;
-        writeln!(
-            f,
-            "  prev_celestia_header_hash: {}",
-            encode(self.prev_celestia_header_hash)
-        )?;
-        writeln!(f, "  prev_celestia_height: {}", self.prev_celestia_height)?;
+        writeln!(f, "  state_len: {}", u64::from_le_bytes(self.state_len_bytes))?;
+        writeln!(f, "  state: {}", self.state)?;
+        writeln!(f, "  new_state_len: {}", u64::from_le_bytes(self.new_state_len_bytes))?;
+        writeln!(f, "  new_state: {}", self.new_state)?;
+        writeln!(f, "}}")
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct State {
+    pub state_root: [u8; 32],
+    pub height: u64,
+    pub celestia_header_hash: [u8; 32],
+    pub celestia_height: u64,
+    pub namespace: [u8; 29],
+    pub public_key: [u8; 32],
+}
+
+impl State {
+    pub fn length(&self) -> u64 {
+        bincode::serialize(self).unwrap().len() as u64
+    }
+}
+
+/// Display trait implementation to format hashes as hex encoded output.
+impl Display for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        writeln!(f, "BlockRangeExecOutput {{")?;
+        writeln!(f, "  state_root: {}", encode(self.state_root))?;
         writeln!(f, "  celestia_header_hash: {}", encode(self.celestia_header_hash))?;
         writeln!(f, "  celestia_height: {}", self.celestia_height)?;
-        writeln!(f, "  trusted_height: {}", self.trusted_height)?;
-        writeln!(f, "  trusted_state_root: {}", encode(self.trusted_state_root))?;
-        writeln!(f, "  new_height: {}", self.new_height)?;
-        writeln!(f, "  new_state_root: {}", encode(self.new_state_root))?;
+        writeln!(f, "  height: {}", self.height)?;
         writeln!(f, "  namespace: {}", encode(self.namespace))?;
         writeln!(f, "  public_key: {}", encode(self.public_key))?;
         writeln!(f, "}}")
@@ -420,21 +426,40 @@ impl BlockVerifier {
         let first = outputs.first().expect("No outputs provided");
         let last = outputs.last().expect("No outputs provided");
 
-        let output = BlockRangeExecOutput {
-            prev_celestia_height: first.prev_celestia_height,
-            prev_celestia_header_hash: first.prev_celestia_header_hash,
-            celestia_height: first.prev_celestia_height + outputs.len() as u64,
+        let state = State {
+            state_root: first.prev_state_root,
+            height: first.prev_height,
+            celestia_header_hash: first.prev_celestia_header_hash,
+            celestia_height: first.prev_celestia_height,
+            namespace: first
+                .namespace
+                .as_bytes()
+                .try_into()
+                .expect("namespace must be 29 bytes"),
+            public_key: first.public_key,
+        };
+
+        let new_state = State {
+            state_root: last.new_state_root,
+            height: last.new_height,
             celestia_header_hash: last.celestia_header_hash,
-            trusted_height: first.prev_height,
-            trusted_state_root: first.prev_state_root,
-            new_state_root: last.new_state_root,
-            new_height: last.new_height,
+            celestia_height: first.prev_celestia_height + outputs.len() as u64,
             namespace: last
                 .namespace
                 .as_bytes()
                 .try_into()
                 .expect("namespace must be 29 bytes"),
             public_key: last.public_key,
+        };
+
+        let state_length_prefix = state.length();
+        let new_state_length_prefix = new_state.length();
+
+        let output = BlockRangeExecOutput {
+            state_len_bytes: state_length_prefix.to_le_bytes(),
+            state,
+            new_state_len_bytes: new_state_length_prefix.to_le_bytes(),
+            new_state,
         };
         Ok(output)
     }
@@ -457,4 +482,71 @@ impl BlockVerifier {
 
 fn get_height(data: &Data) -> Option<u64> {
     data.metadata.as_ref().map(|m| m.height)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_range_exec_output_serialization_roundtrip() {
+        // Create test data
+        let state = State {
+            state_root: [1u8; 32],
+            height: 50,
+            celestia_header_hash: [2u8; 32],
+            celestia_height: 100,
+            namespace: [3u8; 29],
+            public_key: [4u8; 32],
+        };
+
+        let new_state = State {
+            state_root: [5u8; 32],
+            height: 51,
+            celestia_header_hash: [6u8; 32],
+            celestia_height: 101,
+            namespace: [3u8; 29],
+            public_key: [4u8; 32],
+        };
+
+        let state_len = bincode::serialize(&state).unwrap().len() as u64;
+        let new_state_len = bincode::serialize(&new_state).unwrap().len() as u64;
+        let output = BlockRangeExecOutput {
+            state_len_bytes: state_len.to_le_bytes(),
+            state: state.clone(),
+            new_state_len_bytes: new_state_len.to_le_bytes(),
+            new_state: new_state.clone(),
+        };
+
+        // Serialize
+        let serialized = bincode::serialize(&output).unwrap();
+
+        // Verify no length prefix was added - should be exactly 298 bytes
+        // (8 bytes for state_len + 141 bytes for state + 8 bytes for new_state_len + 141 bytes for new_state)
+        assert_eq!(
+            serialized.len(),
+            298,
+            "Serialized output should be exactly 298 bytes with no length prefix"
+        );
+
+        // Verify byte layout: first 8 bytes should be state_len_bytes
+        assert_eq!(&serialized[..8], state_len.to_le_bytes());
+
+        // Verify State serialization has no prefix (each State is 141 bytes)
+        let state_bytes = bincode::serialize(&state).unwrap();
+        let new_state_bytes = bincode::serialize(&new_state).unwrap();
+        assert_eq!(state_bytes.len(), 141, "State should serialize to 141 bytes");
+        assert_eq!(new_state_bytes.len(), 141, "State should serialize to 141 bytes");
+
+        // Verify the byte layout matches our expected format
+        assert_eq!(&serialized[8..149], state_bytes.as_slice());
+        assert_eq!(&serialized[149..157], new_state_len.to_le_bytes());
+        assert_eq!(&serialized[157..298], new_state_bytes.as_slice());
+
+        // Deserialize
+        let deserialized: BlockRangeExecOutput = bincode::deserialize(&serialized).unwrap();
+
+        // Verify round-trip
+        assert_eq!(output, deserialized);
+    }
 }

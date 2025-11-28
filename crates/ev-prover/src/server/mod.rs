@@ -8,7 +8,7 @@ use ev_state_queries::MockStateQueryProvider;
 use ev_types::v1::get_block_request::Identifier;
 use ev_types::v1::store_service_client::StoreServiceClient;
 use ev_types::v1::GetBlockRequest;
-use storage::hyperlane::message::HyperlaneMessageStorage;
+use ev_zkevm_types::programs::block::State;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -33,8 +33,9 @@ use crate::prover::{
     },
     BlockProofCommitted,
 };
+#[cfg(not(feature = "batch_mode"))]
+use storage::{hyperlane::message::HyperlaneMessageStorage, proofs::ProofStorage};
 
-use storage::proofs::ProofStorage;
 #[cfg(feature = "batch_mode")]
 use {crate::prover::programs::batch::BatchExecProver, std::time::Duration};
 
@@ -151,7 +152,6 @@ pub async fn start_server(config: Config) -> Result<()> {
     let storage_path = Config::storage_path();
     let app_storage = Arc::new(storage::app_storage::AppStorage::new(&storage_path, None)?);
     let proof_store = app_storage.proofs().clone();
-    let hyperlane_message_store = app_storage.messages().clone();
 
     // shared resources
     let config = ClientConfig::from_env()?;
@@ -163,6 +163,7 @@ pub async fn start_server(config: Config) -> Result<()> {
         let client_config = ClientConfig::from_env()?;
         let client = CelestiaIsmClient::new(client_config).await?;
         let proof_store = proof_store.clone();
+        let hyperlane_message_store = app_storage.messages().clone();
         let app_storage_clone = app_storage.clone();
         tokio::spawn(async move {
             loop {
@@ -382,5 +383,9 @@ pub async fn get_trusted_state(client: &CelestiaIsmClient) -> Result<TrustedStat
 
     let ism = resp.ism.unwrap();
 
-    Ok(TrustedState::new(ism.height, FixedBytes::from_slice(&ism.state_root)))
+    let state: State = bincode::deserialize(&ism.state).unwrap();
+    Ok(TrustedState::new(
+        state.height,
+        FixedBytes::from_slice(&state.state_root),
+    ))
 }
