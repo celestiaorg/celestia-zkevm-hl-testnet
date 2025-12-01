@@ -139,9 +139,9 @@ impl Display for State {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(f, "State {{")?;
         writeln!(f, "  state_root: {}", encode(self.state_root))?;
+        writeln!(f, "  height: {}", self.height)?;
         writeln!(f, "  celestia_header_hash: {}", encode(self.celestia_header_hash))?;
         writeln!(f, "  celestia_height: {}", self.celestia_height)?;
-        writeln!(f, "  height: {}", self.height)?;
         writeln!(f, "  namespace: {}", encode(self.namespace))?;
         writeln!(f, "  public_key: {}", encode(self.public_key))?;
         writeln!(f, "}}")
