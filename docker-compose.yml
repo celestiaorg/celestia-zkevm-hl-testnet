@@ -1,6 +1,6 @@
 services:
   celestia-init:
-    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:ea0e11656c638bfdd62bf2541a3cf580304925c3e00917a337033ff2062da4cb
+    image: ghcr.io/celestiaorg/celestia-app-standalone:feature-zk-execution-ism
     container_name: celestia-init
     entrypoint: /scripts/init.sh
     volumes:
@@ -9,7 +9,7 @@ services:
     restart: "no"
 
   celestia-validator:
-    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:ea0e11656c638bfdd62bf2541a3cf580304925c3e00917a337033ff2062da4cb
+    image: ghcr.io/celestiaorg/celestia-app-standalone:feature-zk-execution-ism
     container_name: celestia-validator
     ports:
       - "26656:26656"
@@ -17,10 +17,11 @@ services:
       - "1317:1317"
       - "9090:9090"
     healthcheck:
-      test: [
-        "CMD-SHELL",
-        "bh=$(curl -sf http://localhost:26657/status | jq -r '.result.sync_info.latest_block_height'); if [ \"$$bh\" -gt 1 ]; then exit 0; else exit 1; fi"
-      ]
+      test:
+        [
+          "CMD-SHELL",
+          'bh=$(curl -sf http://localhost:26657/status | jq -r ''.result.sync_info.latest_block_height''); if [ "$$bh" -gt 1 ]; then exit 0; else exit 1; fi',
+        ]
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -90,7 +91,7 @@ services:
         condition: service_started
     networks:
       - celestia-zkevm-net
-  
+
   reth:
     container_name: reth
     # release tag v0.1.0
@@ -107,29 +108,29 @@ services:
     entrypoint: /bin/sh -c
     command:
       - |
-          ev-reth node \
-            --chain /home/reth/eth-genesis.json \
-            --datadir /home/reth/eth-home \
-            --metrics 0.0.0.0:9001 \
-            --authrpc.addr 0.0.0.0 \
-            --authrpc.port 8551 \
-            --authrpc.jwtsecret /home/reth/jwt.hex \
-            --http --http.addr 0.0.0.0 --http.port 8545 \
-            --http.api eth,net,web3,txpool \
-            --ws --ws.addr 0.0.0.0 --ws.port 8546 \
-            --ws.api eth,net,web3 \
-            --engine.persistence-threshold 0 \
-            --engine.memory-block-buffer-target 0 \
-            --disable-discovery \
-            --txpool.pending-max-count 200000 \
-            --txpool.pending-max-size 200 \
-            --txpool.queued-max-count 200000 \
-            --txpool.queued-max-size 200 \
-            --txpool.max-account-slots 2048 \
-            --txpool.max-new-txns 2048 \
-            --txpool.additional-validation-tasks 16 \
-            --rpc.eth-proof-window 120000 \
-            --ev-reth.enable
+        ev-reth node \
+          --chain /home/reth/eth-genesis.json \
+          --datadir /home/reth/eth-home \
+          --metrics 0.0.0.0:9001 \
+          --authrpc.addr 0.0.0.0 \
+          --authrpc.port 8551 \
+          --authrpc.jwtsecret /home/reth/jwt.hex \
+          --http --http.addr 0.0.0.0 --http.port 8545 \
+          --http.api eth,net,web3,txpool \
+          --ws --ws.addr 0.0.0.0 --ws.port 8546 \
+          --ws.api eth,net,web3 \
+          --engine.persistence-threshold 0 \
+          --engine.memory-block-buffer-target 0 \
+          --disable-discovery \
+          --txpool.pending-max-count 200000 \
+          --txpool.pending-max-size 200 \
+          --txpool.queued-max-count 200000 \
+          --txpool.queued-max-size 200 \
+          --txpool.max-account-slots 2048 \
+          --txpool.max-new-txns 2048 \
+          --txpool.additional-validation-tasks 16 \
+          --rpc.eth-proof-window 120000 \
+          --ev-reth.enable
     networks:
       - celestia-zkevm-net
 
