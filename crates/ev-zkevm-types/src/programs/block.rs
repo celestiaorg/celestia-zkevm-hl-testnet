@@ -137,7 +137,7 @@ impl State {
 /// Display trait implementation to format hashes as hex encoded output.
 impl Display for State {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        writeln!(f, "BlockRangeExecOutput {{")?;
+        writeln!(f, "State {{")?;
         writeln!(f, "  state_root: {}", encode(self.state_root))?;
         writeln!(f, "  celestia_header_hash: {}", encode(self.celestia_header_hash))?;
         writeln!(f, "  celestia_height: {}", self.celestia_height)?;
