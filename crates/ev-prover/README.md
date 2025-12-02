@@ -157,12 +157,12 @@ or proof generation for that snapshot failed.
 
 We currently support manual message submission retries, using the following command:
 ```bash
-cargo run --release -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id MAILBOX_ID --contract MERKLE_TREE_ADDRESS --rpc-url RETH_RPC_URL
+cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id MAILBOX_ID --contract MERKLE_TREE_ADDRESS --rpc-url RETH_RPC_URL
 ```
 
 Example with values:
 ```bash
-cargo run --release -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --contract 0xfcb1d485ef46344029d9e8a7925925e146b3430e --rpc-url http://127.0.0.1:8545
+cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --contract 0xfcb1d485ef46344029d9e8a7925925e146b3430e --rpc-url http://127.0.0.1:8545
 ```
 
 Assuming that there is an unfinalized snapshot at index `N` in the database and that the latest snapshot is >`N`, the correct snapshot-index to pass is `N-1`.
