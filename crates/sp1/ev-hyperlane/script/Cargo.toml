@@ -20,6 +20,8 @@ alloy-provider = { workspace = true }
 anyhow = { workspace = true }
 bincode = { workspace = true }
 clap = { version = "4.0", features = ["cargo", "derive", "env"] }
+celestia-grpc-client = { workspace = true }
+rustls = { workspace = true }
 dirs = { workspace = true }
 dotenvy = { workspace = true }
 ev-zkevm-types = { workspace = true }
@@ -27,6 +29,9 @@ sp1-sdk = { workspace = true }
 storage = { workspace = true }
 tokio = { workspace = true }
 url = { version = "2.5", default-features = false }
+
+[features]
+retry = []
 
 [build-dependencies]
 sp1-build = "5.0.8"

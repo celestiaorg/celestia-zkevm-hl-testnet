@@ -153,7 +153,7 @@ pub async fn start_server(config: Config) -> Result<()> {
     // Initialize RocksDB storage in the default data directory
     let storage_path = Config::storage_path();
     let proof_store = Arc::new(RocksDbProofStorage::new(&storage_path)?);
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(&storage_path).unwrap());
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::from_path(&storage_path).unwrap());
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);

@@ -52,7 +52,7 @@ pub async fn prove_messages(
         .expect("cannot find home directory")
         .join(&tmp)
         .join("data");
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::from_path(message_storage_path).unwrap());
     // prune in case non-empty
     hyperlane_message_store.reset_db().unwrap();
 

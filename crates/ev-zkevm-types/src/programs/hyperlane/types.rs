@@ -295,7 +295,11 @@ impl HyperlaneMessageInputs {
         for idx in 0..HYPERLANE_MERKLE_TREE_KEYS.len() {
             // The branch nodes of the snapshot after insert must match the branch nodes of the incremental
             // tree on the EVM chain.
-            assert_eq!(self.snapshot.branch[idx], self.branch_proof.get_branch_node(idx));
+            assert_eq!(
+                self.snapshot.branch[idx],
+                self.branch_proof.get_branch_node(idx),
+                "Branch node {idx} does not match"
+            );
         }
 
         let verified = self

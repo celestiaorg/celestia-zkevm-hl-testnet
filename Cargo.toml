@@ -39,6 +39,7 @@ bytes = "1.10.1"
 celestia-grpc = "0.8.0"
 celestia-rpc = "=0.13.0"
 celestia-types = "=0.15.0"
+celestia-grpc-client = { path = "crates/celestia-grpc-client" }
 chrono = "0.4"
 cosmrs = { version = "0.22", features = ["grpc", "cosmwasm"] }
 dirs = "5.0.1"

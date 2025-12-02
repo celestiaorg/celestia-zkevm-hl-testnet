@@ -206,6 +206,11 @@ impl HyperlaneMessageProver {
             return Ok(());
         }
 
+        if trusted_snapshot_index > 0 {
+            debug!("Not Proving due to Test");
+            return Ok(());
+        }
+
         let start_height = snapshot.height + 1;
 
         // Collect all messages from the new blocks
