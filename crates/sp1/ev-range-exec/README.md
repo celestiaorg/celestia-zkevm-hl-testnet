@@ -6,8 +6,8 @@ See [crates/sp1/ev-exec](../ev-exec/).
 ### Program Inputs
 | Name | Type | Description |
 |---|---|---|
-| vkeys | Vec<[u8;32]> | Verifying keys for the input proofs |
-| public_values | Vec<Vec<u8>> | Public outputs of the input proofs |
+| vkeys | [[u8;32]] | Verifying keys for the input proofs |
+| public_values | [[u8]] | Public outputs of the input proofs |
 
 Note that by design proofs are written separately in recursive circuits like this one.
 We use the standard SP1 approach to write compressed proofs generated using `ev-exec`.
