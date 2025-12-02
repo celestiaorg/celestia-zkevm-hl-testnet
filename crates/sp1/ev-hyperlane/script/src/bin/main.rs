@@ -76,16 +76,12 @@ async fn main() {
     rustls::crypto::aws_lc_rs::default_provider()
         .install_default()
         .expect("Failed to set default crypto provider");
-    dotenvy::dotenv().ok();
 
-    // Setup the logger.
-    sp1_sdk::utils::setup_logger();
     dotenvy::dotenv().ok();
+    sp1_sdk::utils::setup_logger();
+    let args = Args::parse();
 
     let client = ProverClient::from_env();
-
-    // Parse the command line arguments.
-    let args = Args::parse();
     let message_storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(".ev-prover")
@@ -98,6 +94,7 @@ async fn main() {
             eprintln!("Error: You must specify either --execute or --prove");
             std::process::exit(1);
         }
+
         let mut stdin = SP1Stdin::new();
         write_proof_inputs(
             &mut stdin,
@@ -117,25 +114,20 @@ async fn main() {
                 .expect("failed to execute program");
             println!("Program executed successfully!");
         } else {
-            // Setup the program for proving.
-
             use ev_zkevm_types::programs::hyperlane::types::HyperlaneMessageOutputs;
             let (pk, vk) = client.setup(EV_HYPERLANE_ELF);
             let start_time = Instant::now();
-            // Generate the proof
             let proof = client.prove(&pk, &stdin).run().expect("failed to generate proof");
             println!("Proof generation time: {:?}", Instant::now() - start_time);
             println!("Successfully generated proof!");
-
-            // Verify the proof.
             client.verify(&proof, &vk).expect("failed to verify proof");
             println!("Successfully verified proof!");
-
             let proof_outputs: HyperlaneMessageOutputs =
                 bincode::deserialize(proof.public_values.as_slice()).expect("Failed to deserialize proof outputs");
             println!("Proof outputs: {proof_outputs:?}");
         }
     }
+
     #[cfg(feature = "retry")]
     {
         let snapshot_storage_path = dirs::home_dir()
@@ -146,7 +138,7 @@ async fn main() {
         let previous_snapshot = hyperlane_snapshot_store
             .get_snapshot(args.snapshot_index)
             .expect("Fatal, snapshot was lost");
-        println!("Previous snapshot: {:?}", previous_snapshot);
+
         let config = ClientConfig::from_env().unwrap();
         let ism_client = CelestiaIsmClient::new(config.clone()).await.unwrap();
         let ev_trusted_state = ism_client
@@ -157,6 +149,7 @@ async fn main() {
             .unwrap();
         let state: State = bincode::deserialize(&ev_trusted_state.ism.unwrap().state).unwrap();
         let mut stdin = SP1Stdin::new();
+
         write_proof_inputs(
             &mut stdin,
             &hyperlane_message_store,
@@ -167,16 +160,17 @@ async fn main() {
         )
         .await
         .unwrap();
+
         let (pk, _) = client.setup(EV_HYPERLANE_ELF);
         let start_time = Instant::now();
-        // Generate the proof
+
         let proof = client
             .prove(&pk, &stdin)
             .groth16()
             .run()
             .expect("failed to generate proof");
         println!("Proof generation time: {:?}", Instant::now() - start_time);
-        // submit proof using ism client
+
         let proof_msg = MsgSubmitMessages::new(
             config.ism_id,
             state.height,
@@ -184,11 +178,13 @@ async fn main() {
             proof.public_values.as_slice().to_vec(),
             config.signer_address.clone(),
         );
+
         let response = ism_client.send_tx(proof_msg).await.unwrap();
         if !response.success {
             panic!("Failed to submit proof: {:?}", response);
         }
-        // relay messages to celestia
+
+        // Relay verified messages to Celestia
         let mut messages = Vec::new();
         for height in previous_snapshot.height..=state.height {
             let block_messages = hyperlane_message_store
@@ -198,6 +194,7 @@ async fn main() {
                 messages.push(block_message);
             }
         }
+
         for message in messages {
             let message_hex = alloy::hex::encode(encode_hyperlane_message(&message.message).unwrap());
             let msg = MsgProcessMessage::new(
@@ -216,8 +213,6 @@ async fn main() {
     }
 }
 
-// cargo run --release -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --rpc-url http://127.0.0.1:8545
-
 async fn write_proof_inputs(
     stdin: &mut SP1Stdin,
     message_store: &HyperlaneMessageStore,
@@ -235,7 +230,6 @@ async fn write_proof_inputs(
             messages.push(block_message);
         }
     }
-    // get the merkle proofs from the EVM execution client
     let provider = ProviderBuilder::new().connect_http(Url::from_str(rpc_url).expect("Failed to create provider"));
     let proof = provider
         .get_proof(
@@ -258,7 +252,6 @@ async fn write_proof_inputs(
         .context("Failed to get block")?;
     let execution_state_root = alloy::hex::encode(block.header.state_root.0);
     let branch_proof = HyperlaneBranchProof::new(proof);
-    // write the inputs to the stdin
     let inputs = HyperlaneMessageInputs::new(
         execution_state_root,
         contract.to_string(),
@@ -269,3 +262,5 @@ async fn write_proof_inputs(
     stdin.write(&inputs);
     Ok(())
 }
+
+// cargo run --release -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --rpc-url http://127.0.0.1:8545
