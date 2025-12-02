@@ -188,7 +188,7 @@ async fn main() {
         let mut messages = Vec::new();
         for height in previous_snapshot.height..=state.height {
             let block_messages = hyperlane_message_store
-                .get_by_block(height as u64)
+                .get_by_block(height)
                 .expect("Failed to get messages");
             for block_message in block_messages {
                 messages.push(block_message);
@@ -229,9 +229,7 @@ async fn write_proof_inputs(
 ) -> Result<()> {
     let mut messages = Vec::new();
     for height in from_height..=to_height {
-        let block_messages = message_store
-            .get_by_block(height as u64)
-            .expect("Failed to get messages");
+        let block_messages = message_store.get_by_block(height).expect("Failed to get messages");
         for block_message in block_messages {
             messages.push(block_message);
         }
