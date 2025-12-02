@@ -203,9 +203,15 @@ async fn main() {
                 alloy::hex::encode(vec![]),
                 message_hex,
             );
-            let response = ism_client.send_tx(msg).await.unwrap();
+            let response = match ism_client.send_tx(msg).await {
+                Ok(response) => response,
+                Err(e) => {
+                    eprintln!("Failed to relay message: {:?}", e);
+                    continue;
+                }
+            };
             if !response.success {
-                panic!("Failed to relay message: {:?}", response);
+                eprintln!("Failed to relay message: {:?}", response);
             } else {
                 println!("Successfully relayed message: {:?}", message.message.id());
             }
@@ -262,5 +268,3 @@ async fn write_proof_inputs(
     stdin.write(&inputs);
     Ok(())
 }
-
-// cargo run --release -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --rpc-url http://127.0.0.1:8545
