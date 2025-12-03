@@ -243,7 +243,7 @@ pub(crate) async fn get_range_proofs_handler(
 }
 
 pub(crate) async fn get_router(http_state: HttpServerState) -> Router {
-    let app = Router::new()
+    Router::new()
         // Snapshot routes
         .route("/snapshots", get(list_snapshots_handler))
         // Block proof routes
@@ -255,6 +255,5 @@ pub(crate) async fn get_router(http_state: HttpServerState) -> Router {
         .route("/proofs/membership/:height", get(get_membership_proof_handler))
         // Range proof routes
         .route("/proofs/range", get(get_range_proofs_handler))
-        .with_state(http_state);
-    app
+        .with_state(http_state)
 }

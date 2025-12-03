@@ -187,7 +187,7 @@ pub async fn query(query_cmd: QueryCommands) -> Result<()> {
 
     match query_cmd {
         QueryCommands::LatestBlock { server } => {
-            let url = format!("{}/proofs/block/latest", server);
+            let url = format!("{server}/proofs/block/latest");
             let response: BlockProofResponse = client.get(&url).send().await?.json().await?;
 
             info!("Latest block proof:");
@@ -200,7 +200,7 @@ pub async fn query(query_cmd: QueryCommands) -> Result<()> {
             info!("  Created at (Unix): {}", response.created_at);
         }
         QueryCommands::Block { height, server } => {
-            let url = format!("{}/proofs/block/{}", server, height);
+            let url = format!("{server}/proofs/block/{height}");
             let response: BlockProofResponse = client.get(&url).send().await?.json().await?;
 
             info!("Block proof for height {height}:");
@@ -217,10 +217,7 @@ pub async fn query(query_cmd: QueryCommands) -> Result<()> {
             end_height,
             server,
         } => {
-            let url = format!(
-                "{}/proofs/block/range?start={}&end={}",
-                server, start_height, end_height
-            );
+            let url = format!("{server}/proofs/block/range?start={start_height}&end={end_height}");
             let response: Vec<BlockProofResponse> = client.get(&url).send().await?.json().await?;
 
             info!("Found {} block proof(s):\n", response.len());
@@ -238,7 +235,7 @@ pub async fn query(query_cmd: QueryCommands) -> Result<()> {
             }
         }
         QueryCommands::LatestMembership { server } => {
-            let url = format!("{}/proofs/membership/latest", server);
+            let url = format!("{server}/proofs/membership/latest");
             let response: MembershipProofResponse = client.get(&url).send().await?.json().await?;
 
             info!("Latest membership proof:");
@@ -250,7 +247,7 @@ pub async fn query(query_cmd: QueryCommands) -> Result<()> {
             info!("  Created at (Unix): {}", response.created_at);
         }
         QueryCommands::Membership { height, server } => {
-            let url = format!("{}/proofs/membership/{}", server, height);
+            let url = format!("{server}/proofs/membership/{height}");
             let response: MembershipProofResponse = client.get(&url).send().await?.json().await?;
 
             info!("Membership proof for height {height}:");
@@ -266,7 +263,7 @@ pub async fn query(query_cmd: QueryCommands) -> Result<()> {
             end_height,
             server,
         } => {
-            let url = format!("{}/proofs/range?start={}&end={}", server, start_height, end_height);
+            let url = format!("{server}/proofs/range?start={start_height}&end={end_height}");
             let response: Vec<RangeProofResponse> = client.get(&url).send().await?.json().await?;
 
             info!("Found {} range proof(s):\n", response.len());
