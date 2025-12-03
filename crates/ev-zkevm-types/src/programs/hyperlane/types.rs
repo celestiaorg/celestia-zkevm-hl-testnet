@@ -313,13 +313,15 @@ impl HyperlaneMessageInputs {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HyperlaneMessageOutputs {
     pub state_root: [u8; 32],
+    pub merkle_tree_address: [u8; 32],
     pub message_ids: Vec<[u8; 32]>,
 }
 
 impl HyperlaneMessageOutputs {
-    pub fn new(state_root: [u8; 32], message_ids: Vec<[u8; 32]>) -> Self {
+    pub fn new(state_root: [u8; 32], merkle_tree_address: [u8; 32], message_ids: Vec<[u8; 32]>) -> Self {
         Self {
             state_root,
+            merkle_tree_address,
             message_ids,
         }
     }
