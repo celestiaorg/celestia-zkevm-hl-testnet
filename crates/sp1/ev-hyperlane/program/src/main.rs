@@ -32,7 +32,7 @@ pub fn main() {
             .unwrap()
             .try_into()
             .unwrap(),
-        Address::from_str(&inputs.contract).unwrap().into_word(),
+        *Address::from_str(&inputs.contract).unwrap().into_word(),
         inputs
             .messages
             .iter()
