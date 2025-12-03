@@ -323,7 +323,7 @@ pub async fn start_server(config: Config) -> Result<()> {
     });
 
     // Create HTTP server for queries
-    let http_listener = TcpListener::bind("0.0.0.0:9222").await?;
+    let http_listener = TcpListener::bind("0.0.0.0:50051").await?;
     let http_addr = http_listener.local_addr()?;
     info!("Starting HTTP server at {}", http_addr);
 
