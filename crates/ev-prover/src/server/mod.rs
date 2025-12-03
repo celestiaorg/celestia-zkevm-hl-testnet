@@ -1,5 +1,4 @@
-use std::sync::Arc;
-
+mod queries;
 use alloy_primitives::FixedBytes;
 use anyhow::Result;
 use celestia_grpc_client::types::ClientConfig;
@@ -9,23 +8,19 @@ use ev_types::v1::get_block_request::Identifier;
 use ev_types::v1::store_service_client::StoreServiceClient;
 use ev_types::v1::GetBlockRequest;
 use ev_zkevm_types::programs::block::State;
+use std::sync::Arc;
 use storage::hyperlane::message::HyperlaneMessageStore;
 use storage::hyperlane::snapshot::HyperlaneSnapshotStore;
 use storage::proofs::RocksDbProofStorage;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio_stream::wrappers::TcpListenerStream;
-use tonic::transport::Server as TonicServer;
-use tonic_reflection::server::Builder as ReflectionBuilder;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::config::Config;
-use crate::proto::celestia::prover::v1::prover_server::ProverServer;
 use crate::prover::chain::ChainContext;
 use crate::prover::programs::block::TrustedState;
 use crate::prover::programs::message::HyperlaneMessageProver;
-use crate::prover::service::ProverService;
 use crate::prover::{MessageProofRequest, MessageProofSync};
 
 #[cfg(not(feature = "batch_mode"))]
@@ -36,6 +31,7 @@ use crate::prover::{
     },
     BlockProofCommitted,
 };
+use crate::server::queries::{get_router, HttpServerState};
 
 use storage::proofs::ProofStorage;
 #[cfg(feature = "batch_mode")]
@@ -138,22 +134,17 @@ impl Server {
 }
 
 pub async fn start_server(config: Config) -> Result<()> {
-    let listener = TcpListener::bind(config.grpc_address.clone()).await?;
     let sequencer_rpc_url = std::env::var("SEQUENCER_RPC_URL").expect("SEQUENCER_RPC_URL must be set");
-    let descriptor_bytes = include_bytes!("../../src/proto/descriptor.bin");
-    let reflection_service = ReflectionBuilder::configure()
-        .register_encoded_file_descriptor_set(descriptor_bytes)
-        .build()
-        .unwrap();
     // TODO: Remove this config cloning when we can rely on the public key from config
-    // https://github.com/evstack/ev-node/issues/2603
+    // querys://github.com/evstack/ev-node/issues/2603
     let mut config_clone = config.clone();
     config_clone.pub_key = public_key(sequencer_rpc_url).await?;
     debug!("Successfully got pubkey from evnode: {}", config_clone.pub_key);
     // Initialize RocksDB storage in the default data directory
     let storage_path = Config::storage_path();
     let proof_store = Arc::new(RocksDbProofStorage::new(&storage_path)?);
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::from_path(&storage_path).unwrap());
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::from_path(&storage_path).await.unwrap());
+    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::from_path(&storage_path).await?);
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
@@ -164,6 +155,7 @@ pub async fn start_server(config: Config) -> Result<()> {
         let client_config = ClientConfig::from_env()?;
         let client = CelestiaIsmClient::new(client_config).await?;
         let proof_store = proof_store.clone();
+        let hyperlane_snapshot_store = hyperlane_snapshot_store.clone();
         tokio::spawn(async move {
             loop {
                 let trusted_state = match get_trusted_state(&client).await {
@@ -196,14 +188,20 @@ pub async fn start_server(config: Config) -> Result<()> {
                         continue;
                     }
                 };
-                let message_prover =
-                    match prepare_message_prover(ctx.clone(), hyperlane_message_store.clone(), proof_store.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
+                let message_prover = match prepare_message_prover(
+                    ctx.clone(),
+                    hyperlane_message_store.clone(),
+                    hyperlane_snapshot_store.clone(),
+                    proof_store.clone(),
+                )
+                .await
+                {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
                 let server = Server::new(
                     Arc::new(message_prover),
                     Arc::new(block_prover),
@@ -266,6 +264,7 @@ pub async fn start_server(config: Config) -> Result<()> {
     let wrapper_task = Some({
         let proof_store_clone: Arc<dyn ProofStorage> = proof_store.clone();
         let message_sync = MessageProofSync::shared();
+        let hyperlane_snapshot_store = hyperlane_snapshot_store.clone();
 
         tokio::spawn(async move {
             loop {
@@ -280,8 +279,11 @@ pub async fn start_server(config: Config) -> Result<()> {
                 let message_prover = match prepare_message_prover(
                     ctx.clone(),
                     hyperlane_message_store.clone(),
+                    hyperlane_snapshot_store.clone(),
                     proof_store_clone.clone(),
-                ) {
+                )
+                .await
+                {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create message prover: {e:?}");
@@ -320,25 +322,36 @@ pub async fn start_server(config: Config) -> Result<()> {
         })
     });
 
-    let prover_service = ProverService::new(proof_store.clone())?;
-    let server_task = tokio::spawn(async move {
-        TonicServer::builder()
-            .add_service(reflection_service)
-            .add_service(ProverServer::new(prover_service))
-            .serve_with_incoming(TcpListenerStream::new(listener))
+    // Create HTTP server for queries
+    let http_listener = TcpListener::bind("0.0.0.0:9222").await?;
+    let http_addr = http_listener.local_addr()?;
+    info!("Starting HTTP server at {}", http_addr);
+
+    let http_state = HttpServerState {
+        snapshot_store: hyperlane_snapshot_store.clone(),
+        proof_store: proof_store.clone(),
+    };
+
+    let app = get_router(http_state).await;
+
+    let http_server_task = tokio::spawn(async move {
+        axum::serve(http_listener, app)
             .await
+            .map_err(|e| anyhow::anyhow!("HTTP server error: {e}"))
     });
 
     if let Some(mut wrapper_task) = wrapper_task {
+        let mut http_server_task = http_server_task;
         tokio::select! {
             r = &mut wrapper_task => {
                 error!("Prover wrapper task stopped: {:?}", r);
+                http_server_task.abort();
             }
-            r = server_task => {
+            r = &mut http_server_task => {
                 match r {
-                    Ok(Ok(())) => debug!("GRPC server stopped gracefully"),
-                    Ok(Err(e)) => error!("GRPC server failed: {e:?}"),
-                    Err(e) => error!("GRPC server task panicked: {e:?}"),
+                    Ok(Ok(())) => debug!("HTTP server stopped gracefully"),
+                    Ok(Err(e)) => error!("HTTP server failed: {e:?}"),
+                    Err(e) => error!("HTTP server task panicked: {e:?}"),
                 }
                 wrapper_task.abort();
             }
@@ -350,26 +363,29 @@ pub async fn start_server(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn prepare_message_prover(
+async fn prepare_message_prover(
     ctx: Arc<ChainContext>,
     hyperlane_message_store: Arc<HyperlaneMessageStore>,
+    hyperlane_snapshot_store: Arc<HyperlaneSnapshotStore>,
     proof_store: Arc<dyn ProofStorage>,
 ) -> Result<HyperlaneMessageProver> {
-    let storage_path = Config::storage_path();
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(storage_path, None).unwrap());
-
-    HyperlaneMessageProver::new(
-        ctx.clone(),
-        hyperlane_message_store,
-        hyperlane_snapshot_store,
-        proof_store.clone(),
-        Arc::new(MockStateQueryProvider::new(ctx.evm_provider())),
-    )
+    // Run the blocking prover setup in a separate thread to avoid blocking the async runtime
+    tokio::task::spawn_blocking(move || {
+        HyperlaneMessageProver::new(
+            ctx.clone(),
+            hyperlane_message_store,
+            hyperlane_snapshot_store,
+            proof_store.clone(),
+            Arc::new(MockStateQueryProvider::new(ctx.evm_provider())),
+        )
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Task join error: {e}"))?
 }
 
 // TODO: Use from config file when we can have a reproducible key in docker-compose.
 // For now query the pubkey on startup from evnode.
-// https://github.com/evstack/ev-node/issues/2603
+// querys://github.com/evstack/ev-node/issues/2603
 pub async fn public_key(sequencer_rpc_url: String) -> Result<String> {
     let mut sequencer_client = StoreServiceClient::connect(sequencer_rpc_url).await?;
     let block_req = GetBlockRequest {

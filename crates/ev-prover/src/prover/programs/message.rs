@@ -198,8 +198,8 @@ impl HyperlaneMessageProver {
         state_root: FixedBytes<32>,
     ) -> Result<()> {
         // Load the current snapshot and check if there are new blocks to process
-        let trusted_snapshot_index = self.snapshot_store.current_index()?;
-        let mut snapshot = self.snapshot_store.get_snapshot(trusted_snapshot_index)?;
+        let trusted_snapshot_index = self.snapshot_store.current_index().await?;
+        let mut snapshot = self.snapshot_store.get_snapshot(trusted_snapshot_index).await?;
 
         if snapshot.height == committed_height {
             debug!("No new ev blocks so no new messages to prove");
@@ -211,7 +211,7 @@ impl HyperlaneMessageProver {
         // Collect all messages from the new blocks
         let mut messages: Vec<StoredHyperlaneMessage> = Vec::new();
         for block in start_height..=committed_height {
-            messages.extend(self.message_store.get_by_block(block)?);
+            messages.extend(self.message_store.get_by_block(block).await?);
         }
 
         if messages.is_empty() {
@@ -257,8 +257,8 @@ impl HyperlaneMessageProver {
 
         // Store the unfinalized snapshot
         snapshot.height = committed_height;
-        let snapshot_index = self.snapshot_store.current_index()? + 1;
-        self.snapshot_store.insert_snapshot(snapshot_index, snapshot)?;
+        let snapshot_index = self.snapshot_store.current_index().await? + 1;
+        self.snapshot_store.insert_snapshot(snapshot_index, snapshot).await?;
 
         // Submit the proof to ZKISM
         info!("Submitting Hyperlane tree proof to ZKISM...");
@@ -276,7 +276,7 @@ impl HyperlaneMessageProver {
 
         // TODO: check for unfinalized shapshots and retry
         // this is a necessary mainnet optimization
-        self.snapshot_store.finalize_snapshot(trusted_snapshot_index)?;
+        self.snapshot_store.finalize_snapshot(trusted_snapshot_index).await?;
 
         // Relay all verified messages to Celestia
         // TODO: add a finality flag to each message and retry

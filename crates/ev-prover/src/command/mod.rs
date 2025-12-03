@@ -14,11 +14,6 @@ use tracing::info;
 use crate::command::cli::{QueryCommands, VERSION};
 use crate::config::Config;
 use crate::get_sequencer_pubkey;
-use crate::proto::celestia::prover::v1::prover_client::ProverClient as GrpcProverClient;
-use crate::proto::celestia::prover::v1::{
-    GetBlockProofRequest, GetBlockProofsInRangeRequest, GetLatestBlockProofRequest, GetLatestMembershipProofRequest,
-    GetMembershipProofRequest, GetRangeProofsRequest,
-};
 use crate::prover::chain::ChainContext;
 use crate::prover::programs::batch::BATCH_ELF;
 use crate::prover::programs::message::EV_HYPERLANE_ELF;
@@ -37,7 +32,7 @@ pub fn init() -> Result<()> {
 
 pub async fn start() -> Result<()> {
     let config = Config::load()?;
-    info!("Starting gRPC server at {}", config.grpc_address);
+    info!("Starting HTTP server");
     start_server(config).await?;
 
     Ok(())
@@ -160,117 +155,130 @@ pub fn version() {
     info!("Version: {VERSION}");
 }
 
+// HTTP client types for proof queries
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct BlockProofResponse {
+    celestia_height: u64,
+    proof_data: String,
+    public_values: String,
+    created_at: u64,
+}
+
+#[derive(Deserialize)]
+struct MembershipProofResponse {
+    proof_data: String,
+    public_values: String,
+    created_at: u64,
+}
+
+#[derive(Deserialize)]
+struct RangeProofResponse {
+    start_height: u64,
+    end_height: u64,
+    proof_data: String,
+    public_values: String,
+    created_at: u64,
+}
+
 pub async fn query(query_cmd: QueryCommands) -> Result<()> {
+    let client = reqwest::Client::new();
+
     match query_cmd {
         QueryCommands::LatestBlock { server } => {
-            let mut client = GrpcProverClient::connect(server).await?;
-            let response = client.get_latest_block_proof(GetLatestBlockProofRequest {}).await?;
-            let inner = response.into_inner();
+            let url = format!("{}/proofs/block/latest", server);
+            let response: BlockProofResponse = client.get(&url).send().await?.json().await?;
 
-            if let Some(proof) = inner.proof {
-                info!("Latest block proof:");
-                info!("  Height: {}", proof.celestia_height);
-                info!("  Proof size: {} bytes", proof.proof_data.len());
-                info!("  Public values size: {} bytes", proof.public_values.len());
-                info!("  Created at (Unix): {}", proof.created_at);
-            } else {
-                info!("No proof data returned");
-            }
+            info!("Latest block proof:");
+            info!("  Height: {}", response.celestia_height);
+            info!("  Proof size: {} bytes", hex::decode(&response.proof_data)?.len());
+            info!(
+                "  Public values size: {} bytes",
+                hex::decode(&response.public_values)?.len()
+            );
+            info!("  Created at (Unix): {}", response.created_at);
         }
         QueryCommands::Block { height, server } => {
-            let mut client = GrpcProverClient::connect(server).await?;
-            let response = client
-                .get_block_proof(GetBlockProofRequest {
-                    celestia_height: height,
-                })
-                .await?;
+            let url = format!("{}/proofs/block/{}", server, height);
+            let response: BlockProofResponse = client.get(&url).send().await?.json().await?;
 
-            if let Some(proof) = response.into_inner().proof {
-                info!("Block proof for height {height}:");
-                info!("  Height: {}", proof.celestia_height);
-                info!("  Proof size: {} bytes", proof.proof_data.len());
-                info!("  Public values size: {} bytes", proof.public_values.len());
-                info!("  Created at (Unix): {}", proof.created_at);
-            } else {
-                info!("No proof data returned");
-            }
+            info!("Block proof for height {height}:");
+            info!("  Height: {}", response.celestia_height);
+            info!("  Proof size: {} bytes", hex::decode(&response.proof_data)?.len());
+            info!(
+                "  Public values size: {} bytes",
+                hex::decode(&response.public_values)?.len()
+            );
+            info!("  Created at (Unix): {}", response.created_at);
         }
         QueryCommands::BlockRange {
             start_height,
             end_height,
             server,
         } => {
-            let mut client = GrpcProverClient::connect(server).await?;
-            let response = client
-                .get_block_proofs_in_range(GetBlockProofsInRangeRequest {
-                    start_height,
-                    end_height,
-                })
-                .await?;
+            let url = format!(
+                "{}/proofs/block/range?start={}&end={}",
+                server, start_height, end_height
+            );
+            let response: Vec<BlockProofResponse> = client.get(&url).send().await?.json().await?;
 
-            let proofs = response.into_inner().proofs;
-            info!("Found {} block proof(s):\n", proofs.len());
+            info!("Found {} block proof(s):\n", response.len());
 
-            for (i, proof) in proofs.iter().enumerate() {
-                info!("Proof {} of {}:", i + 1, proofs.len());
+            for (i, proof) in response.iter().enumerate() {
+                info!("Proof {} of {}:", i + 1, response.len());
                 info!("  Height: {}", proof.celestia_height);
-                info!("  Proof size: {} bytes", proof.proof_data.len());
-                info!("  Public values size: {} bytes", proof.public_values.len());
+                info!("  Proof size: {} bytes", hex::decode(&proof.proof_data)?.len());
+                info!(
+                    "  Public values size: {} bytes",
+                    hex::decode(&proof.public_values)?.len()
+                );
                 info!("  Created at (Unix): {}", proof.created_at);
                 info!("");
             }
         }
         QueryCommands::LatestMembership { server } => {
-            let mut client = GrpcProverClient::connect(server).await?;
-            let response = client
-                .get_latest_membership_proof(GetLatestMembershipProofRequest {})
-                .await?;
+            let url = format!("{}/proofs/membership/latest", server);
+            let response: MembershipProofResponse = client.get(&url).send().await?.json().await?;
 
-            if let Some(proof) = response.into_inner().proof {
-                info!("Latest membership proof:");
-                info!("  Proof size: {} bytes", proof.proof_data.len());
-                info!("  Public values size: {} bytes", proof.public_values.len());
-                info!("  Created at (Unix): {}", proof.created_at);
-            } else {
-                info!("No proof data returned");
-            }
+            info!("Latest membership proof:");
+            info!("  Proof size: {} bytes", hex::decode(&response.proof_data)?.len());
+            info!(
+                "  Public values size: {} bytes",
+                hex::decode(&response.public_values)?.len()
+            );
+            info!("  Created at (Unix): {}", response.created_at);
         }
         QueryCommands::Membership { height, server } => {
-            let mut client = GrpcProverClient::connect(server).await?;
-            let response = client
-                .get_membership_proof(GetMembershipProofRequest { height })
-                .await?;
+            let url = format!("{}/proofs/membership/{}", server, height);
+            let response: MembershipProofResponse = client.get(&url).send().await?.json().await?;
 
-            if let Some(proof) = response.into_inner().proof {
-                info!("Membership proof for height {height}:");
-                info!("  Proof size: {} bytes", proof.proof_data.len());
-                info!("  Public values size: {} bytes", proof.public_values.len());
-                info!("  Created at (Unix): {}", proof.created_at);
-            } else {
-                info!("No proof data returned");
-            }
+            info!("Membership proof for height {height}:");
+            info!("  Proof size: {} bytes", hex::decode(&response.proof_data)?.len());
+            info!(
+                "  Public values size: {} bytes",
+                hex::decode(&response.public_values)?.len()
+            );
+            info!("  Created at (Unix): {}", response.created_at);
         }
         QueryCommands::RangeProofs {
             start_height,
             end_height,
             server,
         } => {
-            let mut client = GrpcProverClient::connect(server).await?;
-            let response = client
-                .get_range_proofs(GetRangeProofsRequest {
-                    start_height,
-                    end_height,
-                })
-                .await?;
+            let url = format!("{}/proofs/range?start={}&end={}", server, start_height, end_height);
+            let response: Vec<RangeProofResponse> = client.get(&url).send().await?.json().await?;
 
-            let proofs = response.into_inner().proofs;
-            info!("Found {} range proof(s):\n", proofs.len());
+            info!("Found {} range proof(s):\n", response.len());
 
-            for (i, proof) in proofs.iter().enumerate() {
-                info!("Range Proof {} of {}:", i + 1, proofs.len());
+            for (i, proof) in response.iter().enumerate() {
+                info!("Range Proof {} of {}:", i + 1, response.len());
                 info!("  Range: {} - {}", proof.start_height, proof.end_height);
-                info!("  Proof size: {} bytes", proof.proof_data.len());
-                info!("  Public values size: {} bytes", proof.public_values.len());
+                info!("  Proof size: {} bytes", hex::decode(&proof.proof_data)?.len());
+                info!(
+                    "  Public values size: {} bytes",
+                    hex::decode(&proof.public_values)?.len()
+                );
                 info!("  Created at (Unix): {}", proof.created_at);
                 info!("");
             }

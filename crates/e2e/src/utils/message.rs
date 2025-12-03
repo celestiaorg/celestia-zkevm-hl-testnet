@@ -52,9 +52,10 @@ pub async fn prove_messages(
         .expect("cannot find home directory")
         .join(&tmp)
         .join("data");
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::from_path(message_storage_path).unwrap());
+    let mut hyperlane_message_store = HyperlaneMessageStore::from_path(message_storage_path).await.unwrap();
     // prune in case non-empty
-    hyperlane_message_store.reset_db().unwrap();
+    hyperlane_message_store.reset_db().await.unwrap();
+    let hyperlane_message_store = Arc::new(hyperlane_message_store);
 
     let filter = Filter::new()
         .address(Address::from_str(MAILBOX_ADDRESS).unwrap())
@@ -68,12 +69,13 @@ pub async fn prove_messages(
         match Dispatch::decode_log_data(log.data()) {
             Ok(event) => {
                 let dispatch_event: DispatchEvent = event.into();
-                let current_index = hyperlane_message_store.current_index()?;
+                let current_index = hyperlane_message_store.current_index().await?;
                 let hyperlane_message =
                     decode_hyperlane_message(&dispatch_event.message).expect("Failed to decode Hyperlane message");
                 let stored_message = StoredHyperlaneMessage::new(hyperlane_message, Some(target_height));
                 hyperlane_message_store
                     .insert_message(current_index, stored_message)
+                    .await
                     .unwrap();
                 debug!("Inserted Hyperlane Message at index: {current_index}");
             }
@@ -88,6 +90,7 @@ pub async fn prove_messages(
     // the e2e is designed in such a way that it proves all messages that happened in the network every time it is run.
     let messages = hyperlane_message_store
         .get_by_block(target_height)
+        .await
         .expect("Failed to get messages");
 
     // initialize and prune the snapshot store that will return the empty tree
@@ -95,9 +98,10 @@ pub async fn prove_messages(
         .expect("cannot find home directory")
         .join(&tmp)
         .join("data");
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
-    hyperlane_snapshot_store.reset_db().unwrap();
-    let snapshot = hyperlane_snapshot_store.get_snapshot(0).unwrap();
+    let mut hyperlane_snapshot_store = HyperlaneSnapshotStore::new(snapshot_storage_path, None).await.unwrap();
+    hyperlane_snapshot_store.reset_db().await.unwrap();
+    let hyperlane_snapshot_store = Arc::new(hyperlane_snapshot_store);
+    let snapshot = hyperlane_snapshot_store.get_snapshot(0).await.unwrap();
 
     // Construct program inputs from values
     let input = HyperlaneMessageInputs::new(

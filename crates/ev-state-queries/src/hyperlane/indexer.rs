@@ -45,21 +45,21 @@ impl HyperlaneIndexer {
     ) -> Result<()> {
         let logs = provider.get_logs(&filter).await?;
         for log in logs {
-            Self::store_message(&log, &store)?;
+            Self::store_message(&log, &store).await?;
         }
 
         Ok(())
     }
 
-    fn store_message(log: &Log, store: &HyperlaneMessageStore) -> Result<()> {
+    async fn store_message(log: &Log, store: &HyperlaneMessageStore) -> Result<()> {
         match Dispatch::decode_log_data(log.data()) {
             Ok(event) => {
                 let dispatch_event: DispatchEvent = event.into();
-                let current_index = store.current_index()?;
+                let current_index = store.current_index().await?;
                 let hyperlane_message =
                     decode_hyperlane_message(&dispatch_event.message).expect("Failed to decode Hyperlane message");
                 let stored_message = StoredHyperlaneMessage::new(hyperlane_message, log.block_number);
-                store.insert_message(current_index, stored_message)?;
+                store.insert_message(current_index, stored_message).await?;
                 debug!("Inserted Hyperlane Message at index: {current_index}");
                 Ok(())
             }

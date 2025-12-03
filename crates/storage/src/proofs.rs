@@ -4,7 +4,7 @@ use ev_zkevm_types::programs::{
     block::{BlockExecOutput, BlockRangeExecOutput},
     hyperlane::types::HyperlaneMessageOutputs,
 };
-use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, DB, Options};
+use rocksdb::{ColumnFamilyDescriptor, DB, Options};
 use serde::{Deserialize, Serialize};
 use sp1_sdk::SP1ProofWithPublicValues;
 use std::convert::TryInto;
@@ -141,12 +141,6 @@ impl RocksDbProofStorage {
         Ok(Self { db: Arc::new(db) })
     }
 
-    fn get_cf(&self, name: &str) -> Result<&ColumnFamily, ProofStorageError> {
-        self.db
-            .cf_handle(name)
-            .ok_or_else(|| anyhow!("Column family {name} not found").into())
-    }
-
     fn serialize<T: Serialize>(&self, data: &T) -> Result<Vec<u8>, ProofStorageError> {
         Ok(bincode::serialize(data)?)
     }
@@ -175,8 +169,6 @@ impl ProofStorage for RocksDbProofStorage {
         proof: &SP1ProofWithPublicValues,
         _output: &BlockExecOutput,
     ) -> Result<(), ProofStorageError> {
-        let cf = self.get_cf(CF_BLOCK_PROOFS)?;
-
         let stored_proof = StoredBlockProof {
             celestia_height,
             proof_data: bincode::serialize(&proof.proof)?,
@@ -190,6 +182,10 @@ impl ProofStorage for RocksDbProofStorage {
         let key = self.height_key(celestia_height);
         let value = self.serialize(&stored_proof)?;
 
+        let cf = self
+            .db
+            .cf_handle(CF_BLOCK_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_BLOCK_PROOFS} not found"))?;
         self.db.put_cf(cf, key, value)?;
         Ok(())
     }
@@ -201,8 +197,6 @@ impl ProofStorage for RocksDbProofStorage {
         proof: &SP1ProofWithPublicValues,
         _output: &BlockRangeExecOutput,
     ) -> Result<(), ProofStorageError> {
-        let cf = self.get_cf(CF_RANGE_PROOFS)?;
-
         let stored_proof = StoredRangeProof {
             start_height,
             end_height,
@@ -217,18 +211,28 @@ impl ProofStorage for RocksDbProofStorage {
         let key = self.range_key(start_height, end_height);
         let value = self.serialize(&stored_proof)?;
 
+        let cf = self
+            .db
+            .cf_handle(CF_RANGE_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_RANGE_PROOFS} not found"))?;
         self.db.put_cf(cf, key, value)?;
         Ok(())
     }
 
     async fn set_range_cursor(&self, cursor: u64) -> Result<(), ProofStorageError> {
-        let cf = self.get_cf(CF_METADATA)?;
+        let cf = self
+            .db
+            .cf_handle(CF_METADATA)
+            .ok_or_else(|| anyhow!("Column family {CF_METADATA} not found"))?;
         self.db.put_cf(cf, KEY_RANGE_CURSOR, cursor.to_be_bytes())?;
         Ok(())
     }
 
     async fn get_range_cursor(&self) -> Result<Option<u64>, ProofStorageError> {
-        let cf = self.get_cf(CF_METADATA)?;
+        let cf = self
+            .db
+            .cf_handle(CF_METADATA)
+            .ok_or_else(|| anyhow!("Column family {CF_METADATA} not found"))?;
         match self.db.get_cf(cf, KEY_RANGE_CURSOR)? {
             Some(bytes) => {
                 let arr: [u8; 8] = bytes
@@ -247,8 +251,6 @@ impl ProofStorage for RocksDbProofStorage {
         proof: &SP1ProofWithPublicValues,
         _output: &HyperlaneMessageOutputs,
     ) -> Result<(), ProofStorageError> {
-        let cf = self.get_cf(CF_MEMBERSHIP_PROOFS)?;
-
         let stored_proof = StoredMembershipProof {
             proof_data: bincode::serialize(&proof.proof)?,
             public_values: proof.public_values.to_vec(),
@@ -261,12 +263,19 @@ impl ProofStorage for RocksDbProofStorage {
         let key = self.height_key(height);
         let value = self.serialize(&stored_proof)?;
 
+        let cf = self
+            .db
+            .cf_handle(CF_MEMBERSHIP_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_MEMBERSHIP_PROOFS} not found"))?;
         self.db.put_cf(cf, key, value)?;
         Ok(())
     }
 
     async fn get_block_proof(&self, celestia_height: u64) -> Result<StoredBlockProof, ProofStorageError> {
-        let cf = self.get_cf(CF_BLOCK_PROOFS)?;
+        let cf = self
+            .db
+            .cf_handle(CF_BLOCK_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_BLOCK_PROOFS} not found"))?;
         let key = self.height_key(celestia_height);
 
         match self.db.get_cf(cf, key)? {
@@ -280,7 +289,10 @@ impl ProofStorage for RocksDbProofStorage {
         start_height: u64,
         end_height: u64,
     ) -> Result<Vec<StoredRangeProof>, ProofStorageError> {
-        let cf = self.get_cf(CF_RANGE_PROOFS)?;
+        let cf = self
+            .db
+            .cf_handle(CF_RANGE_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_RANGE_PROOFS} not found"))?;
         let start_key = self.range_key(start_height, 0);
         let end_key = self.range_key(end_height, u64::MAX);
 
@@ -309,7 +321,10 @@ impl ProofStorage for RocksDbProofStorage {
         start_height: u64,
         end_height: u64,
     ) -> Result<Vec<StoredBlockProof>, ProofStorageError> {
-        let cf = self.get_cf(CF_BLOCK_PROOFS)?;
+        let cf = self
+            .db
+            .cf_handle(CF_BLOCK_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_BLOCK_PROOFS} not found"))?;
         let start_key = self.height_key(start_height);
         let end_key = self.height_key(end_height);
 
@@ -332,7 +347,10 @@ impl ProofStorage for RocksDbProofStorage {
     }
 
     async fn get_latest_block_proof(&self) -> Result<Option<StoredBlockProof>, ProofStorageError> {
-        let cf = self.get_cf(CF_BLOCK_PROOFS)?;
+        let cf = self
+            .db
+            .cf_handle(CF_BLOCK_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_BLOCK_PROOFS} not found"))?;
 
         let mut iter = self.db.iterator_cf(cf, rocksdb::IteratorMode::End);
 
@@ -345,7 +363,10 @@ impl ProofStorage for RocksDbProofStorage {
     }
 
     async fn get_membership_proof(&self, height: u64) -> Result<StoredMembershipProof, ProofStorageError> {
-        let cf = self.get_cf(CF_MEMBERSHIP_PROOFS)?;
+        let cf = self
+            .db
+            .cf_handle(CF_MEMBERSHIP_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_MEMBERSHIP_PROOFS} not found"))?;
         let key = self.height_key(height);
 
         match self.db.get_cf(cf, key)? {
@@ -355,7 +376,10 @@ impl ProofStorage for RocksDbProofStorage {
     }
 
     async fn get_latest_membership_proof(&self) -> Result<Option<StoredMembershipProof>, ProofStorageError> {
-        let cf = self.get_cf(CF_MEMBERSHIP_PROOFS)?;
+        let cf = self
+            .db
+            .cf_handle(CF_MEMBERSHIP_PROOFS)
+            .ok_or_else(|| anyhow!("Column family {CF_MEMBERSHIP_PROOFS} not found"))?;
         let mut iter = self.db.iterator_cf(cf, rocksdb::IteratorMode::End);
         if let Some(Ok((_, value))) = iter.next() {
             let proof: StoredMembershipProof = self.deserialize(&value)?;
@@ -365,8 +389,6 @@ impl ProofStorage for RocksDbProofStorage {
     }
 
     fn unsafe_reset(&mut self) -> Result<(), ProofStorageError> {
-        let db = Arc::get_mut(&mut self.db).ok_or_else(|| ProofStorageError::General(anyhow!("storage is shared")))?;
-
         let mut opts = Options::default();
         opts.create_if_missing(true);
         opts.create_missing_column_families(true);
@@ -378,6 +400,11 @@ impl ProofStorage for RocksDbProofStorage {
             ColumnFamilyDescriptor::new(CF_METADATA, Options::default()),
         ];
 
+        let db = Arc::get_mut(&mut self.db).ok_or_else(|| {
+            ProofStorageError::General(anyhow!(
+                "Cannot get mutable reference to DB - multiple references exist"
+            ))
+        })?;
         for cf in cfs {
             db.drop_cf(cf.name()).ok();
             db.create_cf(cf.name(), &opts).ok();

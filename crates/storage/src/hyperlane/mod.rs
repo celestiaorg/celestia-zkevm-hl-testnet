@@ -28,25 +28,25 @@ mod tests {
 
     const DEFAULT_MESSAGE: &str = "0300000009000004d2000000000000000000000000a7578551bae89a96c3365b93493ad2d4ebcbae9700010f2c726f757465725f617070000000000000000000000000000100000000000000000000000000000000000000006a809b36caf0d46a935ee76835065ec5a8b3cea700000000000000000000000000000000000000000000000000000000000003e8";
 
-    #[test]
-    fn test_insert_messages() {
+    #[tokio::test]
+    async fn test_insert_messages() {
         let tmp = TempDir::new().expect("cannot create temp directory");
         let message = hex::decode(DEFAULT_MESSAGE).unwrap();
         let storage_path = dirs::home_dir()
             .expect("cannot find home directory")
             .join(&tmp)
             .join("data");
-        let store = HyperlaneMessageStore::from_path(storage_path).unwrap();
+        let mut store = HyperlaneMessageStore::from_path(storage_path).await.unwrap();
         let message = decode_hyperlane_message(&message).unwrap();
         let message = StoredHyperlaneMessage::new(message, Some(100));
-        let mut current_index = store.current_index().unwrap();
+        let mut current_index = store.current_index().await.unwrap();
         for _i in 0..10 {
             let message = StoredHyperlaneMessage::new(message.message.clone(), Some(100));
-            store.insert_message(current_index, message.clone()).unwrap();
+            store.insert_message(current_index, message.clone()).await.unwrap();
             current_index += 1;
         }
         for i in 0..200 {
-            let retrieved_messages = store.get_by_block(i).unwrap();
+            let retrieved_messages = store.get_by_block(i).await.unwrap();
             if i == 100 {
                 println!("I: {i}");
                 assert_eq!(retrieved_messages.len(), 10);
@@ -56,24 +56,25 @@ mod tests {
                 assert_eq!(retrieved_messages.len(), 0);
             }
         }
-        store.reset_db().unwrap();
+        store.reset_db().await.unwrap();
     }
 
-    #[test]
-    fn test_insert_snapshot() {
+    #[tokio::test]
+    async fn test_insert_snapshot() {
         let tmp = TempDir::new().expect("cannot create temp directory");
         let storage_path = dirs::home_dir()
             .expect("cannot find home directory")
             .join(&tmp)
             .join("data");
-        let store = HyperlaneSnapshotStore::new(storage_path, None).unwrap();
+        let mut store = HyperlaneSnapshotStore::new(storage_path, None).await.unwrap();
         let snapshot = MerkleTree::default();
-        let current_index = store.current_index().unwrap();
+        let current_index = store.current_index().await.unwrap();
         store
             .insert_snapshot(current_index, HyperlaneSnapshot::new(0, snapshot.clone()))
+            .await
             .unwrap();
-        let retrieved_snapshot = store.get_snapshot(current_index).unwrap();
+        let retrieved_snapshot = store.get_snapshot(current_index).await.unwrap();
         assert_eq!(retrieved_snapshot, HyperlaneSnapshot::new(0, snapshot));
-        store.reset_db().unwrap();
+        store.reset_db().await.unwrap();
     }
 }

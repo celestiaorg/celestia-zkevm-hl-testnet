@@ -116,8 +116,9 @@ async fn main() {
         .expect("cannot find home directory")
         .join(".ev-prover")
         .join("data");
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
-    hyperlane_snapshot_store.reset_db().unwrap();
+    let mut hyperlane_snapshot_store = HyperlaneSnapshotStore::new(snapshot_storage_path, None).await.unwrap();
+    hyperlane_snapshot_store.reset_db().await.unwrap();
+    let hyperlane_snapshot_store = Arc::new(hyperlane_snapshot_store);
 
     let message_proof = prove_messages(
         target_height,

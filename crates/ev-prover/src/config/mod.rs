@@ -14,9 +14,6 @@ pub const DEFAULT_PUB_KEY_HEX: &str = "3964a68700cf76e215626e076e76d23bd1f4c3b31
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    /// The local gRPC listen address for this service.
-    pub grpc_address: String,
-
     /// Configuration for outbound RPC connections (Celestia, EVM, etc.)
     pub rpc: RpcConfig,
 
@@ -42,7 +39,6 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            grpc_address: "127.0.0.1:50051".into(),
             rpc: RpcConfig::default(),
             hyperlane: HyperlaneConfig::default(),
             namespace: Namespace::new_v0(&hex::decode(DEFAULT_NAMESPACE).unwrap()).unwrap(),

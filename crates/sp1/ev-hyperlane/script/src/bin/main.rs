@@ -86,7 +86,7 @@ async fn main() {
         .expect("cannot find home directory")
         .join(".ev-prover")
         .join("data");
-    let hyperlane_message_store = HyperlaneMessageStore::from_path(message_storage_path).unwrap();
+    let hyperlane_message_store = HyperlaneMessageStore::from_path(message_storage_path).await.unwrap();
 
     #[cfg(not(feature = "retry"))]
     {
@@ -134,9 +134,10 @@ async fn main() {
             .expect("cannot find home directory")
             .join(".ev-prover")
             .join("data");
-        let hyperlane_snapshot_store = HyperlaneSnapshotStore::from_path(snapshot_storage_path).unwrap();
+        let hyperlane_snapshot_store = HyperlaneSnapshotStore::from_path(snapshot_storage_path).await.unwrap();
         let previous_snapshot = hyperlane_snapshot_store
             .get_snapshot(args.snapshot_index)
+            .await
             .expect("Fatal, snapshot was lost");
 
         let config = ClientConfig::from_env().unwrap();
@@ -189,6 +190,7 @@ async fn main() {
         for height in previous_snapshot.height..=state.height {
             let block_messages = hyperlane_message_store
                 .get_by_block(height)
+                .await
                 .expect("Failed to get messages");
             for block_message in block_messages {
                 messages.push(block_message);
@@ -206,14 +208,22 @@ async fn main() {
             let response = match ism_client.send_tx(msg).await {
                 Ok(response) => response,
                 Err(e) => {
-                    eprintln!("Failed to relay message: {:?}", e);
+                    eprintln!("Failed to relay message with id {} : {:?}", message.message.id(), e);
                     continue;
                 }
             };
             if !response.success {
-                eprintln!("Failed to relay message: {:?}", response);
+                eprintln!(
+                    "Failed to relay message with id {} : {:?}",
+                    message.message.id(),
+                    response
+                );
             } else {
-                println!("Successfully relayed message: {:?}", message.message.id());
+                println!(
+                    "Successfully relayed message with id {} : {:?}",
+                    message.message.id(),
+                    response
+                );
             }
         }
     }
@@ -229,7 +239,10 @@ async fn write_proof_inputs(
 ) -> Result<()> {
     let mut messages = Vec::new();
     for height in from_height..=to_height {
-        let block_messages = message_store.get_by_block(height).expect("Failed to get messages");
+        let block_messages = message_store
+            .get_by_block(height)
+            .await
+            .expect("Failed to get messages");
         for block_message in block_messages {
             messages.push(block_message);
         }
