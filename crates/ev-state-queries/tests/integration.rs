@@ -24,8 +24,9 @@ async fn test_run_indexer() {
         .join("data");
 
     let indexer = HyperlaneIndexer::default();
-    let store = Arc::new(HyperlaneMessageStore::from_path(storage_path).await.unwrap());
+    let mut store = HyperlaneMessageStore::from_path(storage_path).await.unwrap();
     store.reset_db().await.unwrap();
+    let store = Arc::new(store);
 
     let provider = ProviderBuilder::new()
         .connect_ws(WsConnect::new("ws://127.0.0.1:8546"))
