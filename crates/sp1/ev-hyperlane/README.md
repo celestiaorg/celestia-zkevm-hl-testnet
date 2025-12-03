@@ -7,7 +7,7 @@ An SP1 program that verifies the existence of Hyperlane Messages against a given
 |---|---|---|
 | state_root | String | The state root of the execution client reth at the target height |
 | contract | Address | The address of the MerkleTreeHook contract |
-| messages | Vec<HyperlaneMessage> | The messages that are stored locally, pass only the DB path when using CLI|
+| messages | [HyperlaneMessage] | The messages that are stored locally, pass only the DB path when using CLI|
 | branch proof | EIP1186AccountProofResponse | Storage proof object for verifying the on-chain Tree branch |
 | snapshot | MerkleTree | The snapshot of the Merkle Tree after previous inserts, e.g. the starting point for this proof |
 
@@ -15,7 +15,7 @@ An SP1 program that verifies the existence of Hyperlane Messages against a given
 | Name | Type | Description |
 |---|---|---|
 | state_root | String | The state root of the execution client reth at the target height for verification |
-| messages | Vec<String> | The ids of the Hyperlane messages that we proofed |
+| messages | [String] | The ids of the Hyperlane messages that we proofed |
 
 
 ## Usage
