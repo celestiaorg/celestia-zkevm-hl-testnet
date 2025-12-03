@@ -1,9 +1,26 @@
 ## Overview
 
 ## Program Inputs
+The program inputs contain all information required to verify the correct execution of on-chain blobs in EV-RETH and update the trusted state in the ZKISM.
+
+### BlockExecInput
+
 | Name | Type | Description |
 |---|---|---|
-| blocks | Vec<BlockExecInput> | Inputs required to execute a range of blocks |
+| header_raw | [u8] | The Celestia Block Header |
+| dah | DataAvailabilityHeader | |
+| blobs_raw | [u8] | Encoded blobs from Celestia Namespace |
+| pub_key | [u8] | Sequencer Pubkey | 
+| namespace | Namespace | Celestia Namespace |
+| proofs | [NamespaceProofs] | Namespace inclusion and exclusion proofs |
+| executor_inputs | [EthClientExecutorInput] | EV-RETH Executor Inputs |
+| trusted_height | u64 | Trusted EV Block Height |
+| trusted_root | [u8;32] | Trusted EV Execution State Root |
+
+### BatchExecInput
+| Name | Type | Description |
+|---|---|---|
+| blocks | [BlockExecInput] | Inputs required to execute a range of blocks |
 
 
 Note that by design proofs are written separately in recursive circuits like this one.

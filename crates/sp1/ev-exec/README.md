@@ -7,13 +7,13 @@ and executes their state transition functions.
 ### Program Inputs
 | Name | Type | Description |
 |---|---|---|
-| header_raw | Vec<u8> | the Celestia block header |
+| header_raw | [u8] | the Celestia block header |
 | dah | DataAvailabilityHeader | the Celestia DA header |
-| blobs_raw | Vec<u8> | The bytes of the data blobs |
-| pub_key | Vec<u8> | The sequencer pubkey for verification |
+| blobs_raw | [u8] | The bytes of the data blobs |
+| pub_key | [u8] | The sequencer pubkey for verification |
 | namespace | Namespace | the Celestia namespace that contains the data blobs which themselves contain EV blocks |
-| proofs | Vec<NamespaceProof> | Merkle Proofs for the Namespace data, can be exclusion |
-| executor_inputs | Vec<EthClientExecutorInput> | Struct that aggregates the RETH inputs for block execution |
+| proofs | [NamespaceProof] | Merkle Proofs for the Namespace data, can be exclusion |
+| executor_inputs | [EthClientExecutorInput] | Struct that aggregates the RETH inputs for block execution |
 | trusted_height | u64 | Trusted EV height from the previous block |
 | trusted_root | [u8;32] | Trusted EV root from the previous block |
 
