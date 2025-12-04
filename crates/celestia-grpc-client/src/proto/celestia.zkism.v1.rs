@@ -13,14 +13,17 @@ pub struct EventCreateInterchainSecurityModule {
     /// latest state
     #[prost(string, tag="3")]
     pub state: ::prost::alloc::string::String,
-    /// the sp1 groth16 verifier key (hex-encoded)
+    /// merkle tree address in bytes32 format
     #[prost(string, tag="4")]
+    pub merkle_tree_address: ::prost::alloc::string::String,
+    /// the sp1 groth16 verifier key (hex-encoded)
+    #[prost(string, tag="5")]
     pub groth16_vkey: ::prost::alloc::string::String,
     /// hash-based commitment to the verifier key used for state transition (hex-encoded)
-    #[prost(string, tag="5")]
+    #[prost(string, tag="6")]
     pub state_transition_vkey: ::prost::alloc::string::String,
     /// hash-based commitment to the verifier key used for state membership (hex-encoded)
-    #[prost(string, tag="6")]
+    #[prost(string, tag="7")]
     pub state_membership_vkey: ::prost::alloc::string::String,
 }
 /// EventUpdateInterchainSecurityModule defines the event type emitted when updating a InterchainSecurityModule.
