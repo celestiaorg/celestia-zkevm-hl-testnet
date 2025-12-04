@@ -100,9 +100,13 @@ pub async fn create_ism() -> Result<()> {
         public_key: pub_key.try_into().unwrap(),
     };
 
+    // pad merkle tree address to 32 bytes
+    let mut merkle_tree_address = alloy::hex::decode(config.hyperlane.evm.merkle_tree_address)?;
+    merkle_tree_address.resize(32, 0);
     let create_message = MsgCreateInterchainSecurityModule {
         creator: ism_client.signer_address().to_string(),
         state: bincode::serialize(&initial_state)?,
+        merkle_tree_address,
         groth16_vkey,
         state_transition_vkey,
         state_membership_vkey,
