@@ -15,9 +15,10 @@ alloy-rpc-types = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = "1.0"
 async-trait = "0.1.88"
+axum = "0.7"
 bincode = { workspace = true }
 bytes = { workspace = true }
-celestia-grpc-client = { path = "../celestia-grpc-client" }
+celestia-grpc-client = { workspace = true }
 celestia-rpc = { workspace = true }
 celestia-types = { workspace = true }
 clap = { version = "4", features = ["derive"] }
@@ -51,9 +52,6 @@ tendermint = { workspace = true }
 tendermint-proto = { workspace = true }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1"
-tonic = { version = "0.10", features = ["transport"] }
-tonic-reflection = "0.10"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 url = { workspace = true }

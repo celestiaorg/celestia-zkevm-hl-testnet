@@ -148,3 +148,29 @@ Finality serves two distinct purposes. Firstly, it can be used to expose the sta
 So long as the finality status of all snapshots flips to `true` there is nothing to worry about. All snapshots, except for the most recent one, should be finalized at all times. Gaps in finalization indicate that message proof submission was unsuccessful, or that the DB corrupted post submission. 
 
 Note that the message prover always takes the last known snapshot, which is expected to be unfinalized, but no such check is enforced and generates a proof using all messages that occurred from the height of the trusted snapshot + 1 all the way to the trusted EV height in ZKISM, aka `committed_height`.
+
+## Hyperlane Message Retries
+
+Under normal conditions there should always only be one unfinalized snapshot. No other than the latest snapshot may be unfinalized.
+Should there be a snapshot that is not the latest and was not successfully finalized, then it is safe to assume that message submission
+or proof generation for that snapshot failed. 
+
+We currently support manual message submission retries, using the following command:
+```bash
+cargo run --release -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id MAILBOX_ID --contract MERKLE_TREE_ADDRESS --rpc-url RETH_RPC_URL
+```
+
+Assuming that there is an unfinalized snapshot at index `N` in the database and that the latest snapshot is >`N`, the correct snapshot-index to pass is `N-1`.
+By default the retry will assume that the messages were successfully indexed and stored, since by default the prover service will retry if indexing fails and not 
+store a new snapshot. However should the user observe that messages are missing during or after retry, manual indexing is recommended before running the retry command.
+
+## Retry Testing
+
+For testing we simulated an environment where only the first snapshot is successfully processed, but two proofs were generated. Each proof was generated for a
+range of blocks containing one transaction. The expectation was that we would successfully generate a proof using the default merkle tree up to the current height,
+however since the first snapshot at index `1` was successfully processed, but snapshot `2` was never stored or processed, the retry of the first message would fail and
+the retry of the second message would succeed:
+
+```
+
+```

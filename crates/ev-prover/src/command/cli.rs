@@ -14,7 +14,7 @@ pub enum Commands {
     /// Initialize configuration and home directory
     Init {},
 
-    /// Start the gRPC server
+    /// Start the HTTP server
     Start {},
 
     /// Create a new ism using the application config.
@@ -26,14 +26,13 @@ pub enum Commands {
     /// Show the service version
     Version {},
 
-    /// Query stored proofs from the gRPC server
+    /// Query stored proofs from the HTTP server
     #[command(subcommand)]
     Query(QueryCommands),
 
     /// Reset all database state in the local data directory
     UnsafeResetDb {},
 }
-
 #[derive(Subcommand)]
 pub enum QueryCommands {
     /// Get the latest block proof
@@ -42,7 +41,7 @@ pub enum QueryCommands {
         after_help = "EXAMPLES:\n    ev-prover query latest-block\n    ev-prover query latest-block --server http://localhost:50051"
     )]
     LatestBlock {
-        /// gRPC server address (default: http://127.0.0.1:50051)
+        /// HTTP server address (default: http://127.0.0.1:50051)
         #[arg(long, default_value = "http://127.0.0.1:50051")]
         server: String,
     },
@@ -56,7 +55,7 @@ pub enum QueryCommands {
         /// Celestia block height
         height: u64,
 
-        /// gRPC server address (default: http://127.0.0.1:50051)
+        /// HTTP server address (default: http://127.0.0.1:50051)
         #[arg(long, default_value = "http://127.0.0.1:50051")]
         server: String,
     },
@@ -73,7 +72,7 @@ pub enum QueryCommands {
         /// End height (inclusive)
         end_height: u64,
 
-        /// gRPC server address (default: http://127.0.0.1:50051)
+        /// HTTP server address (default: http://127.0.0.1:50051)
         #[arg(long, default_value = "http://127.0.0.1:50051")]
         server: String,
     },
@@ -84,7 +83,7 @@ pub enum QueryCommands {
         after_help = "EXAMPLES:\n    ev-prover query latest-membership\n    ev-prover query latest-membership --server http://localhost:50051"
     )]
     LatestMembership {
-        /// gRPC server address (default: http://127.0.0.1:50051)
+        /// HTTP server address (default: http://127.0.0.1:50051)
         #[arg(long, default_value = "http://127.0.0.1:50051")]
         server: String,
     },
@@ -98,7 +97,7 @@ pub enum QueryCommands {
         /// Block height
         height: u64,
 
-        /// gRPC server address (default: http://127.0.0.1:50051)
+        /// HTTP server address (default: http://127.0.0.1:50051)
         #[arg(long, default_value = "http://127.0.0.1:50051")]
         server: String,
     },
@@ -115,7 +114,7 @@ pub enum QueryCommands {
         /// End height (inclusive)
         end_height: u64,
 
-        /// gRPC server address (default: http://127.0.0.1:50051)
+        /// HTTP server address (default: http://127.0.0.1:50051)
         #[arg(long, default_value = "http://127.0.0.1:50051")]
         server: String,
     },

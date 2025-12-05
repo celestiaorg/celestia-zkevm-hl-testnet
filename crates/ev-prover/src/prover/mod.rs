@@ -11,7 +11,6 @@ pub mod abi;
 pub mod chain;
 pub mod config;
 pub mod programs;
-pub mod service;
 pub mod sync;
 
 pub use config::{ProverConfig, ProverMode};
@@ -39,11 +38,17 @@ pub trait ProgramProver {
 
     /// Prove produces a proof and parsed outputs.
     /// The default implementation matches the configured proof mode and program elf from the prover config.
+    /// The proving operation is run in a blocking thread pool to avoid blocking the async runtime.
     async fn prove(&self, input: Self::Input) -> Result<(SP1ProofWithPublicValues, Self::Output)> {
         let cfg = self.cfg();
         let stdin = self.build_stdin(input)?;
 
-        let proof = self.prover().prove(&cfg.pk(), &stdin, cfg.proof_mode())?;
+        let prover = self.prover();
+        let pk = cfg.pk();
+        let proof_mode = cfg.proof_mode();
+
+        // Run the blocking prove operation in a separate thread pool
+        let proof = tokio::task::spawn_blocking(move || prover.prove(&pk, &stdin, proof_mode)).await??;
 
         let output = self.post_process(proof.clone())?;
         Ok((proof, output))
