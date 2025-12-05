@@ -1,5 +1,7 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
+use alloy_primitives::Address;
 use alloy_provider::Provider;
 use alloy_rpc_types::{BlockId, BlockNumberOrTag};
 use anyhow::Result;
@@ -100,9 +102,14 @@ pub async fn create_ism() -> Result<()> {
         public_key: pub_key.try_into().unwrap(),
     };
 
+    // pad merkle tree address to 32 bytes
+    let merkle_tree_address = *Address::from_str(&config.hyperlane.evm.merkle_tree_address)
+        .unwrap()
+        .into_word();
     let create_message = MsgCreateInterchainSecurityModule {
         creator: ism_client.signer_address().to_string(),
         state: bincode::serialize(&initial_state)?,
+        merkle_tree_address: merkle_tree_address.to_vec(),
         groth16_vkey,
         state_transition_vkey,
         state_membership_vkey,
