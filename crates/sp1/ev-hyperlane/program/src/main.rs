@@ -18,22 +18,21 @@
 //! - The message ids
 
 #![no_main]
-use alloy_primitives::hex;
+use std::str::FromStr;
+
+use alloy_primitives::{Address, hex};
 use ev_zkevm_types::programs::hyperlane::types::{HyperlaneMessageInputs, HyperlaneMessageOutputs};
 sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
     let mut inputs: HyperlaneMessageInputs = sp1_zkvm::io::read::<HyperlaneMessageInputs>();
     inputs.verify();
-    // pad contract address to 32 bytes
-    let mut contract_address = hex::decode(inputs.contract).unwrap();
-    contract_address.resize(32, 0);
     sp1_zkvm::io::commit(&HyperlaneMessageOutputs::new(
         alloy_primitives::hex::decode(inputs.state_root)
             .unwrap()
             .try_into()
             .unwrap(),
-        contract_address.try_into().unwrap(),
+        *Address::from_str(&inputs.contract).unwrap().into_word(),
         inputs
             .messages
             .iter()
