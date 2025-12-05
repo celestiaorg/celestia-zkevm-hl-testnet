@@ -20,7 +20,7 @@
 #![no_main]
 use std::str::FromStr;
 
-use alloy_primitives::{Address, hex};
+use alloy_primitives::{hex, Address};
 use ev_zkevm_types::programs::hyperlane::types::{HyperlaneMessageInputs, HyperlaneMessageOutputs};
 sp1_zkvm::entrypoint!(main);
 

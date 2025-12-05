@@ -103,7 +103,9 @@ pub async fn create_ism() -> Result<()> {
     };
 
     // pad merkle tree address to 32 bytes
-    let merkle_tree_address = *Address::from_str(&config.hyperlane.evm.merkle_tree_address).unwrap().into_word();
+    let merkle_tree_address = *Address::from_str(&config.hyperlane.evm.merkle_tree_address)
+        .unwrap()
+        .into_word();
     let create_message = MsgCreateInterchainSecurityModule {
         creator: ism_client.signer_address().to_string(),
         state: bincode::serialize(&initial_state)?,
