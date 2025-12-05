@@ -18,7 +18,9 @@
 //! - The message ids
 
 #![no_main]
-use alloy_primitives::hex;
+use std::str::FromStr;
+
+use alloy_primitives::{hex, Address};
 use ev_zkevm_types::programs::hyperlane::types::{HyperlaneMessageInputs, HyperlaneMessageOutputs};
 sp1_zkvm::entrypoint!(main);
 
@@ -30,6 +32,7 @@ pub fn main() {
             .unwrap()
             .try_into()
             .unwrap(),
+        *Address::from_str(&inputs.contract).unwrap().into_word(),
         inputs
             .messages
             .iter()

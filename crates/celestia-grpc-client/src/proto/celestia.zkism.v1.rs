@@ -13,14 +13,17 @@ pub struct EventCreateInterchainSecurityModule {
     /// latest state
     #[prost(string, tag="3")]
     pub state: ::prost::alloc::string::String,
-    /// the sp1 groth16 verifier key (hex-encoded)
+    /// merkle tree address in bytes32 format
     #[prost(string, tag="4")]
+    pub merkle_tree_address: ::prost::alloc::string::String,
+    /// the sp1 groth16 verifier key (hex-encoded)
+    #[prost(string, tag="5")]
     pub groth16_vkey: ::prost::alloc::string::String,
     /// hash-based commitment to the verifier key used for state transition (hex-encoded)
-    #[prost(string, tag="5")]
+    #[prost(string, tag="6")]
     pub state_transition_vkey: ::prost::alloc::string::String,
     /// hash-based commitment to the verifier key used for state membership (hex-encoded)
-    #[prost(string, tag="6")]
+    #[prost(string, tag="7")]
     pub state_membership_vkey: ::prost::alloc::string::String,
 }
 /// EventUpdateInterchainSecurityModule defines the event type emitted when updating a InterchainSecurityModule.
@@ -58,37 +61,31 @@ pub struct InterchainSecurityModule {
     /// the owner or creator of the ism
     #[prost(string, tag="2")]
     pub owner: ::prost::alloc::string::String,
-    /// current state 
+    /// current state
     #[prost(bytes="vec", tag="3")]
     pub state: ::prost::alloc::vec::Vec<u8>,
-    /// the sp1 groth16 verifier key
+    /// merkle tree address in bytes32 format
     #[prost(bytes="vec", tag="4")]
+    pub merkle_tree_address: ::prost::alloc::vec::Vec<u8>,
+    /// the sp1 groth16 verifier key
+    #[prost(bytes="vec", tag="5")]
     pub groth16_vkey: ::prost::alloc::vec::Vec<u8>,
     /// hash-based commitment to the verifier key used for state transition
-    #[prost(bytes="vec", tag="5")]
+    #[prost(bytes="vec", tag="6")]
     pub state_transition_vkey: ::prost::alloc::vec::Vec<u8>,
     /// hash-based commitment to the verifier key used for state membership
-    #[prost(bytes="vec", tag="6")]
+    #[prost(bytes="vec", tag="7")]
     pub state_membership_vkey: ::prost::alloc::vec::Vec<u8>,
-}
-/// Params defines the zk ism module parameters.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct Params {
-    #[prost(uint32, tag="1")]
-    pub max_header_hashes: u32,
 }
 /// GenesisState defines the zkism module's genesis state.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisState {
     /// list of zk execution isms.
+    ///
+    /// TODO: add messages to genesis state
     #[prost(message, repeated, tag="1")]
     pub isms: ::prost::alloc::vec::Vec<InterchainSecurityModule>,
-    /// TODO: add messages to genesis state
-    /// params is the module parameters.
-    #[prost(message, optional, tag="2")]
-    pub params: ::core::option::Option<Params>,
 }
 /// QueryIsmRequest is the request type for the Ism rpc method.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -123,19 +120,6 @@ pub struct QueryIsmsResponse {
     #[prost(message, optional, tag="2")]
     pub pagination: ::core::option::Option<super::super::super::cosmos::base::query::v1beta1::PageResponse>,
 }
-/// QueryParamsRequest is the request type for the Params rpc method.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct QueryParamsRequest {
-}
-/// QueryParamsResponse is the response type for the Params rpc method.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct QueryParamsResponse {
-    /// params contains the module parameters
-    #[prost(message, optional, tag="1")]
-    pub params: ::core::option::Option<Params>,
-}
 /// MsgCreateInterchainSecurityModule is the request type for CreateInterchainSecurityModule.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -146,14 +130,17 @@ pub struct MsgCreateInterchainSecurityModule {
     /// initial trusted state
     #[prost(bytes="vec", tag="2")]
     pub state: ::prost::alloc::vec::Vec<u8>,
-    /// the sp1 groth16 verifier key
+    /// merkle tree address in byte32 format
     #[prost(bytes="vec", tag="3")]
+    pub merkle_tree_address: ::prost::alloc::vec::Vec<u8>,
+    /// the sp1 groth16 verifier key
+    #[prost(bytes="vec", tag="4")]
     pub groth16_vkey: ::prost::alloc::vec::Vec<u8>,
     /// hash-based commitment to the verifier key used for state transition
-    #[prost(bytes="vec", tag="4")]
+    #[prost(bytes="vec", tag="5")]
     pub state_transition_vkey: ::prost::alloc::vec::Vec<u8>,
     /// hash-based commitment to the verifier key used for state membership
-    #[prost(bytes="vec", tag="5")]
+    #[prost(bytes="vec", tag="6")]
     pub state_membership_vkey: ::prost::alloc::vec::Vec<u8>,
 }
 /// MsgCreateInterchainSecurityModuleResponse is the response type for CreateInterchainSecurityModule.
@@ -212,24 +199,6 @@ pub struct MsgSubmitMessages {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct MsgSubmitMessagesResponse {
-}
-/// MsgUpdateParams is the request type for UpdateParams.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MsgUpdateParams {
-    /// authority is the address that controls the module (defaults to x/gov unless overwritten).
-    #[prost(string, tag="1")]
-    pub authority: ::prost::alloc::string::String,
-    /// params defines the x/zkism parameters to update.
-    ///
-    /// NOTE: All parameters must be supplied.
-    #[prost(message, optional, tag="2")]
-    pub params: ::core::option::Option<Params>,
-}
-/// MsgUpdateParamsResponse defines the response type for UpdateParams.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct MsgUpdateParamsResponse {
 }
 include!("celestia.zkism.v1.tonic.rs");
 // @@protoc_insertion_point(module)

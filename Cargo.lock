@@ -3513,6 +3513,7 @@ dependencies = [
  "rsp-client-executor",
  "serde",
  "sha2 0.10.9",
+ "sp1-primitives",
  "sp1-zkvm",
  "tendermint",
  "tendermint-proto",
