@@ -10,7 +10,9 @@ use celestia_grpc_client::proto::hyperlane::warp::v1::MsgSetToken;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::CelestiaIsmClient;
 use celestia_rpc::HeaderClient;
+use ev_zkevm_types::programs::block::State;
 use sp1_sdk::{HashableKey, Prover, ProverClient};
+use storage::app_storage::AppStorage;
 use tracing::info;
 
 use crate::command::cli::{QueryCommands, VERSION};
@@ -25,8 +27,6 @@ use crate::prover::chain::ChainContext;
 use crate::prover::programs::batch::BATCH_ELF;
 use crate::prover::programs::message::EV_HYPERLANE_ELF;
 use crate::server::start_server;
-use ev_zkevm_types::programs::block::State;
-use storage::proofs::{ProofStorage, RocksDbProofStorage};
 
 pub mod cli;
 pub use cli::{Cli, Commands};
@@ -49,8 +49,8 @@ pub fn unsafe_reset_db() -> Result<()> {
     let storage_path = Config::storage_path();
     info!("Resetting db state at {}", storage_path.display());
 
-    let mut storage = RocksDbProofStorage::new(storage_path)?;
-    storage.unsafe_reset()?;
+    let app_storage = AppStorage::new(storage_path, None)?;
+    app_storage.unsafe_reset_all()?;
     Ok(())
 }
 

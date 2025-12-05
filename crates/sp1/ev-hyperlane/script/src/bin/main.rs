@@ -23,7 +23,8 @@ use ev_zkevm_types::programs::hyperlane::{
 };
 use sp1_sdk::{include_elf, ProverClient, SP1Stdin};
 use std::{env, str::FromStr, time::Instant};
-use storage::hyperlane::message::HyperlaneMessageStore;
+use storage::db::UnifiedDB;
+use storage::hyperlane::message::{HyperlaneMessageStorage, HyperlaneMessageStore};
 use url::Url;
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
@@ -105,7 +106,11 @@ async fn write_proof_inputs(stdin: &mut SP1Stdin, args: &Args) -> Result<()> {
         .expect("cannot find home directory")
         .join(".ev-prover")
         .join("data");
-    let message_db = HyperlaneMessageStore::new(storage_path).expect("Failed to create message database");
+
+    // Create unified database and message store
+    let db = UnifiedDB::new(&storage_path).expect("Failed to create unified database");
+    let message_db = HyperlaneMessageStore::new(db.inner().clone());
+
     let mut messages = Vec::new();
     // insert messages into local database
     for height in args.start_height..=args.target_height {

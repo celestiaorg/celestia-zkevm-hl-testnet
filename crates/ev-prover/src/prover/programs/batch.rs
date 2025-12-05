@@ -22,7 +22,7 @@ use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRange
 use prost::Message;
 use rsp_client_executor::io::EthClientExecutorInput;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
-use storage::hyperlane::message::HyperlaneMessageStore;
+use storage::hyperlane::message::HyperlaneMessageStorage;
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
@@ -96,7 +96,7 @@ pub struct BatchExecProver {
     range_tx: mpsc::Sender<MessageProofRequest>,
     config: BatchProverConfig,
     prover: Arc<SP1Prover>,
-    hyperlane_message_store: Arc<HyperlaneMessageStore>,
+    hyperlane_message_store: Arc<dyn HyperlaneMessageStorage>,
 }
 
 #[async_trait]
@@ -131,7 +131,7 @@ impl BatchExecProver {
     pub fn new(
         ctx: Arc<ChainContext>,
         range_tx: mpsc::Sender<MessageProofRequest>,
-        hyperlane_message_store: Arc<HyperlaneMessageStore>,
+        hyperlane_message_store: Arc<dyn HyperlaneMessageStorage>,
     ) -> Result<Self> {
         let prover = prover_from_env();
         let config = BatchExecProver::default_config(prover.as_ref());

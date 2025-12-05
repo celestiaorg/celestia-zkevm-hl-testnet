@@ -15,6 +15,8 @@ use sp1_sdk::{EnvProver, ProverClient};
 use std::env;
 use std::time::Duration;
 use std::{str::FromStr, sync::Arc};
+use storage::db::UnifiedDB;
+use storage::hyperlane::snapshot::HyperlaneSnapshotStorage;
 use storage::hyperlane::snapshot::HyperlaneSnapshotStore;
 use tokio::time::sleep;
 use tracing::{error, info, warn};
@@ -116,7 +118,8 @@ async fn main() {
         .expect("cannot find home directory")
         .join(".ev-prover")
         .join("data");
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
+    let snapshot_db = UnifiedDB::new(&snapshot_storage_path).expect("Failed to create UnifiedDB");
+    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_db.inner().clone(), None).unwrap());
     hyperlane_snapshot_store.reset_db().unwrap();
 
     let message_proof = prove_messages(

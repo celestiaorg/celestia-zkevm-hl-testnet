@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use alloy_provider::{ProviderBuilder, WsConnect};
 use ev_state_queries::hyperlane::indexer::HyperlaneIndexer;
+use storage::db::UnifiedDB;
+use storage::hyperlane::message::HyperlaneMessageStorage;
 use storage::hyperlane::message::HyperlaneMessageStore;
 
 /* Context
@@ -24,7 +26,9 @@ async fn test_run_indexer() {
         .join("data");
 
     let indexer = HyperlaneIndexer::default();
-    let store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
+
+    let db = UnifiedDB::new(&storage_path).unwrap();
+    let store = Arc::new(HyperlaneMessageStore::new(db.inner().clone()));
     store.reset_db().unwrap();
 
     let provider = ProviderBuilder::new()

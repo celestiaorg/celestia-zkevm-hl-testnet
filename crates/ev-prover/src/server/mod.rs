@@ -9,9 +9,6 @@ use ev_types::v1::get_block_request::Identifier;
 use ev_types::v1::store_service_client::StoreServiceClient;
 use ev_types::v1::GetBlockRequest;
 use ev_zkevm_types::programs::block::State;
-use storage::hyperlane::message::HyperlaneMessageStore;
-use storage::hyperlane::snapshot::HyperlaneSnapshotStore;
-use storage::proofs::RocksDbProofStorage;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -36,8 +33,9 @@ use crate::prover::{
     },
     BlockProofCommitted,
 };
+#[cfg(not(feature = "batch_mode"))]
+use storage::{hyperlane::message::HyperlaneMessageStorage, proofs::ProofStorage};
 
-use storage::proofs::ProofStorage;
 #[cfg(feature = "batch_mode")]
 use {crate::prover::programs::batch::BatchExecProver, std::time::Duration};
 
@@ -96,7 +94,7 @@ impl Server {
         ctx: Arc<ChainContext>,
         client: CelestiaIsmClient,
         proof_store: Arc<dyn ProofStorage>,
-        hyperlane_message_store: Arc<HyperlaneMessageStore>,
+        hyperlane_message_store: Arc<dyn HyperlaneMessageStorage>,
         rx_block: mpsc::Receiver<BlockProofCommitted>,
         tx_range: mpsc::Sender<MessageProofRequest>,
         batch_size: usize,
@@ -150,10 +148,11 @@ pub async fn start_server(config: Config) -> Result<()> {
     let mut config_clone = config.clone();
     config_clone.pub_key = public_key(sequencer_rpc_url).await?;
     debug!("Successfully got pubkey from evnode: {}", config_clone.pub_key);
-    // Initialize RocksDB storage in the default data directory
+    // Initialize unified storage in the default data directory
     let storage_path = Config::storage_path();
-    let proof_store = Arc::new(RocksDbProofStorage::new(&storage_path)?);
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(&storage_path).unwrap());
+    let app_storage = Arc::new(storage::app_storage::AppStorage::new(&storage_path, None)?);
+    let proof_store = app_storage.proofs().clone();
+
     // shared resources
     let config = ClientConfig::from_env()?;
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
@@ -164,6 +163,8 @@ pub async fn start_server(config: Config) -> Result<()> {
         let client_config = ClientConfig::from_env()?;
         let client = CelestiaIsmClient::new(client_config).await?;
         let proof_store = proof_store.clone();
+        let hyperlane_message_store = app_storage.messages().clone();
+        let app_storage_clone = app_storage.clone();
         tokio::spawn(async move {
             loop {
                 let trusted_state = match get_trusted_state(&client).await {
@@ -196,14 +197,13 @@ pub async fn start_server(config: Config) -> Result<()> {
                         continue;
                     }
                 };
-                let message_prover =
-                    match prepare_message_prover(ctx.clone(), hyperlane_message_store.clone(), proof_store.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
+                let message_prover = match prepare_message_prover(ctx.clone(), app_storage_clone.clone()) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
                 let server = Server::new(
                     Arc::new(message_prover),
                     Arc::new(block_prover),
@@ -264,24 +264,21 @@ pub async fn start_server(config: Config) -> Result<()> {
 
     #[cfg(feature = "batch_mode")]
     let wrapper_task = Some({
-        let proof_store_clone: Arc<dyn ProofStorage> = proof_store.clone();
+        let app_storage_clone = app_storage.clone();
         let message_sync = MessageProofSync::shared();
 
         tokio::spawn(async move {
             loop {
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-                let batch_prover = match BatchExecProver::new(ctx.clone(), tx_range, hyperlane_message_store.clone()) {
-                    Ok(prover) => prover,
-                    Err(e) => {
-                        error!("Failed to create batch prover: {e:?}");
-                        continue;
-                    }
-                };
-                let message_prover = match prepare_message_prover(
-                    ctx.clone(),
-                    hyperlane_message_store.clone(),
-                    proof_store_clone.clone(),
-                ) {
+                let batch_prover =
+                    match BatchExecProver::new(ctx.clone(), tx_range, app_storage_clone.messages().clone()) {
+                        Ok(prover) => prover,
+                        Err(e) => {
+                            error!("Failed to create batch prover: {e:?}");
+                            continue;
+                        }
+                    };
+                let message_prover = match prepare_message_prover(ctx.clone(), app_storage_clone.clone()) {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create message prover: {e:?}");
@@ -352,18 +349,15 @@ pub async fn start_server(config: Config) -> Result<()> {
 
 fn prepare_message_prover(
     ctx: Arc<ChainContext>,
-    hyperlane_message_store: Arc<HyperlaneMessageStore>,
-    proof_store: Arc<dyn ProofStorage>,
+    app_storage: Arc<storage::app_storage::AppStorage>,
 ) -> Result<HyperlaneMessageProver> {
-    let storage_path = Config::storage_path();
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(storage_path, None).unwrap());
-
     HyperlaneMessageProver::new(
         ctx.clone(),
-        hyperlane_message_store,
-        hyperlane_snapshot_store,
-        proof_store.clone(),
+        app_storage.messages().clone(),
+        app_storage.snapshots().clone(),
+        app_storage.proofs().clone(),
         Arc::new(MockStateQueryProvider::new(ctx.evm_provider())),
+        app_storage.db().inner().clone(),
     )
 }
 

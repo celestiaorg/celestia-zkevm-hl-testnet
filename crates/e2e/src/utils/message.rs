@@ -17,6 +17,9 @@ use ev_zkevm_types::{
     },
 };
 use sp1_sdk::{EnvProver, SP1ProofWithPublicValues, SP1Stdin};
+use storage::db::UnifiedDB;
+use storage::hyperlane::message::HyperlaneMessageStorage;
+use storage::hyperlane::snapshot::HyperlaneSnapshotStorage;
 use storage::hyperlane::{StoredHyperlaneMessage, message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore};
 use tempfile::TempDir;
 use tracing::{debug, error};
@@ -52,9 +55,10 @@ pub async fn prove_messages(
         .expect("cannot find home directory")
         .join(&tmp)
         .join("data");
-    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_storage_path).unwrap());
+    let message_db = UnifiedDB::new(&message_storage_path)?;
+    let hyperlane_message_store = Arc::new(HyperlaneMessageStore::new(message_db.inner().clone()));
     // prune in case non-empty
-    hyperlane_message_store.reset_db().unwrap();
+    hyperlane_message_store.reset_db()?;
 
     let filter = Filter::new()
         .address(Address::from_str(MAILBOX_ADDRESS).unwrap())
@@ -95,9 +99,10 @@ pub async fn prove_messages(
         .expect("cannot find home directory")
         .join(&tmp)
         .join("data");
-    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_storage_path, None).unwrap());
-    hyperlane_snapshot_store.reset_db().unwrap();
-    let snapshot = hyperlane_snapshot_store.get_snapshot(0).unwrap();
+    let snapshot_db = UnifiedDB::new(&snapshot_storage_path)?;
+    let hyperlane_snapshot_store = Arc::new(HyperlaneSnapshotStore::new(snapshot_db.inner().clone(), None)?);
+    hyperlane_snapshot_store.reset_db()?;
+    let snapshot = hyperlane_snapshot_store.get_snapshot(0)?;
 
     // Construct program inputs from values
     let input = HyperlaneMessageInputs::new(

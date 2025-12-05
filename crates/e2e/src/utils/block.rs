@@ -20,6 +20,7 @@ use std::env;
 use std::error::Error;
 use std::fs;
 use std::sync::Arc;
+use storage::db::UnifiedDB;
 use storage::proofs::{ProofStorage, RocksDbProofStorage};
 use tokio::task::JoinHandle;
 use tracing::debug;
@@ -63,7 +64,8 @@ pub async fn parallel_prover(
         .expect("cannot find home directory")
         .join(".ev-prover")
         .join("data");
-    let proof_storage = Arc::new(RocksDbProofStorage::new(storage_path)?);
+    let db = UnifiedDB::new(&storage_path)?;
+    let proof_storage = Arc::new(RocksDbProofStorage::new(db.inner().clone()));
 
     let genesis_path = dirs::home_dir()
         .expect("cannot find home directory")

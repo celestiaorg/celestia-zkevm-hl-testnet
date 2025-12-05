@@ -4,12 +4,14 @@ mod tests {
     use celestia_types::nmt::Namespace;
     use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecOutput, State};
     use sp1_sdk::{ProverClient, SP1ProofMode, SP1ProofWithPublicValues, SP1PublicValues, SP1_CIRCUIT_VERSION};
+    use storage::db::UnifiedDB;
     use storage::proofs::{ProofStorage, ProofStorageError, RocksDbProofStorage};
     use tempfile::TempDir;
 
     fn create_test_storage() -> (RocksDbProofStorage, TempDir) {
         let temp_dir = TempDir::new().unwrap();
-        let storage = RocksDbProofStorage::new(temp_dir.path()).unwrap();
+        let db = UnifiedDB::new(temp_dir.path()).unwrap();
+        let storage = RocksDbProofStorage::new(db.inner().clone());
         (storage, temp_dir)
     }
 

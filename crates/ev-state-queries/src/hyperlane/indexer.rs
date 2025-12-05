@@ -12,7 +12,7 @@ use ev_zkevm_types::{
     hyperlane::decode_hyperlane_message,
 };
 use std::{env, str::FromStr, sync::Arc};
-use storage::hyperlane::{StoredHyperlaneMessage, message::HyperlaneMessageStore};
+use storage::hyperlane::{StoredHyperlaneMessage, message::HyperlaneMessageStorage};
 use tracing::debug;
 
 /// HyperlaneIndexer is a service that indexes Hyperlane messages from the Dispatch event emitted from the Mailbox contract.
@@ -41,17 +41,17 @@ impl HyperlaneIndexer {
         &self,
         filter: Filter,
         provider: DefaultProvider,
-        store: Arc<HyperlaneMessageStore>,
+        store: Arc<dyn HyperlaneMessageStorage>,
     ) -> Result<()> {
         let logs = provider.get_logs(&filter).await?;
         for log in logs {
-            Self::store_message(&log, &store)?;
+            Self::store_message(&log, store.clone())?;
         }
 
         Ok(())
     }
 
-    fn store_message(log: &Log, store: &HyperlaneMessageStore) -> Result<()> {
+    fn store_message(log: &Log, store: Arc<dyn HyperlaneMessageStorage>) -> Result<()> {
         match Dispatch::decode_log_data(log.data()) {
             Ok(event) => {
                 let dispatch_event: DispatchEvent = event.into();
