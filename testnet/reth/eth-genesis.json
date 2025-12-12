@@ -20,7 +20,7 @@
     "evolve": {
       "baseFeeSink": "0xc259e540167B7487A89b45343F4044d5951cf871",
       "baseFeeRedirectActivationHeight": 0,
-      "mintPrecompileAdmin": "0x0000000000000000000000000000000000000000",
+      "mintPrecompileAdmin": "0xc259e540167B7487A89b45343F4044d5951cf871",
       "mintPrecompileActivationHeight": 0,
       "contractSizeLimit": 131072,
       "contractSizeLimitActivationHeight": 0
