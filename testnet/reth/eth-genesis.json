@@ -16,7 +16,15 @@
     "terminalTotalDifficultyPassed": true,
     "shanghaiTime": 0,
     "cancunTime": 0,
-    "pragueTime": 0
+    "pragueTime": 0,
+    "evolve": {
+      "baseFeeSink": "0xc259e540167B7487A89b45343F4044d5951cf871",
+      "baseFeeRedirectActivationHeight": 0,
+      "mintPrecompileAdmin": "0x0000000000000000000000000000000000000000",
+      "mintPrecompileActivationHeight": 0,
+      "contractSizeLimit": 131072,
+      "contractSizeLimitActivationHeight": 0
+    }
   },
   "nonce": "0x0",
   "timestamp": "0x0",
@@ -33,6 +41,9 @@
       "balance": "0x4a47e3c12448f4ad000000"
     },
     "0xaF9053bB6c4346381C77C2FeD279B17ABAfCDf4d": {
+      "balance": "0x4a47e3c12448f4ad000000"
+    },
+    "0xc259e540167B7487A89b45343F4044d5951cf871": {
       "balance": "0x4a47e3c12448f4ad000000"
     }
   },
