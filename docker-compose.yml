@@ -133,36 +133,36 @@ services:
     networks:
       - celestia-zkevm-net
 
-  hyperlane-init:
-    image: ghcr.io/celestiaorg/hyperlane-init:latest
-    container_name: hyperlane-init
-    volumes:
-      - hyperlane:/home/hyperlane/
-      - ./testdata/vkeys:/home/hyperlane/testdata/vkeys:ro
-    entrypoint: "scripts/docker-entrypoint.sh"
-    depends_on:
-      celestia-validator:
-        condition: service_healthy
-      reth:
-        condition: service_started
-    restart: "no"
-    networks:
-      - celestia-zkevm-net
+  # hyperlane-init:
+  #   image: ghcr.io/celestiaorg/hyperlane-init:latest
+  #   container_name: hyperlane-init
+  #   volumes:
+  #     - hyperlane:/home/hyperlane/
+  #     - ./testdata/vkeys:/home/hyperlane/testdata/vkeys:ro
+  #   entrypoint: "scripts/docker-entrypoint.sh"
+  #   depends_on:
+  #     celestia-validator:
+  #       condition: service_healthy
+  #     reth:
+  #       condition: service_started
+  #   restart: "no"
+  #   networks:
+  #     - celestia-zkevm-net
 
-  relayer:
-    image: gcr.io/abacus-labs-dev/hyperlane-agent:main
-    platform: linux/amd64
-    container_name: relayer
-    environment:
-      - CONFIG_FILES=/app/config/config.json
-    volumes:
-      - ./hyperlane/relayer-config.json:/app/config/config.json
-    command: "/app/relayer"
-    depends_on:
-      hyperlane-init:
-        condition: service_completed_successfully
-    networks:
-      - celestia-zkevm-net
+  # relayer:
+  #   image: gcr.io/abacus-labs-dev/hyperlane-agent:main
+  #   platform: linux/amd64
+  #   container_name: relayer
+  #   environment:
+  #     - CONFIG_FILES=/app/config/config.json
+  #   volumes:
+  #     - ./hyperlane/relayer-config.json:/app/config/config.json
+  #   command: "/app/relayer"
+  #   depends_on:
+  #     hyperlane-init:
+  #       condition: service_completed_successfully
+  #   networks:
+  #     - celestia-zkevm-net
 
 volumes:
   celestia-app:
