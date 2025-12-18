@@ -55,6 +55,16 @@ impl HyperlaneSnapshotStore {
         Ok(snapshot_store)
     }
 
+    pub fn from_path<P: AsRef<Path>>(base_path: P) -> Result<Self> {
+        let db_path = base_path.as_ref().join("snapshots.db");
+        let opts = Self::get_opts()?;
+        let cfs = Self::get_cfs()?;
+        let db = DB::open_cf_descriptors(&opts, db_path, cfs)?;
+        Ok(Self {
+            db: Arc::new(RwLock::new(db)),
+        })
+    }
+
     pub fn get_opts() -> Result<Options> {
         let mut opts = Options::default();
         opts.create_if_missing(true);

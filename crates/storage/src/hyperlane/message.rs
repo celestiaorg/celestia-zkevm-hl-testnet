@@ -13,7 +13,7 @@ pub struct HyperlaneMessageStore {
 }
 
 impl HyperlaneMessageStore {
-    pub fn new<P: AsRef<Path>>(base_path: P) -> Result<Self> {
+    pub fn from_path<P: AsRef<Path>>(base_path: P) -> Result<Self> {
         let db_path = base_path.as_ref().join("messages.db");
 
         let db_opts = Self::get_opts()?;

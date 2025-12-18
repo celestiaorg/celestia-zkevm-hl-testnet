@@ -24,7 +24,7 @@ async fn test_run_indexer() {
         .join("data");
 
     let indexer = HyperlaneIndexer::default();
-    let store = Arc::new(HyperlaneMessageStore::new(storage_path).unwrap());
+    let store = Arc::new(HyperlaneMessageStore::from_path(storage_path).unwrap());
     store.reset_db().unwrap();
 
     let provider = ProviderBuilder::new()

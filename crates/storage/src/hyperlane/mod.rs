@@ -36,7 +36,7 @@ mod tests {
             .expect("cannot find home directory")
             .join(&tmp)
             .join("data");
-        let store = HyperlaneMessageStore::new(storage_path).unwrap();
+        let store = HyperlaneMessageStore::from_path(storage_path).unwrap();
         let message = decode_hyperlane_message(&message).unwrap();
         let message = StoredHyperlaneMessage::new(message, Some(100));
         let mut current_index = store.current_index().unwrap();

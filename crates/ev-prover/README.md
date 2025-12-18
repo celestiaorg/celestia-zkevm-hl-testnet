@@ -148,3 +148,23 @@ Finality serves two distinct purposes. Firstly, it can be used to expose the sta
 So long as the finality status of all snapshots flips to `true` there is nothing to worry about. All snapshots, except for the most recent one, should be finalized at all times. Gaps in finalization indicate that message proof submission was unsuccessful, or that the DB corrupted post submission. 
 
 Note that the message prover always takes the last known snapshot, which is expected to be unfinalized, but no such check is enforced and generates a proof using all messages that occurred from the height of the trusted snapshot + 1 all the way to the trusted EV height in ZKISM, aka `committed_height`.
+
+## Hyperlane Message Retries
+
+Under normal conditions there should always only be one unfinalized snapshot. No other than the latest snapshot may be unfinalized.
+Should there be a snapshot that is not the latest and was not successfully finalized, then it is safe to assume that message submission
+or proof generation for that snapshot failed. 
+
+We currently support manual message submission retries, using the following command:
+```bash
+cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id MAILBOX_ID --contract MERKLE_TREE_ADDRESS --rpc-url RETH_RPC_URL
+```
+
+Example with values:
+```bash
+cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --contract 0xfcb1d485ef46344029d9e8a7925925e146b3430e --rpc-url http://127.0.0.1:8545
+```
+
+Assuming that there is an unfinalized snapshot at index `N` in the database and that the latest snapshot is >`N`, the correct snapshot-index to pass is `N-1`.
+By default the retry will assume that the messages were successfully indexed and stored, since by default the prover service will retry if indexing fails and not 
+store a new snapshot. However should the user observe that messages are missing during or after retry, manual indexing is recommended before running the retry command.

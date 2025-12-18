@@ -151,75 +151,6 @@ impl BatchExecProver {
         BatchProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
-    /// Starts the batched prover loop.
-    pub async fn run(self: Arc<Self>, message_sync: Arc<MessageProofSync>) -> Result<()> {
-        let mut batch_size = BATCH_SIZE;
-        let mut mailbox_nonce = self.ctx.mailbox_nonce().await?;
-        let mut scan_head: Option<u64> = None;
-        let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
-        loop {
-            message_sync.wait_for_idle().await;
-            poll.tick().await;
-            let status = self.load_prover_status().await?;
-            if scan_head.is_none() {
-                scan_head = Some(status.trusted_celestia_height + 1);
-            }
-
-            let scan_start = scan_head.ok_or_else(|| anyhow!("Scan head is not set"))?;
-            if scan_start < status.celestia_head {
-                // only check if batch size can be reduced if a new mailbox event was emitted
-                batch_size = self
-                    .calculate_batch_size(
-                        scan_start,
-                        status.celestia_head,
-                        status.trusted_celestia_height,
-                        batch_size,
-                        &mut mailbox_nonce,
-                    )
-                    .await?;
-            }
-
-            if !status.is_batch_ready(batch_size) {
-                let blocks_needed = status.blocks_remaining(batch_size);
-                let current_height = status.celestia_head;
-                debug!("Waiting for {blocks_needed} more blocks to reach required batch size. Current height: {current_height}");
-                continue;
-            }
-
-            let distance = status.distance();
-            if distance >= WARN_DISTANCE {
-                warn!("Prover is {distance} blocks behind Celestia head");
-            } else {
-                info!("Prover is {distance} blocks behind Celestia head");
-            }
-
-            let start_height = status.trusted_celestia_height + 1;
-            let input = self.build_proof_inputs(start_height, &status, batch_size).await?;
-
-            // Generate the proof
-            let start_time = Instant::now();
-            let (proof, output) = self.prove(input).await?;
-            info!("Proof generation time: {}", start_time.elapsed().as_millis());
-
-            // Index if new ev blocks were included.
-            self.index_messages(status.trusted_height + 1, output.new_state.height)
-                .await?;
-
-            if let Err(e) = self.submit_proof_msg(&proof).await {
-                error!(?e, "Failed to submit tx to ism");
-            }
-
-            // reset batch size and fast forward checkpoints
-            batch_size = BATCH_SIZE;
-            scan_head = Some(status.celestia_head + 1);
-
-            let permit = message_sync.begin().await;
-            let commit = RangeProofCommitted::new(output.new_state.height, output.new_state.state_root);
-            let request = MessageProofRequest::with_permit(commit, permit);
-            self.range_tx.send(request).await?;
-        }
-    }
-
     /// Loads the ProverStatus by querying the trusted state from the on-chain ism and the
     /// the latest header from Celestia.
     async fn load_prover_status(&self) -> Result<ProverStatus> {
@@ -438,5 +369,74 @@ impl BatchExecProver {
         );
 
         Ok(input)
+    }
+
+    /// Starts the batched prover loop.
+    pub async fn run(self: Arc<Self>, message_sync: Arc<MessageProofSync>) -> Result<()> {
+        let mut batch_size = BATCH_SIZE;
+        let mut mailbox_nonce = self.ctx.mailbox_nonce().await?;
+        let mut scan_head: Option<u64> = None;
+        let mut poll = interval(Duration::from_secs(6)); // BlockTime=6s
+        loop {
+            message_sync.wait_for_idle().await;
+            poll.tick().await;
+            let status = self.load_prover_status().await?;
+            if scan_head.is_none() {
+                scan_head = Some(status.trusted_celestia_height + 1);
+            }
+
+            let scan_start = scan_head.ok_or_else(|| anyhow!("Scan head is not set"))?;
+            if scan_start < status.celestia_head {
+                // only check if batch size can be reduced if a new mailbox event was emitted
+                batch_size = self
+                    .calculate_batch_size(
+                        scan_start,
+                        status.celestia_head,
+                        status.trusted_celestia_height,
+                        batch_size,
+                        &mut mailbox_nonce,
+                    )
+                    .await?;
+            }
+
+            if !status.is_batch_ready(batch_size) {
+                let blocks_needed = status.blocks_remaining(batch_size);
+                let current_height = status.celestia_head;
+                debug!("Waiting for {blocks_needed} more blocks to reach required batch size. Current height: {current_height}");
+                continue;
+            }
+
+            let distance = status.distance();
+            if distance >= WARN_DISTANCE {
+                warn!("Prover is {distance} blocks behind Celestia head");
+            } else {
+                info!("Prover is {distance} blocks behind Celestia head");
+            }
+
+            let start_height = status.trusted_celestia_height + 1;
+            let input = self.build_proof_inputs(start_height, &status, batch_size).await?;
+
+            // Generate the proof
+            let start_time = Instant::now();
+            let (proof, output) = self.prove(input).await?;
+            info!("Proof generation time: {}", start_time.elapsed().as_millis());
+
+            // Index if new ev blocks were included.
+            self.index_messages(status.trusted_height + 1, output.new_state.height)
+                .await?;
+
+            if let Err(e) = self.submit_proof_msg(&proof).await {
+                error!(?e, "Failed to submit tx to ism");
+            }
+
+            // reset batch size and fast forward checkpoints
+            batch_size = BATCH_SIZE;
+            scan_head = Some(status.celestia_head + 1);
+
+            let permit = message_sync.begin().await;
+            let commit = RangeProofCommitted::new(output.new_state.height, output.new_state.state_root);
+            let request = MessageProofRequest::with_permit(commit, permit);
+            self.range_tx.send(request).await?;
+        }
     }
 }
