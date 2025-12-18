@@ -1,6 +1,7 @@
 services:
   celestia-init:
-    image: ghcr.io/celestiaorg/celestia-app-standalone:pr-6323
+    # Branch: feature/zk-execution-ism
+    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:082581bbef524c8e3fb1cc67066945604ac108bdfdfb89cb63f1ee24bfac4f40
     container_name: celestia-init
     entrypoint: /scripts/init.sh
     volumes:
@@ -9,7 +10,8 @@ services:
     restart: "no"
 
   celestia-validator:
-    image: ghcr.io/celestiaorg/celestia-app-standalone:pr-6323
+    # Branch: feature/zk-execution-ism
+    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:082581bbef524c8e3fb1cc67066945604ac108bdfdfb89cb63f1ee24bfac4f40
     container_name: celestia-validator
     ports:
       - "26656:26656"
