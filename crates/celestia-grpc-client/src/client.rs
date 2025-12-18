@@ -177,7 +177,6 @@ mod tests {
         // Test the new message structure based on actual Celestia PR #5790
         let proof_msg = StateInclusionProofMsg::new(
             "test-ism".to_string(),    // ISM ID
-            200,                       // height
             vec![7, 8, 9],             // proof
             vec![10, 11, 12],          // public_values
             "test_signer".to_string(), // signer
@@ -185,7 +184,6 @@ mod tests {
 
         // Test the new field structure
         assert_eq!(proof_msg.id, "test-ism");
-        assert_eq!(proof_msg.height, 200);
         assert_eq!(proof_msg.proof, vec![7, 8, 9]);
         assert_eq!(proof_msg.public_values, vec![10, 11, 12]);
         assert_eq!(proof_msg.signer, "test_signer");

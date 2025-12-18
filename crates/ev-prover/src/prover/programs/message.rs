@@ -249,7 +249,6 @@ impl HyperlaneMessageProver {
         // Prepare the proof submission message
         let message_proof_msg = MsgSubmitMessages::new(
             self.ctx.ism_id().to_string(),
-            committed_height,
             message_proof.0.bytes(),
             message_proof.0.public_values.as_slice().to_vec(),
             ism_client.signer_address().to_string(),

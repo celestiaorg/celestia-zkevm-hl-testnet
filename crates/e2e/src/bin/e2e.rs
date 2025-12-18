@@ -130,7 +130,6 @@ async fn main() {
 
     let message_proof_msg = MsgSubmitMessages::new(
         ISM_ID.to_string(),
-        target_height,
         message_proof.0.bytes(),
         message_proof.0.public_values.as_slice().to_vec(),
         ism_client.signer_address().to_string(),
