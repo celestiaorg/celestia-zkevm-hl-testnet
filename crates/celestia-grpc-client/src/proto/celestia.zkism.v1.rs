@@ -91,6 +91,7 @@ pub struct GenesisState {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryIsmRequest {
+    /// id is the hex-encoded ISM identifier.
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
 }
@@ -98,6 +99,7 @@ pub struct QueryIsmRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryIsmResponse {
+    /// the ism associated with the provided identifier.
     #[prost(message, optional, tag="1")]
     pub ism: ::core::option::Option<InterchainSecurityModule>,
 }
@@ -116,6 +118,28 @@ pub struct QueryIsmsResponse {
     /// isms is a list of zk execution isms.
     #[prost(message, repeated, tag="1")]
     pub isms: ::prost::alloc::vec::Vec<InterchainSecurityModule>,
+    /// pagination defines the pagination in the response.
+    #[prost(message, optional, tag="2")]
+    pub pagination: ::core::option::Option<super::super::super::cosmos::base::query::v1beta1::PageResponse>,
+}
+/// QueryMessagesRequest is the request type for the Messages rpc method.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryMessagesRequest {
+    /// id is the hex-encoded ISM identifier.
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    /// pagination defines an optional pagination for the request.
+    #[prost(message, optional, tag="2")]
+    pub pagination: ::core::option::Option<super::super::super::cosmos::base::query::v1beta1::PageRequest>,
+}
+/// QueryMessagesResponse is the response type for the Messages rpc method.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryMessagesResponse {
+    /// messages is a list of authorized Hyperlane message IDs.
+    #[prost(string, repeated, tag="1")]
+    pub messages: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     /// pagination defines the pagination in the response.
     #[prost(message, optional, tag="2")]
     pub pagination: ::core::option::Option<super::super::super::cosmos::base::query::v1beta1::PageResponse>,
@@ -182,23 +206,26 @@ pub struct MsgSubmitMessages {
     /// ism identifier
     #[prost(string, tag="1")]
     pub id: ::prost::alloc::string::String,
-    /// height is the EVM application height associated with the state transition update.
-    #[prost(uint64, tag="2")]
-    pub height: u64,
     /// proof is the ZK proof bytes (groth16).
-    #[prost(bytes="vec", tag="3")]
+    #[prost(bytes="vec", tag="2")]
     pub proof: ::prost::alloc::vec::Vec<u8>,
     /// the public values used for proof verification.
-    #[prost(bytes="vec", tag="4")]
+    #[prost(bytes="vec", tag="3")]
     pub public_values: ::prost::alloc::vec::Vec<u8>,
     /// the tx signer address
-    #[prost(string, tag="5")]
+    #[prost(string, tag="4")]
     pub signer: ::prost::alloc::string::String,
 }
 /// MsgSubmitMessagesResponse is the response type for SubmitMessages.
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MsgSubmitMessagesResponse {
+    /// state commitment root used to verify messages (hex-encoded)
+    #[prost(string, tag="1")]
+    pub state_root: ::prost::alloc::string::String,
+    /// list of authorized messages ids
+    #[prost(string, repeated, tag="2")]
+    pub messages: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 include!("celestia.zkism.v1.tonic.rs");
 // @@protoc_insertion_point(module)

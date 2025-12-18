@@ -134,6 +134,31 @@ pub mod query_client {
                 .insert(GrpcMethod::new("celestia.zkism.v1.Query", "Isms"));
             self.inner.unary(req, path, codec).await
         }
+        pub async fn messages(
+            &mut self,
+            request: impl tonic::IntoRequest<super::QueryMessagesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::QueryMessagesResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/celestia.zkism.v1.Query/Messages",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("celestia.zkism.v1.Query", "Messages"));
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -155,6 +180,13 @@ pub mod query_server {
             request: tonic::Request<super::QueryIsmsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::QueryIsmsResponse>,
+            tonic::Status,
+        >;
+        async fn messages(
+            &self,
+            request: tonic::Request<super::QueryMessagesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::QueryMessagesResponse>,
             tonic::Status,
         >;
     }
@@ -305,6 +337,51 @@ pub mod query_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = IsmsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/celestia.zkism.v1.Query/Messages" => {
+                    #[allow(non_camel_case_types)]
+                    struct MessagesSvc<T: Query>(pub Arc<T>);
+                    impl<
+                        T: Query,
+                    > tonic::server::UnaryService<super::QueryMessagesRequest>
+                    for MessagesSvc<T> {
+                        type Response = super::QueryMessagesResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::QueryMessagesRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Query>::messages(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = MessagesSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
