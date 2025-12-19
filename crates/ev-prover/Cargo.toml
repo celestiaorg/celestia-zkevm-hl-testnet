@@ -48,7 +48,9 @@ sp1-prover = { workspace = true }
 sp1-sdk = { workspace = true }
 storage = { workspace = true }
 tendermint = { workspace = true }
+tendermint-light-client-verifier = { workspace = true }
 tendermint-proto = { workspace = true }
+tendermint-rpc = { workspace = true }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"

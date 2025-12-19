@@ -19,6 +19,9 @@ use rsp_client_executor::io::EthClientExecutorInput;
 use rsp_host_executor::EthHostExecutor;
 use rsp_primitives::genesis::Genesis;
 use rsp_rpc_db::RpcDb;
+use tendermint::block::Height;
+use tendermint_light_client_verifier::types::LightBlock;
+use tendermint_rpc::{Client as TendermintRpcClient, HttpClient};
 use url::Url;
 
 use crate::config::Config;
@@ -223,6 +226,42 @@ impl ChainContext {
         }
 
         Ok(None)
+    }
+
+    /// Returns a tendermint-rpc HTTP client for the Celestia RPC endpoint.
+    pub fn tendermint_rpc_client(&self) -> Result<HttpClient> {
+        HttpClient::new(self.config.rpc.celestia_rpc.as_str()).context("failed to create tendermint-rpc client")
+    }
+
+    /// Fetches a Tendermint LightBlock at the given height.
+    /// This is used for light client verification in the zkVM.
+    pub async fn get_light_block(&self, height: u64) -> Result<LightBlock> {
+        let client = self.tendermint_rpc_client()?;
+        let height = Height::try_from(height).context("invalid height")?;
+
+        // Fetch commit at the given height
+        let commit_response = client.commit(height).await.context("failed to fetch commit")?;
+        let signed_header = commit_response.signed_header;
+
+        // Fetch validators at the given height
+        let validators_response = client
+            .validators(height, tendermint_rpc::Paging::All)
+            .await
+            .context("failed to fetch validators")?;
+        let validators = tendermint::validator::Set::new(validators_response.validators, None);
+
+        // Fetch next validators (at height + 1)
+        let next_height = height.increment();
+        let next_validators_response = client
+            .validators(next_height, tendermint_rpc::Paging::All)
+            .await
+            .context("failed to fetch next validators")?;
+        let next_validators = tendermint::validator::Set::new(next_validators_response.validators, None);
+
+        // Use a placeholder provider ID
+        let provider = tendermint::node::Id::new([0u8; 20]);
+
+        Ok(LightBlock::new(signed_header, validators, next_validators, provider))
     }
 
     fn celestia_ws_url(&self) -> Result<Url> {

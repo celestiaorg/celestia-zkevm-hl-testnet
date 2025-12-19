@@ -272,7 +272,19 @@ impl BatchExecProver {
 
             block_inputs.push(input);
         }
-        Ok(BatchExecInput { blocks: block_inputs })
+
+        // Fetch light blocks for Tendermint light client verification
+        // The trusted light block is at the height before the first block in the batch
+        let trusted_light_block = self.ctx.get_light_block(status.trusted_celestia_height).await?;
+
+        // The new light block is at the end of the batch
+        let new_light_block = self.ctx.get_light_block(start_height + batch_size).await?;
+
+        Ok(BatchExecInput {
+            blocks: block_inputs,
+            trusted_light_block,
+            new_light_block,
+        })
     }
 
     /// Builds a single block prover input for the given height.
