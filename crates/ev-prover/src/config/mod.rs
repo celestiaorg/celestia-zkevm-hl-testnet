@@ -161,7 +161,7 @@ impl Config {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RpcConfig {
-    /// RPC endpoint for the Celestia light node.
+    /// RPC endpoint for the data availability node.
     pub celestia_rpc: String,
 
     /// RPC endpoint for the Tendermint light node.
