@@ -280,10 +280,14 @@ impl BatchExecProver {
         // The new light block is at the end of the batch
         let new_light_block = self.ctx.get_light_block(start_height + batch_size).await?;
 
+        // Serialize light blocks using CBOR (bincode doesn't work with tendermint's serde attrs)
+        let trusted_light_block_raw = serde_cbor::to_vec(&trusted_light_block)?;
+        let new_light_block_raw = serde_cbor::to_vec(&new_light_block)?;
+
         Ok(BatchExecInput {
             blocks: block_inputs,
-            trusted_light_block,
-            new_light_block,
+            trusted_light_block_raw,
+            new_light_block_raw,
         })
     }
 

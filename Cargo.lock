@@ -3348,6 +3348,7 @@ dependencies = [
  "sha2 0.10.9",
  "sp1-zkvm",
  "tendermint",
+ "tendermint-light-client-verifier",
  "tendermint-proto",
 ]
 

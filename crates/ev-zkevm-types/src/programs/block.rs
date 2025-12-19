@@ -101,8 +101,10 @@ pub struct BlockRangeExecInput {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BatchExecInput {
     pub blocks: Vec<BlockExecInput>,
-    pub trusted_light_block: LightBlock,
-    pub new_light_block: LightBlock,
+    /// CBOR-serialized trusted LightBlock (bincode doesn't work with tendermint's serde attrs)
+    pub trusted_light_block_raw: Vec<u8>,
+    /// CBOR-serialized new LightBlock (bincode doesn't work with tendermint's serde attrs)
+    pub new_light_block_raw: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -338,12 +340,13 @@ impl BlockVerifier {
             trusting_period: Duration::from_secs(14 * 24 * 60 * 60),
             clock_drift: Default::default(),
         };
+        // Add 10 seconds buffer to the block time to satisfy verification requirements
+        let now = (new_light_block.time() + Duration::from_secs(10)).expect("time overflow");
         let verdict = vp.verify_update_header(
             new_light_block.as_untrusted_state(),
             trusted_light_block.as_trusted_state(),
             &opt,
-            // Use the new block's time as "now" to bypass real-time verification
-            new_light_block.time(),
+            now,
         );
 
         match verdict {
