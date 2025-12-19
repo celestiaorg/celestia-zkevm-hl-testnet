@@ -1,4 +1,7 @@
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    time::Duration,
+};
 
 use alloy_primitives::FixedBytes;
 use celestia_types::{
@@ -11,6 +14,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::error::Error;
 use std::sync::Arc;
+use tendermint_light_client_verifier::{
+    ProdVerifier, Verdict, Verifier,
+    options::Options,
+    types::{LightBlock, TrustThreshold},
+};
 
 use alloy_consensus::{BlockHeader, proofs};
 use alloy_primitives::B256;
@@ -18,13 +26,13 @@ use alloy_rlp::Decodable;
 use bytes::Bytes;
 use celestia_types::Blob;
 use celestia_types::nmt::{EMPTY_LEAVES, NamespacedHash};
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Verifier as TendermintVerifier, VerifyingKey};
 use ev_types::v1::{Data, SignedData};
 use nmt_rs::NamespacedSha2Hasher;
 use prost::Message;
 use reth_primitives::TransactionSigned;
 use rsp_client_executor::{executor::EthClientExecutor, io::WitnessInput};
-use tendermint::block::Header;
+use tendermint::{Time, block::Header};
 
 /// BlockExecInput is the input for the BlockExec circuit.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -93,6 +101,8 @@ pub struct BlockRangeExecInput {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BatchExecInput {
     pub blocks: Vec<BlockExecInput>,
+    pub trusted_light_block: LightBlock,
+    pub new_light_block: LightBlock,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -310,10 +320,46 @@ impl BlockVerifier {
         Ok(output)
     }
 
-    pub fn verify_range(inputs: Vec<BlockExecInput>) -> Result<BlockRangeExecOutput, Box<dyn Error>> {
+    pub fn verify_range(
+        inputs: Vec<BlockExecInput>,
+        trusted_light_block: LightBlock,
+        new_light_block: LightBlock,
+    ) -> Result<BlockRangeExecOutput, Box<dyn Error>> {
         let mut outputs: Vec<BlockExecOutput> = Vec::new();
         for block in inputs {
             outputs.push(Self::verify_block(block)?);
+        }
+
+        // Light Client Verification
+        let vp = ProdVerifier::default();
+        let opt = Options {
+            trust_threshold: TrustThreshold::TWO_THIRDS,
+            // 2 week trusting period.
+            trusting_period: Duration::from_secs(14 * 24 * 60 * 60),
+            clock_drift: Default::default(),
+        };
+        let verdict = vp.verify_update_header(
+            new_light_block.as_untrusted_state(),
+            trusted_light_block.as_trusted_state(),
+            &opt,
+            // todo: pass some valid unix timestamp
+            Time::from_unix_timestamp(0, 0).unwrap(),
+        );
+
+        match verdict {
+            Verdict::Success => {
+                println!(
+                    "Verified light client update from height {} to height {}!",
+                    trusted_light_block.signed_header.header.height.value(),
+                    new_light_block.signed_header.header.height.value()
+                );
+            }
+            Verdict::NotEnoughTrust(voting_power_tally) => {
+                panic!("Not enough trust in the trusted header, voting power tally: {voting_power_tally:?}");
+            }
+            Verdict::Invalid(err) => {
+                panic!("Could not verify updating to target_block, error: {err:?}")
+            }
         }
 
         for window in outputs.windows(2).enumerate() {
@@ -374,6 +420,32 @@ impl BlockVerifier {
                 .expect("namespace must be 29 bytes"),
             public_key: first.public_key,
         };
+
+        // Verify the trusted light block's header hash matches the first block's previous celestia header hash
+        let trusted_header_hash: [u8; 32] = trusted_light_block
+            .signed_header
+            .header
+            .hash()
+            .as_bytes()
+            .try_into()
+            .expect("trusted header hash must be 32 bytes");
+        assert_eq!(
+            first.prev_celestia_header_hash, trusted_header_hash,
+            "First block's prev_celestia_header_hash must match trusted light block header hash"
+        );
+
+        // Verify the new light block's header hash matches the last block's celestia header hash
+        let new_header_hash: [u8; 32] = new_light_block
+            .signed_header
+            .header
+            .hash()
+            .as_bytes()
+            .try_into()
+            .expect("new header hash must be 32 bytes");
+        assert_eq!(
+            last.celestia_header_hash, new_header_hash,
+            "Last block's celestia_header_hash must match new light block header hash"
+        );
 
         let new_state = State {
             state_root: last.new_state_root,

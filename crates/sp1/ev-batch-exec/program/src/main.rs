@@ -36,6 +36,7 @@ use ev_zkevm_types::programs::block::{BatchExecInput, BlockVerifier};
 
 pub fn main() {
     let input: BatchExecInput = sp1_zkvm::io::read::<BatchExecInput>();
-    let output = BlockVerifier::verify_range(input.blocks).expect("failed to verify range");
+    let output = BlockVerifier::verify_range(input.blocks, input.trusted_light_block, input.new_light_block)
+        .expect("failed to verify range");
     sp1_zkvm::io::commit(&output);
 }
