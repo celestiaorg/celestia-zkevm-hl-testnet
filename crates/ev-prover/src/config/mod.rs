@@ -164,7 +164,7 @@ pub struct RpcConfig {
     /// RPC endpoint for the data availability node.
     pub celestia_rpc: String,
 
-    /// RPC endpoint for the Tendermint light node.
+    /// RPC endpoint for the consensus node.
     pub tendermint_rpc: String,
 
     /// Authentication token for the Celestia RPC client.
