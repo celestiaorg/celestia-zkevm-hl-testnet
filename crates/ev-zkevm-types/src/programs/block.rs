@@ -342,8 +342,8 @@ impl BlockVerifier {
             new_light_block.as_untrusted_state(),
             trusted_light_block.as_trusted_state(),
             &opt,
-            // todo: pass some valid unix timestamp
-            Time::from_unix_timestamp(0, 0).unwrap(),
+            // Use the new block's time as "now" to bypass real-time verification
+            new_light_block.time(),
         );
 
         match verdict {
