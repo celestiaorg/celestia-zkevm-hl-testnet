@@ -32,7 +32,7 @@ use nmt_rs::NamespacedSha2Hasher;
 use prost::Message;
 use reth_primitives::TransactionSigned;
 use rsp_client_executor::{executor::EthClientExecutor, io::WitnessInput};
-use tendermint::{Time, block::Header};
+use tendermint::block::Header;
 
 /// BlockExecInput is the input for the BlockExec circuit.
 #[derive(Serialize, Deserialize, Debug, Clone)]
