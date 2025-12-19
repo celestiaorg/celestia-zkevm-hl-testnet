@@ -233,7 +233,7 @@ impl ChainContext {
 
     /// Returns a tendermint-rpc HTTP client for the Celestia RPC endpoint.
     pub fn tendermint_rpc_client(&self) -> Result<HttpClient> {
-        HttpClient::new(self.config.rpc.celestia_rpc.as_str()).context("failed to create tendermint-rpc client")
+        HttpClient::new(self.config.rpc.tendermint_rpc.as_str()).context("failed to create tendermint-rpc client")
     }
 
     /// Sorts the signatures in the signed header based on the descending order of validators' power.

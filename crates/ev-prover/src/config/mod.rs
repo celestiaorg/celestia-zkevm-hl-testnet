@@ -164,6 +164,9 @@ pub struct RpcConfig {
     /// RPC endpoint for the Celestia light node.
     pub celestia_rpc: String,
 
+    /// RPC endpoint for the Tendermint light node.
+    pub tendermint_rpc: String,
+
     /// Authentication token for the Celestia RPC client.
     /// If None, no authentication is used.
     pub celestia_auth_token: Option<String>,
@@ -182,6 +185,7 @@ impl Default for RpcConfig {
     fn default() -> Self {
         Self {
             celestia_rpc: "http://localhost:26658".into(),
+            tendermint_rpc: "http://localhost:26657".into(),
             celestia_auth_token: None,
             evnode_rpc: "http://localhost:7331".into(),
             evreth_rpc: "http://localhost:8545".into(),
