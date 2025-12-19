@@ -32,7 +32,7 @@ use nmt_rs::NamespacedSha2Hasher;
 use prost::Message;
 use reth_primitives::TransactionSigned;
 use rsp_client_executor::{executor::EthClientExecutor, io::WitnessInput};
-use tendermint::block::Header;
+use tendermint::{Time, block::Header};
 
 /// BlockExecInput is the input for the BlockExec circuit.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -163,6 +163,42 @@ impl Display for State {
 pub struct BlockVerifier;
 
 impl BlockVerifier {
+    fn verify_tendermint(
+        &self,
+        trusted_light_block: LightBlock,
+        new_light_block: LightBlock,
+        now: Time,
+    ) -> Result<(), Box<dyn Error>> {
+        let vp = ProdVerifier::default();
+        let opt = Options {
+            trust_threshold: TrustThreshold::TWO_THIRDS,
+            trusting_period: Duration::from_secs(14 * 24 * 60 * 60),
+            clock_drift: Default::default(),
+        };
+        let verdict = vp.verify_update_header(
+            new_light_block.as_untrusted_state(),
+            trusted_light_block.as_trusted_state(),
+            &opt,
+            now,
+        );
+        match verdict {
+            Verdict::Success => {
+                println!(
+                    "Verified light client update from height {} to height {}!",
+                    trusted_light_block.signed_header.header.height.value(),
+                    new_light_block.signed_header.header.height.value()
+                );
+            }
+            Verdict::NotEnoughTrust(voting_power_tally) => {
+                panic!("Not enough trust in the trusted header, voting power tally: {voting_power_tally:?}");
+            }
+            Verdict::Invalid(err) => {
+                panic!("Could not verify updating to target_block, error: {err:?}")
+            }
+        };
+        Ok(())
+    }
+
     pub fn verify_block(input: BlockExecInput) -> Result<BlockExecOutput, Box<dyn Error>> {
         let celestia_header: Header =
             serde_cbor::from_slice(&input.header_raw).expect("failed to deserialize celestia header");
@@ -323,6 +359,7 @@ impl BlockVerifier {
     }
 
     pub fn verify_range(
+        &self,
         inputs: Vec<BlockExecInput>,
         trusted_light_block: LightBlock,
         new_light_block: LightBlock,
@@ -332,38 +369,10 @@ impl BlockVerifier {
             outputs.push(Self::verify_block(block)?);
         }
 
-        // Light Client Verification
-        let vp = ProdVerifier::default();
-        let opt = Options {
-            trust_threshold: TrustThreshold::TWO_THIRDS,
-            // 2 week trusting period.
-            trusting_period: Duration::from_secs(14 * 24 * 60 * 60),
-            clock_drift: Default::default(),
-        };
         // Add 10 seconds buffer to the block time to satisfy verification requirements
         let now = (new_light_block.time() + Duration::from_secs(10)).expect("time overflow");
-        let verdict = vp.verify_update_header(
-            new_light_block.as_untrusted_state(),
-            trusted_light_block.as_trusted_state(),
-            &opt,
-            now,
-        );
 
-        match verdict {
-            Verdict::Success => {
-                println!(
-                    "Verified light client update from height {} to height {}!",
-                    trusted_light_block.signed_header.header.height.value(),
-                    new_light_block.signed_header.header.height.value()
-                );
-            }
-            Verdict::NotEnoughTrust(voting_power_tally) => {
-                panic!("Not enough trust in the trusted header, voting power tally: {voting_power_tally:?}");
-            }
-            Verdict::Invalid(err) => {
-                panic!("Could not verify updating to target_block, error: {err:?}")
-            }
-        }
+        self.verify_tendermint(trusted_light_block.clone(), new_light_block.clone(), now)?;
 
         for window in outputs.windows(2).enumerate() {
             let (i, pair) = window;

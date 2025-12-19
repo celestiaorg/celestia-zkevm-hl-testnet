@@ -44,7 +44,9 @@ pub fn main() {
     let new_light_block: LightBlock =
         serde_cbor::from_slice(&input.new_light_block_raw).expect("failed to deserialize new light block");
 
-    let output = BlockVerifier::verify_range(input.blocks, trusted_light_block, new_light_block)
+    let block_verifier = BlockVerifier {};
+    let output = block_verifier
+        .verify_range(input.blocks, trusted_light_block, new_light_block)
         .expect("failed to verify range");
     sp1_zkvm::io::commit(&output);
 }
