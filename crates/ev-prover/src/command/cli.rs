@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-pub const VERSION: &str = "v0.1.0";
+pub const VERSION: &str = "v0.2.0";
 
 #[derive(Parser)]
 #[command(name = "ev-prover", version = VERSION, about = "EVM Prover CLI", long_about = None)]
