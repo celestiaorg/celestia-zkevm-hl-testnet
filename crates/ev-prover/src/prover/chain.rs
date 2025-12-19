@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -19,7 +20,9 @@ use rsp_client_executor::io::EthClientExecutorInput;
 use rsp_host_executor::EthHostExecutor;
 use rsp_primitives::genesis::Genesis;
 use rsp_rpc_db::RpcDb;
+use tendermint::block::signed_header::SignedHeader;
 use tendermint::block::Height;
+use tendermint::validator::Set as ValidatorSet;
 use tendermint_light_client_verifier::types::LightBlock;
 use tendermint_rpc::{Client as TendermintRpcClient, HttpClient};
 use url::Url;
@@ -233,22 +236,51 @@ impl ChainContext {
         HttpClient::new(self.config.rpc.celestia_rpc.as_str()).context("failed to create tendermint-rpc client")
     }
 
+    /// Sorts the signatures in the signed header based on the descending order of validators' power.
+    fn sort_signatures_by_validators_power_desc(
+        &self,
+        signed_header: &mut SignedHeader,
+        validators_set: &ValidatorSet,
+    ) {
+        let validator_powers: HashMap<_, _> = validators_set
+            .validators()
+            .iter()
+            .map(|v| (v.address, v.power()))
+            .collect();
+
+        signed_header.commit.signatures.sort_by(|a, b| {
+            let power_a = a
+                .validator_address()
+                .and_then(|addr| validator_powers.get(&addr))
+                .unwrap_or(&0);
+            let power_b = b
+                .validator_address()
+                .and_then(|addr| validator_powers.get(&addr))
+                .unwrap_or(&0);
+            power_b.cmp(power_a)
+        });
+    }
+
     /// Fetches a Tendermint LightBlock at the given height.
     /// This is used for light client verification in the zkVM.
     pub async fn get_light_block(&self, height: u64) -> Result<LightBlock> {
         let client = self.tendermint_rpc_client()?;
         let height = Height::try_from(height).context("invalid height")?;
 
+        // Fetch peer ID from the node status
+        let status = client.status().await.context("failed to fetch node status")?;
+        let peer_id = status.node_info.id;
+
         // Fetch commit at the given height
         let commit_response = client.commit(height).await.context("failed to fetch commit")?;
-        let signed_header = commit_response.signed_header;
+        let mut signed_header = commit_response.signed_header;
 
         // Fetch validators at the given height
         let validators_response = client
             .validators(height, tendermint_rpc::Paging::All)
             .await
             .context("failed to fetch validators")?;
-        let validators = tendermint::validator::Set::new(validators_response.validators, None);
+        let validators = ValidatorSet::new(validators_response.validators, None);
 
         // Fetch next validators (at height + 1)
         let next_height = height.increment();
@@ -256,12 +288,12 @@ impl ChainContext {
             .validators(next_height, tendermint_rpc::Paging::All)
             .await
             .context("failed to fetch next validators")?;
-        let next_validators = tendermint::validator::Set::new(next_validators_response.validators, None);
+        let next_validators = ValidatorSet::new(next_validators_response.validators, None);
 
-        // Use a placeholder provider ID
-        let provider = tendermint::node::Id::new([0u8; 20]);
+        // Sort signatures by validators power in descending order
+        self.sort_signatures_by_validators_power_desc(&mut signed_header, &validators);
 
-        Ok(LightBlock::new(signed_header, validators, next_validators, provider))
+        Ok(LightBlock::new(signed_header, validators, next_validators, peer_id))
     }
 
     fn celestia_ws_url(&self) -> Result<Url> {
