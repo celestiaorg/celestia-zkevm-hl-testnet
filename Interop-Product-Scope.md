@@ -1,344 +1,276 @@
-## What we’re building
+# Interop Launch Kit - Product Scope & Engineering Investment
 
-A “launch kit” for new chains (starting with Eden) that lets users **arrive funded** from anywhere with great UX. Users mostly take a **solver-first fast path** (solvers fulfill from inventory on the destination). Celestia provides **settlement rails** (Hyperlane routes + forwarding) and a **stable partner integration surface** (`quote → orderId → status`) that stays stable as execution providers evolve.
+## Executive Summary
 
-## Principles
+### What We're Building
 
-- **Fast by default:** solvers fulfill; underlying rails settle later.
-- **No Celestia wallet requirement:** users shouldn’t need a Cosmos wallet or a second signature.
-- **Partners integrate once:** consistent API + status model.
-- **Roam later:** chain abstraction UX starts with Privy/Para (speed), then migrates to Celestia MPC (hardening).
+A **Launch Kit** product that lets new chains offer users instant asset onboarding from any wallet, any chain. Users sign once on their source chain and arrive funded on the destination - no bridge UIs, no Celestia wallet, no multi-step flows.
 
-## Actors
+**Pilot partner:** Eden, an EVM chain launching in ~2 months.
 
-User • Eden UI • Launch Kit API • Order Server • Observer/Verifier (Polymer-first) • Solvers/LiFi • Celestia rails (Hyperlane registry + bank + forwarding)
+### Why Celestia Should Build This
 
----
+1. **Verticalize around Celestia's blockspace:** Make Celestia the one-stop shop for teams building high-volume onchain markets. Data availability + seamless asset onboarding = more verticalization.
 
-# Phase 0 — Pilot v0: Settlement primitive + optional slow path (9–14 engineering weeks)
+2. **Strategic positioning:** Every chain using Celestia DA becomes a potential Launch Kit customer. This creates stickiness beyond raw DA.
 
-## Goal
+3. **Revenue opportunity:** Fees on asset routes flowing through Celestia infrastructure.
 
-Ship the minimal Celestia-side primitive that removes “second signature on Celestia” from any Celestia-routed transfer, primarily to enable clean solver settlement rails.
+### How It Works
 
-### 0.1 Call-bound forwarding module (7–10 engineering weeks)
+```
+User wants funds on Eden
+        ↓
+Signs once on source chain (Ethereum, Solana, etc.)
+        ↓
+Solver fills the order instantly from their inventory on Eden
+        ↓
+User is funded in seconds
+        ↓
+Solver settles later via Celestia rails
+```
 
-**Enables:** a deposit address committed to `(asset, destinationDomain, recipient)` where forwarding cannot be redirected and can be safely retried.
-
-**Why needed:** without it, routing via Celestia requires a Celestia wallet signature and breaks hub routing UX.
-
-**Engineering work**
-
-- Spec commitment format + deterministic address derivation scheme
-- Implement forwarding execution (transfer-only) with strict commitment checks
-- Idempotent execution + replay protection at module level
-- Asset/domain allowlists integrated with existing Hyperlane registry
-- End-to-end integration tests across initial routes (Ethereum/Solana/Celestia → Celestia → Eden)
-- Failure modes: “hold” state and operator-assisted recovery path
-
-### 0.2 Forwarding executor service (1–2 engineering weeks)
-
-**Enables:** forwarding happens automatically when deposits arrive.
-
-**Why needed:** without it, deposits sit idle and require manual ops.
-
-**Engineering work**
-
-- Watch forwarding deposit credits (bank module balances for forwarding addresses)
-- Submit forwarding executions and retry transient failures
-- Minimal tracing output (deposit seen → forward submitted → forwarded)
-
-### 0.3 Safety + recovery (1–2 engineering weeks)
-
-**Enables:** safe pilot operations.
-
-**Why needed:** even pilots need blast-radius controls and deterministic recovery.
-
-**Engineering work**
-
-- Pause switches per asset/domain/route + simple caps
-- CLI: trace a forwarding address, show last actions, show held funds
-- Basic incident playbook (pause, drain/return funds, resume)
-
-**Eden user flow (Phase 0)**
-
-- Default: user uses solver route to arrive funded (fast).
-- Optional: slow route via underlying rails; forwarding prevents needing a Celestia wallet.
-- Solvers: use forwarding + underlying rails for settlement/rebalancing after fills.
+Users get speed from solvers. Celestia provides the settlement infrastructure that makes solver operations viable, plus a stable API so partner chains integrate once and aren't locked into any single solver or aggregator.
 
 ---
 
-# Phase 1 — v0 Productization: solver-first UX + stable partner API + status
+## Engineering Investment
 
-Phase 1 is intentionally **LI.FI-style** first: order/status is off-chain keyed by `orderId`. Optionally, terminal outcomes can be anchored on Celestia later for auditability.
+| Phase | Scope | Weeks | Calendar (3 engineers) |
+|-------|-------|-------|------------------------|
+| **Phase 0** | Settlement primitive | 9-14 | 1-1.5 months |
+| **Phase 1A** | Partner API + order tracking | 14-24 | 1.5-2.5 months |
+| **Phase 1B** | On-chain receipts *(optional)* | 6-12 | |
+| **Phase 2** | Roam: chain-abstracted accounts | 28-47 | 3-5 months |
+| **Phase 3A** | BTC deposits/withdrawals | 7-14 | 1-1.5 months |
+| **Phase 3B** | BTC hardening *(optional)* | 7-15 | |
+| **Phase 4** | MPC signing (replace Privy/Para) | 24-42 | 2.5-4.5 months |
+| **Phase 5** | Remote collateral | 58-106 | 6-12 months |
 
----
+*Engineering weeks = 1 strong full-time engineer for 1 week. Assumes AI-assisted development.*
 
-## Phase 1A (default) — Off-chain order server + canonical status API (20–33 engineering weeks)
+### Totals
 
-### 1A.1 Quotes API (5–8 engineering weeks)
+| Scope | Engineering Weeks |
+|-------|-------------------|
+| Core roadmap (required phases) | 140-247 |
+| With optional phases | 153-274 |
 
-**Enables:** Eden calls `GET /quote` and always receives a stable schema.
+### Parallelization
 
-**Why needed:** partners shouldn’t be coupled to LiFi/solver-specific fields.
+Phases can run in parallel with dedicated sub-teams:
 
-**Engineering work**
-
-- `GET /quote` proxy to LiFi (initially) or direct solver RFQ
-- Normalize fields: input/output amounts, fees, expiry, constraints, route metadata
-- Quote validation: min/max bounds, expiry enforcement, partner allowlists
-- Partner auth keys + rate limiting + logging
-
-### 1A.2 Order server + lifecycle (4–7 engineering weeks)
-
-**Enables:** `POST /orders → orderId` and simple lifecycle: `CREATED → IN_FLIGHT → ARRIVED/REFUNDED/FAILED`.
-
-**Why needed:** without it, tracking is a mess of tx hashes across chains/providers.
-
-**Engineering work**
-
-- Deterministic `orderId` generation from normalized order payload
-- `POST /orders` creates canonical record; stores refund policy + expiry
-- `GET /status/:orderId` returns state + references (dest tx hash, solver ref, timestamps)
-- Timeout/expiry transitions + refund-required vs manual-recovery-required outcomes
-- Basic admin tooling for support (search by recipient, source tx hash)
-
-### 1A.3 Completion observer/verifier (Polymer-first) (5–8 engineering weeks)
-
-**Enables:** “ARRIVED means arrived” by watching Eden completion and finalizing status.
-
-**Why needed:** solver dashboards are not a neutral source of truth.
-
-**Engineering work**
-
-- Define completion signals per destination (Eden): “user received funds”
-- Observer service subscribes to chain events / tx outcomes
-- Polymer-assisted verification (or trusted RPC fallback at first)
-- Finalize status transitions + attach references
-- Handle duplicate signals and idempotent updates (Celestia has single-slot finality)
-
-### 1A.4 Partner integration pack (4–7 engineering weeks)
-
-**Enables:** chains integrate quickly and consistently.
-
-**Why needed:** otherwise each chain integration is bespoke.
-
-**Engineering work**
-
-- Partner API documentation with example flows + test vectors
-- Standard config template (domains/assets supported, recipient formats)
-- Sandbox environment + integration checklist
-- Go-live guide and escalation path
-
-### 1A.5 Safety + recovery (orders-level) (2–3 engineering weeks)
-
-**Enables:** operational control and predictable support.
-
-**Why needed:** public product surface needs “stop intake” and “trace by orderId.”
-
-**Engineering work**
-
-- Order intake allowlists/caps by partner, asset, route
-- Kill-switch for creating new orders; allow finishing in-flight orders
-- CLI / admin endpoints: trace(orderId), show linked refs, manual overrides (restricted)
-
-**Eden user flow (Phase 1A)**
-
-1. Eden → Launch Kit: `GET /quote`
-2. Eden → Launch Kit: `POST /orders` → `orderId`
-3. User follows solver flow (LiFi / solver), signs only what’s needed on their source chain
-4. Solver fulfills on Eden from inventory (fast)
-5. Observer marks `ARRIVED`; Eden shows completion via `GET /status/:orderId`
-6. Solver later settles using underlying rails (Hyperlane routes + forwarding)
-
-**Solver expectations (Phase 1A)**
-
-- Participate in quoting (via LiFi or direct RFQ)
-- Fulfill on Eden from inventory
-- Provide destination completion reference (tx hash/event) so observer can finalize status
-    
-    Solvers do not post anything to Celestia in Phase 1A.
-    
+- **Sequential:** Phase 0 → 1A (1A depends on 0)
+- **Parallel after 1A:** Phase 2 (Roam) and Phase 3 (BTC)
+- **Sequential:** Phase 4 depends on Phase 2; Phase 5 depends on 2, 3, and 4
 
 ---
 
-## Phase 1B (optional) — Anchor terminal receipts on Celestia (+6–12 engineering weeks)
+## Security Model
 
-This adds an auditable record of terminal outcomes on Celestia. It does not change fulfillment.
+**Key question:** How does Celestia know something happened on another chain?
 
-### 1B.1 Terminal receipt registry module (4–7 engineering weeks)
+This matters for:
+1. **Asset transfers:** Validating that assets actually moved from Ethereum/Solana to Celestia
+2. **Completion verification:** Confirming that a user actually received funds on Eden
 
-**Enables:** on-chain record of `orderId → ARRIVED/REFUNDED/FAILED` with references.
+### Approach: Extend Hyperlane for State Verification
 
-**Why needed:** becomes valuable once Roam/BTC custody increases platform responsibility; partners may want a neutral on-chain record.
+Today, Hyperlane validators sign over **mailbox roots** (message queue commitments). We extend this to also sign over **state roots**, enabling verification of arbitrary on-chain state - not just messages.
 
-**Engineering work**
+| Component | Security Model | What It Does |
+|-----------|----------------|--------------|
+| Asset transfers | Hyperlane validators (mailbox roots) | Attest to cross-chain messages - existing functionality |
+| Order lifecycle | LiFi | Tracks order status; we proxy their API |
+| Completion verification | Hyperlane validators (state roots) | Attest to destination chain state - **new capability** |
 
-- Minimal module: store terminal receipt keyed by `orderId`
-- Enforce single terminal outcome (no conflicting writes)
-- Store references (dest tx hash, verifier attestation ids) + timestamps
-- Query endpoints (CLI and API) for partner verification
+**Why extend Hyperlane instead of adding Polymer?**
+- Single validator set for both messages and state - simpler trust model
+- We already depend on Hyperlane; this deepens the integration rather than adding a new party
+- State root attestation is a natural extension of what validators already do
 
-### 1B.2 Receipt poster + optional 2-of-3 attesters (2–5 engineering weeks)
+**Design principle:** Celestia integrates and normalizes - we don't attest. Hyperlane validators provide the cross-chain truth; we build on top.
 
-**Enables:** automatic posting of terminal receipts; optional multi-attester acceptance.
+### Future Upgrades (Not in Current Scope)
 
-**Why needed:** reduces reliance on a single observer service and strengthens assurances.
+| Upgrade | What It Does | Rough Scope |
+|---------|--------------|-------------|
+| Light client verification | Replace validator multisig with cryptographic proofs | +8-15 weeks/chain |
+| ZK state proofs | Succinct proofs of transactions/events | +15-25 weeks |
 
-**Engineering work**
-
-- Receipt poster service that submits Celestia txs
-- Attester signature format + threshold verification logic (optional)
-- Operational key management and rotation procedures
-
-**How Phase 1B affects later phases**
-
-- Phase 2+: optionally anchor “withdraw completed” or “custody credit completed”
-- Phase 3+: optionally anchor “BTC credited” and “BTC withdrawal completed”
-- Phase 5+: optionally anchor “credit issued” and “liquidation executed”
-
----
-
-# Phase 2 — v1 Roam: chain abstraction UX via Privy/Para (28–47 engineering weeks)
-
-## Goal
-
-A NEAR-like user experience without a Celestia wallet: email/passkey login, protocol-provided deposit addresses, withdraw anywhere, and basic safety policies.
-
-### 2.1 Identity + sessions (3–6 engineering weeks)
-
-**Enables:** email/passkey onboarding + sessions; optional wallet linking.
-
-**Why needed:** core “no wallet switching” UX.
-
-**Engineering work**
-
-- Integrate Privy/Para auth + user model
-- Session issuance/refresh and secure backend auth
-- Optional wallet linking and account recovery flows
-
-### 2.2 Embedded wallets + EVM deposit addresses (4–8 engineering weeks)
-
-**Enables:** protocol-provided per-user EVM deposit addresses.
-
-**Why needed:** chain abstraction requires protocol-provided deposit instructions.
-
-**Engineering work**
-
-- Create embedded wallets per user
-- Address registry and retrieval endpoints
-- Deposit detection for EVM addresses (provider-indexed or RPC-based)
-- Credit Roam balances + attach references for support
-
-### 2.3 Balances + internal reservations (6–10 engineering weeks)
-
-**Enables:** unified balances with “available vs reserved” semantics.
-
-**Why needed:** prevents race conditions and enables later locks/credit.
-
-**Engineering work**
-
-- Balance ledger per user/asset + state transitions
-- Reservation API tied to `orderId` (reserve/release/expire)
-- Consistency checks: cannot withdraw reserved funds
-- Audit logs and admin tooling for support
-
-### 2.4 EVM execution adapter (withdrawals) (6–10 engineering weeks)
-
-**Enables:** withdraw ETH/USDC to any EVM address.
-
-**Why needed:** Roam must support reliable outbound execution.
-
-**Engineering work**
-
-- Transaction builder for ETH + ERC20
-- Gas/fee selection and nonce management
-- Broadcast + completion tracking and reconciliation to Roam ledger
-- Withdrawal references for support and status updates (and optional Phase 1B receipts)
-
-### 2.5 Smart-account-lite policies (5–9 engineering weeks)
-
-**Enables:** safer custody: registered withdrawal addresses, delays, limits.
-
-**Why needed:** basic defenses against account takeover and mistakes before MPC hardening.
-
-**Engineering work**
-
-- Policy engine: per-user limits, allowlists, change-delay for destination addresses
-- Step-up auth for sensitive actions (new withdrawal address)
-- Risk flags and basic anomaly detection hooks
-
-### 2.6 Safety + recovery (2–4 engineering weeks)
-
-**Enables:** custody-specific kill-switches and recovery.
-
-**Why needed:** custody introduces new incident classes.
-
-**Engineering work**
-
-- Pause withdrawals per asset/chain
-- Session invalidation + emergency rotation procedures
-- Runbooks and minimal incident tooling
-
-**Eden user flow (Phase 2)**
-
-- Default: solver-first “arrive funded” (Phase 1A)
-- Additional: user logs into Roam → deposits to protocol address → withdraws to Eden
+These are additive - security can be strengthened without rebuilding the product.
 
 ---
 
-# Phase 3 — v2+: BTC rails (then DOGE/LTC)
+## Phase Details
 
-## Phase 3A — BTC MVP (7–14 engineering weeks)
+### Phase 0: Settlement Primitive (9-14 weeks)
 
-### 3A.1 BTC deposit addresses (1–2 engineering weeks)
+**Goal:** Enable Celestia-routed transfers without requiring a Celestia wallet or second signature.
 
-**Engineering work:** address generation via provider, user mapping, deposit instructions API.
+**What we're building:** A forwarding module where assets deposited to a special address can only be forwarded to a pre-committed destination. No one can redirect them. This is primarily for solvers to settle after filling user orders.
 
-### 3A.2 BTC deposits ingestion (2–4 engineering weeks)
+**Why it matters:** Today, routing through Celestia requires a Celestia wallet signature, blocking hub-routing UX.
 
-**Engineering work:** provider/indexer integration, txid:vout dedupe, credit Roam ledger with references.
+| Component | Weeks | Description |
+|-----------|-------|-------------|
+| Forwarding module | 7-10 | Address derivation, forwarding execution, safety checks, Hyperlane integration |
+| Executor service | 1-2 | Watches deposits, triggers forwarding automatically |
+| Safety + recovery | 1-2 | Pause switches, CLI tracing, incident playbook |
 
-### 3A.3 BTC withdrawals via PSBT (4–8 engineering weeks)
-
-**Engineering work:** coin selection, fee policy, PSBT signing flow, broadcast and completion tracking.
-
-## Phase 3B — BTC scale/hardening (optional +7–15 engineering weeks)
-
-- Own node + scanner (3–6)
-- Batching + UTXO consolidation (2–5)
-- Fee bump strategy (2–4)
-
-Optional: BTC-backed representation on Eden (+10–18 engineering weeks)
-
-DOGE/LTC add-ons: +6–10 engineering weeks each
+**Builds on:** Existing Hyperlane module on Celestia.
 
 ---
 
-# Phase 4 — Hardening: migrate signing to Celestia-run MPC (24–42 engineering weeks)
+### Phase 1A: Partner API + Order Tracking (14-24 weeks)
 
-- MPC signer network MVP (18–30 engineering weeks): threshold signing nodes, policy gating, ops procedures
-- Address migration (6–12 engineering weeks): cutover plan, fund migration, user messaging, fallbacks
+**Goal:** Give partner chains a stable integration surface: `GET /quote` → `POST /orders` → `GET /status`. Partners integrate once and don't need to understand solver internals.
+
+**What we're building:** A thin integration layer that proxies LiFi for order tracking and uses Hyperlane state root attestations for completion verification. Celestia provides API stability - not attestation.
+
+| Component | Weeks | Description |
+|-----------|-------|-------------|
+| Quotes API | 4-6 | Proxy to LiFi, normalize schema, rate limiting |
+| Order proxy | 2-4 | Map to LiFi orders, stable `orderId`, caching |
+| Completion verification | 3-5 | Verify Hyperlane state root attestations for "funds arrived" |
+| Partner integration pack | 4-7 | Docs, config templates, sandbox, go-live checklist |
+| Safety + recovery | 1-2 | Rate limits, circuit breakers, admin tooling |
+
+**Trust model:** LiFi owns order lifecycle. Hyperlane validators attest to completion (via state roots). We normalize and present a stable API.
+
+**Eden flow:**
+1. Eden calls `GET /quote` → receives normalized quote
+2. Eden calls `POST /orders` → receives `orderId`
+3. User signs on source chain; solver fills on Eden
+4. Hyperlane state root attestation confirms arrival → status = `ARRIVED`
+5. Eden polls `GET /status/:orderId` → shows completion
 
 ---
 
-# Phase 5 — Remote collateral + cross-chain state access (58–106 engineering weeks)
+### Phase 1B: On-Chain Receipts *(optional, 6-12 weeks)*
 
-- State access SDK (10–18)
-- Two venue adapters (14–26)
-- Credit/risk rules (10–18)
-- Locks/reservations + settlement flow (8–14)
-- Liquidation/unwind executors (12–22)
-- Safety controls (4–8)
+**Goal:** Anchor terminal outcomes (ARRIVED/REFUNDED/FAILED) on Celestia for auditability.
+
+**Why optional:** Doesn't change UX. Becomes valuable when Roam custody increases platform responsibility.
+
+| Component | Weeks | Description |
+|-----------|-------|-------------|
+| Receipt registry | 4-7 | On-chain module: `orderId → outcome`, single-write enforcement |
+| Receipt poster | 2-5 | Posts receipts, optional multi-attester verification |
 
 ---
 
-## Summary (engineering weeks)
+### Phase 2: Roam - Chain-Abstracted Accounts (28-47 weeks)
 
-- Phase 0: **9–14 engineering weeks**
-- Phase 1A: **20–33 engineering weeks**
-- Phase 1B (optional): **+6–12 engineering weeks**
-- Phase 2: **28–47 engineering weeks**
-- Phase 3A BTC MVP: **7–14 engineering weeks**
-- Phase 4 MPC hardening: **24–42 engineering weeks**
-- Phase 5 remote collateral: **58–106 engineering weeks**
+**What is Roam?** Celestia's chain-abstracted account product. Users hold balances and transact across chains without switching wallets or managing multiple addresses.
+
+**Goal:** NEAR-like UX: email/passkey login, protocol-provided deposit addresses, withdraw to any chain.
+
+**What we're building:** A unified account system. Users can log in with email/passkey to get an embedded wallet, or link their existing wallet. Either way, they get deposit addresses, maintain balances, and withdraw anywhere.
+
+| Component | Weeks | Description |
+|-----------|-------|-------------|
+| Identity + sessions | 3-6 | Privy/Para auth, sessions, recovery, wallet linking |
+| Wallets + deposits | 4-8 | Embedded or linked wallets, deposit detection, balance crediting |
+| Balances + reservations | 6-10 | Ledger with available/reserved semantics |
+| Withdrawal execution | 6-10 | Tx building, gas management, broadcast, tracking |
+| Policies | 5-9 | Withdrawal limits, allowlists, step-up auth |
+| Safety + recovery | 2-4 | Withdrawal pauses, session invalidation, runbooks |
+
+**User flows:**
+- **Email/passkey:** Log in → get embedded wallet → deposit → withdraw
+- **Bring your own wallet:** Link wallet → deposit → withdraw
+- **Solver-first:** Use Phase 1A flow for instant "arrive funded"
+
+---
+
+### Phase 3A: BTC Rails (7-14 weeks)
+
+**Goal:** Add Bitcoin deposits and withdrawals to Roam.
+
+**Why it matters:** BTC is the most requested asset for new chains. ETH/SOL come via Hyperlane; BTC needs dedicated infrastructure.
+
+| Component | Weeks | Description |
+|-----------|-------|-------------|
+| BTC deposit addresses | 1-2 | Provider-managed address generation, user mapping |
+| BTC deposits | 2-4 | Indexer integration, deduplication, ledger crediting |
+| BTC withdrawals | 4-8 | Coin selection, fee policy, PSBT signing, broadcast |
+
+---
+
+### Phase 3B: BTC Hardening *(optional, 7-15 weeks)*
+
+**Goal:** Reduce reliance on third-party providers.
+
+| Component | Weeks | Description |
+|-----------|-------|-------------|
+| Own node + scanner | 3-6 | Self-hosted Bitcoin infrastructure |
+| Batching | 2-5 | UTXO consolidation, reduced fees |
+| Fee bumping | 2-4 | RBF/CPFP for stuck transactions |
+
+**Future add-ons (not in scope):** BTC-backed token on Eden (+10-18 weeks), DOGE/LTC rails (+6-10 weeks each).
+
+---
+
+### Phase 4: MPC Signing (24-42 weeks)
+
+**Goal:** Replace Privy/Para with Celestia-operated threshold signing for Roam wallets.
+
+**Why it matters:** Phase 2 uses Privy/Para for signing - a third-party dependency. MPC brings signing in-house with threshold security.
+
+| Component | Weeks | Description |
+|-----------|-------|-------------|
+| MPC signer network | 18-30 | Threshold nodes, key generation, policy gating, ops procedures |
+| Address migration | 6-12 | Migration plan, fund movement, user comms, fallbacks |
+
+---
+
+### Phase 5: Remote Collateral (58-106 weeks)
+
+**Goal:** Let users use assets on one chain as collateral for actions on another, without bridging.
+
+**Example:** User has ETH on Ethereum, uses it as margin on an Eden perps venue.
+
+| Component | Weeks | Description |
+|-----------|-------|-------------|
+| State access SDK | 10-18 | Read remote chain balances/positions via Hyperlane state roots |
+| Venue adapters | 14-26 | Integration with 2 trading venues |
+| Credit/risk rules | 10-18 | Collateralization ratios, margin requirements |
+| Locks + settlement | 8-14 | Reserve collateral, settle on liquidation |
+| Liquidation executors | 12-22 | Handle undercollateralized positions |
+| Safety controls | 4-8 | Circuit breakers, position limits |
+
+---
+
+## Milestones
+
+| Milestone | Phases | Cumulative Weeks | What Users Can Do |
+|-----------|--------|------------------|-------------------|
+| **Eden Pilot** | 0 + 1A | 23-38 | Arrive funded on Eden via solver; track order status |
+| **Roam Launch** | + 2 | 51-85 | Log in with email; deposit/withdraw anywhere |
+| **BTC Support** | + 3A | 58-99 | Deposit/withdraw BTC |
+| **Full Hardening** | + 4 | 82-141 | Celestia-operated signing (no Privy/Para) |
+| **Remote Collateral** | + 5 | 140-247 | Use assets as cross-chain margin |
+
+---
+
+## Dependencies & Assumptions
+
+**Existing infrastructure (not counted):**
+- Hyperlane module on Celestia with asset/domain registry and warp routes
+
+**Third-party providers:**
+| Provider | Role | Phases |
+|----------|------|--------|
+| LiFi | Order lifecycle, solver aggregation | 1A+ |
+| Hyperlane | Asset transfers (mailbox roots) + completion verification (state roots) | 0+ |
+| Privy/Para | Embedded wallet custody | 2-3 (replaced in 4) |
+
+**Hyperlane extension required:**
+- Current Hyperlane validators sign over mailbox roots (message queues)
+- We need them to also sign over state roots for completion verification and remote state access
+- This is a capability extension, not a new trust assumption - same validator set, expanded attestation scope
+
+**Other assumptions:**
+- **Eden:** Confirmed pilot partner, launching in ~2 months
+- **Team:** Current team is 3 engineers; scope informs hiring decisions
