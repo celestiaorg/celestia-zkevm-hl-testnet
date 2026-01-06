@@ -70,10 +70,9 @@ services:
       - "7331:7331"
     volumes:
       - ./testnet/ev-node/entrypoint.sh:/scripts/entrypoint.sh:ro
-      - ./testnet/ev-node/config/signer.json:/config/signer.json:ro
       - ./testnet/ev-node/config/passphrase.txt:/config/passphrase.txt:ro
       - ./testnet/ev-node/config/jwt.hex:/config/jwt.hex:ro
-      - evm-single-data:/data
+      - evm-single-data:/root/.evm-single
     environment:
       - EVM_ENGINE_URL=http://reth:8551
       - EVM_ETH_URL=http://reth:8545

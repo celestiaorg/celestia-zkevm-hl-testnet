@@ -6,7 +6,8 @@ cd /usr/bin
 sleep 5
 
 # Create default evnode config if missing
-# TODO: The --evnode.signer.path flag is not respected: https://github.com/evstack/ev-node/issues/2603
+# NOTE: init generates a new signer keypair. To keep the same sequencer pubkey,
+# don't remove the evm-single-data volume between runs (use 'docker compose down' not 'make stop')
 if [ ! -f "$HOME/.evm-single/config/signer.json" ]; then
   ./evm-single init --evnode.node.aggregator=true --evnode.signer.passphrase_file "/config/passphrase.txt"
 fi
