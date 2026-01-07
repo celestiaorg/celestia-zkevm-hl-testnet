@@ -14,14 +14,11 @@ if [ ! -f "$HOME/.evm-single/config/genesis.json" ]; then
   # Replace the randomly generated signer.json with the deterministic one
   cp /config/signer.json "$HOME/.evm-single/config/signer.json"
 
-  # Update genesis.json with the correct proposer address
-  # The deterministic signer's public key (hex): 3964a68700cf76e215626e076e76d23bd1f4c3b31184b5822fd7b4df15d5ce9a
-  # SHA256 hash of pubkey (full 32 bytes): acef3b0d46e3c7ed6d37c8d5ae926203a9d514634da115dd3417763de0523189
-  # In base64 (Go JSON []byte encoding): rO87DUbjx+1tN8jVrpJiA6nVFGNNoRXdNBd2PeBSMYk=
-  CORRECT_PROPOSER="rO87DUbjx+1tN8jVrpJiA6nVFGNNoRXdNBd2PeBSMYk="
+  # Update genesis.json with the proposer address
+  PROPOSER="rO87DUbjx+1tN8jVrpJiA6nVFGNNoRXdNBd2PeBSMYk="
 
   # Update the genesis.json file
-  sed -i "s/\"proposer_address\": *\"[^\"]*\"/\"proposer_address\": \"$CORRECT_PROPOSER\"/" "$HOME/.evm-single/config/genesis.json"
+  sed -i "s/\"proposer_address\": *\"[^\"]*\"/\"proposer_address\": \"$PROPOSER\"/" "$HOME/.evm-single/config/genesis.json"
 fi
 
 # Conditionally add --evnode.da.address if DA_ADDRESS is set
