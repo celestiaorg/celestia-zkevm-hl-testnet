@@ -36,7 +36,7 @@ start:
 	@docker compose up --detach
 .PHONY: start
 
-## stop: Stop all Docker containers and remove volumes.
+## stop: Stop all Docker containers (preserves volumes/data).
 stop:
 	@echo "--> Stopping all Docker containers"
 	@docker compose down -v
