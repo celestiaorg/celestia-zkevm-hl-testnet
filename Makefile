@@ -39,14 +39,8 @@ start:
 ## stop: Stop all Docker containers (preserves volumes/data).
 stop:
 	@echo "--> Stopping all Docker containers"
-	@docker compose down
-.PHONY: stop
-
-## clean: Stop all Docker containers and remove volumes (full reset).
-clean:
-	@echo "--> Stopping all Docker containers and removing volumes"
 	@docker compose down -v
-.PHONY: clean
+.PHONY: stop
 
 ## transfer: Transfer tokens from celestia-app to the EVM roll-up.
 transfer:
