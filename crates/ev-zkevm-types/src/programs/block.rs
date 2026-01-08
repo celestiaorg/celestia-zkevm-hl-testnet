@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use alloy_primitives::FixedBytes;
+use alloy_primitives::{Address, FixedBytes};
 use celestia_types::{
     DataAvailabilityHeader,
     nmt::{Namespace, NamespaceProof},
@@ -11,7 +11,7 @@ use celestia_types::{
 use hex::encode;
 use rsp_client_executor::io::EthClientExecutorInput;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::Arc;
 use tendermint_light_client_verifier::{
@@ -20,7 +20,7 @@ use tendermint_light_client_verifier::{
     types::{LightBlock, TrustThreshold},
 };
 
-use alloy_consensus::{BlockHeader, proofs};
+use alloy_consensus::{BlockHeader, Transaction, proofs, transaction::SignerRecoverable};
 use alloy_primitives::B256;
 use alloy_rlp::Decodable;
 use bytes::Bytes;
@@ -324,7 +324,12 @@ impl BlockVerifier {
                 txs.push(tx);
             }
 
-            let root = proofs::calculate_transaction_root(&txs);
+            // Filter out duplicate nonces to match RETH's execution behavior.
+            // Celestia blobs may contain retry transactions with duplicate nonces,
+            // but RETH only executes the first occurrence of each (sender, nonce) pair.
+            let filtered_txs = filter_duplicate_nonces(&txs);
+
+            let root = proofs::calculate_transaction_root(&filtered_txs);
             assert_eq!(
                 root, header.transactions_root,
                 "Calculated root must be equal to header transactions root"
@@ -504,9 +509,118 @@ fn get_height(data: &Data) -> Option<u64> {
     data.metadata.as_ref().map(|m| m.height)
 }
 
+/// Filters transactions to keep only the first occurrence of each (sender, nonce) pair.
+///
+/// This function mimics RETH's execution behavior where duplicate transactions with the same
+/// nonce from the same sender are rejected. When RETH executes transactions:
+/// 1. The first transaction with a given (sender, nonce) executes successfully
+/// 2. The sender's nonce is incremented in state
+/// 3. Subsequent transactions with the same nonce are rejected with NonceTooLow
+///
+/// By filtering to keep only the first occurrence, we ensure the computed transaction root
+/// matches the one produced by RETH, which only includes successfully executed transactions.
+///
+/// # Arguments
+/// * `txs` - The list of transactions from Celestia blobs (may contain duplicates)
+///
+/// # Returns
+/// A filtered list containing only the first occurrence of each (sender, nonce) pair
+fn filter_duplicate_nonces(txs: &[TransactionSigned]) -> Vec<TransactionSigned> {
+    let mut seen = HashMap::<(Address, u64), ()>::new();
+    let mut filtered = Vec::new();
+
+    for tx in txs {
+        // Recover the signer address
+        let signer = match tx.recover_signer() {
+            Ok(addr) => addr,
+            Err(_) => {
+                // If we can't recover the signer, skip this transaction
+                // (it would fail in RETH execution anyway due to invalid signature)
+                continue;
+            }
+        };
+
+        let nonce = tx.nonce();
+        let key = (signer, nonce);
+
+        // Only include the first occurrence of each (sender, nonce) pair
+        // insert() returns None if the key wasn't present, Some(old_value) if it was
+        if seen.insert(key, ()).is_none() {
+            filtered.push(tx.clone());
+        }
+    }
+
+    filtered
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Test documentation for filter_duplicate_nonces behavior
+    ///
+    /// The filter_duplicate_nonces function ensures that transaction roots computed from
+    /// Celestia blob data match those computed by RETH during execution. This is critical
+    /// because:
+    ///
+    /// 1. **Duplicate Nonce Scenario**: When retry transactions with the same nonce are
+    ///    published to Celestia, the blob will contain multiple transactions with identical
+    ///    (sender, nonce) pairs.
+    ///
+    /// 2. **RETH Execution Behavior**: When RETH executes these transactions:
+    ///    - The FIRST transaction with a given (sender, nonce) executes successfully
+    ///    - The sender's nonce is incremented in state
+    ///    - Subsequent transactions with the same nonce are rejected with NonceTooLow
+    ///    - Only successfully executed transactions are included in the transaction root
+    ///
+    /// 3. **Circuit Verification**: The circuit must filter transactions from blob data to
+    ///    match RETH's execution, keeping only the first occurrence of each (sender, nonce)
+    ///    pair, ensuring the computed transaction root matches header.transactions_root.
+    ///
+    /// ## Expected Behavior:
+    ///
+    /// ### Scenario 1: Duplicate nonces from same sender
+    /// Input: [tx(sender=A, nonce=5), tx(sender=A, nonce=5), tx(sender=A, nonce=5)]
+    /// Output: [tx(sender=A, nonce=5)]  // Only first kept
+    ///
+    /// ### Scenario 2: Different nonces from same sender
+    /// Input: [tx(sender=A, nonce=0), tx(sender=A, nonce=1), tx(sender=A, nonce=2)]
+    /// Output: [tx(sender=A, nonce=0), tx(sender=A, nonce=1), tx(sender=A, nonce=2)]  // All kept
+    ///
+    /// ### Scenario 3: Same nonce from different senders
+    /// Input: [tx(sender=A, nonce=0), tx(sender=B, nonce=0), tx(sender=C, nonce=0)]
+    /// Output: [tx(sender=A, nonce=0), tx(sender=B, nonce=0), tx(sender=C, nonce=0)]  // All kept
+    ///
+    /// ### Scenario 4: Mixed scenario
+    /// Input: [
+    ///     tx(sender=A, nonce=0),  // Keep
+    ///     tx(sender=A, nonce=1),  // Keep
+    ///     tx(sender=A, nonce=1),  // Filter (duplicate)
+    ///     tx(sender=B, nonce=0),  // Keep
+    ///     tx(sender=B, nonce=0),  // Filter (duplicate)
+    ///     tx(sender=A, nonce=2),  // Keep
+    /// ]
+    /// Output: [
+    ///     tx(sender=A, nonce=0),
+    ///     tx(sender=A, nonce=1),
+    ///     tx(sender=B, nonce=0),
+    ///     tx(sender=A, nonce=2),
+    /// ]
+    ///
+    /// ### Scenario 5: Invalid signatures
+    /// Transactions with invalid signatures that cannot be recovered are filtered out,
+    /// as they would fail in RETH execution anyway.
+    ///
+    /// ### Scenario 6: FCFS ordering
+    /// The function preserves First-Come-First-Served ordering - the FIRST occurrence
+    /// of each (sender, nonce) pair is kept, matching the order transactions appear in
+    /// the blob data.
+    #[test]
+    fn test_filter_duplicate_nonces_empty_list() {
+        let txs: Vec<TransactionSigned> = vec![];
+        let filtered = filter_duplicate_nonces(&txs);
+        assert_eq!(filtered.len(), 0, "Empty list should return empty list");
+    }
 
     #[test]
     fn test_block_range_exec_output_serialization_roundtrip() {
