@@ -129,7 +129,15 @@ pub async fn create_ism() -> Result<()> {
 fn setup_state_vkeys() -> (Vec<u8>, Vec<u8>) {
     info!("Setting up ELF for state proofs");
     let prover = ProverClient::builder().cpu().build();
-    let (_, state_transition_vkey) = prover.setup(BATCH_ELF);
+
+    #[cfg(feature = "tee_mode")]
+    let state_transition_elf =
+        { std::fs::read("elfs/tee-attestation-elf").expect("Failed to read tee-attestation-elf") };
+
+    #[cfg(not(feature = "tee_mode"))]
+    let state_transition_elf = BATCH_ELF;
+
+    let (_, state_transition_vkey) = prover.setup(&state_transition_elf);
 
     info!("Setting up ELF for membership proofs");
     let (_, state_membership_vkey) = prover.setup(EV_HYPERLANE_ELF);
