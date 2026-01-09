@@ -14,8 +14,8 @@ use celestia_rpc::HeaderClient;
 use ev_zkevm_types::programs::block::{BlockRangeExecOutput, State};
 use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use storage::hyperlane::message::HyperlaneMessageStore;
-use tee_attestation_types::Inputs as TeeAttestationInput;
-use tee_light_client_lib::AttestationResponse;
+use tee_attestation_types::{AttestationResponse, Inputs as TeeAttestationInput};
+
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
