@@ -229,7 +229,7 @@ impl Default for EvmHyperlaneConfig {
     fn default() -> Self {
         Self {
             mailbox_address: "0xb1c938f5ba4b3593377f399e12175e8db0c787ff".into(),
-            merkle_tree_address: "0xfcb1d485ef46344029d9e8a7925925e146b3430e".into(),
+            merkle_tree_address: "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5".into(),
         }
     }
 }
