@@ -6,7 +6,6 @@ cd /usr/bin
 sleep 5
 
 # Create default evnode config if missing
-# TODO: The --evnode.signer.path flag is not respected: https://github.com/evstack/ev-node/issues/2603
 if [ ! -f "$HOME/.evm-single/config/genesis.json" ]; then
   # Run init to create directory structure and initial config
   ./evm-single init --evnode.node.aggregator=true --evnode.signer.passphrase_file "/config/passphrase.txt"
