@@ -40,6 +40,8 @@ use crate::prover::{
 use storage::proofs::ProofStorage;
 #[cfg(feature = "batch_mode")]
 use {crate::prover::programs::batch::BatchExecProver, std::time::Duration};
+#[cfg(feature = "tee_mode")]
+use {crate::prover::programs::tee::TeeExecProver, std::time::Duration};
 
 struct Server {
     pub message_prover: Arc<HyperlaneMessageProver>,
@@ -49,6 +51,8 @@ struct Server {
     pub block_range_prover: Arc<BlockRangeExecProver>,
     #[cfg(feature = "batch_mode")]
     pub batch_prover: Arc<BatchExecProver>,
+    #[cfg(feature = "tee_mode")]
+    pub tee_prover: Arc<TeeExecProver>,
 }
 
 impl Server {
@@ -57,6 +61,7 @@ impl Server {
         #[cfg(not(feature = "batch_mode"))] block_prover: Arc<BlockExecProver>,
         #[cfg(not(feature = "batch_mode"))] block_range_prover: Arc<BlockRangeExecProver>,
         #[cfg(feature = "batch_mode")] batch_prover: Arc<BatchExecProver>,
+        #[cfg(feature = "tee_mode")] tee_prover: Arc<TeeExecProver>,
     ) -> Self {
         Self {
             message_prover,
@@ -66,6 +71,8 @@ impl Server {
             block_range_prover,
             #[cfg(feature = "batch_mode")]
             batch_prover: batch_prover,
+            #[cfg(feature = "tee_mode")]
+            tee_prover: tee_prover,
         }
     }
     pub async fn start_message_prover(
@@ -132,6 +139,15 @@ impl Server {
         Ok(tokio::spawn(async move {
             if let Err(e) = batch_prover.run(message_sync).await {
                 error!("Batch prover task failed: {e:?}");
+            }
+        }))
+    }
+    #[cfg(feature = "tee_mode")]
+    pub async fn start_tee_prover(&self, message_sync: Arc<MessageProofSync>) -> Result<JoinHandle<()>> {
+        let tee_prover = Arc::clone(&self.tee_prover);
+        Ok(tokio::spawn(async move {
+            if let Err(e) = tee_prover.run(message_sync).await {
+                error!("TEE prover task failed: {e:?}");
             }
         }))
     }
@@ -313,6 +329,64 @@ pub async fn start_server(config: Config) -> Result<()> {
                     r = &mut message_handle => {
                         error!("Message prover stopped: {:?}", r);
                         batch_handle.abort();
+                    }
+                }
+                tokio::time::sleep(Duration::from_secs(600)).await;
+            }
+        })
+    });
+
+    #[cfg(feature = "tee_mode")]
+    let wrapper_task = Some({
+        let proof_store_clone: Arc<dyn ProofStorage> = proof_store.clone();
+        let message_sync = MessageProofSync::shared();
+
+        tokio::spawn(async move {
+            loop {
+                let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
+                let tee_prover = match TeeExecProver::new(ctx.clone(), tx_range, hyperlane_message_store.clone()) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create TEE prover: {e:?}");
+                        continue;
+                    }
+                };
+                let message_prover = match prepare_message_prover(
+                    ctx.clone(),
+                    hyperlane_message_store.clone(),
+                    proof_store_clone.clone(),
+                ) {
+                    Ok(prover) => prover,
+                    Err(e) => {
+                        error!("Failed to create message prover: {e:?}");
+                        continue;
+                    }
+                };
+                let server = Arc::new(Server::new(Arc::new(message_prover), Arc::new(tee_prover)));
+
+                let mut tee_handle = match server.start_tee_prover(Arc::clone(&message_sync)).await {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        error!("Failed to start TEE prover: {e:?}");
+                        continue;
+                    }
+                };
+                let mut message_handle = match server.start_message_prover(rx_range, Arc::clone(&message_sync)).await {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        error!("Failed to start message prover: {e:?}");
+                        continue;
+                    }
+                };
+
+                tokio::select! {
+                    r = &mut tee_handle => {
+                        error!("TEE prover stopped: {:?}", r);
+                        message_handle.abort();
+                    }
+                    r = &mut message_handle => {
+                        error!("Message prover stopped: {:?}", r);
+                        tee_handle.abort();
                     }
                 }
                 tokio::time::sleep(Duration::from_secs(600)).await;

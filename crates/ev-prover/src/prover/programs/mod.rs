@@ -2,3 +2,4 @@ pub mod batch;
 pub mod block;
 pub mod message;
 pub mod range;
+pub mod tee;

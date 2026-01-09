@@ -45,11 +45,14 @@ serde_json = { workspace = true }
 serde_yaml = "0.9"
 sha3 = { workspace = true }
 sp1-prover = { workspace = true }
+dcap-qvl = { workspace = true }
 sp1-sdk = { workspace = true }
 storage = { workspace = true }
 tendermint = { workspace = true }
 tendermint-light-client-verifier = { workspace = true }
 tendermint-proto = { workspace = true }
+tee-light-client-lib = { workspace = true }
+tee-attestation-types = { workspace = true }
 tendermint-rpc = { workspace = true }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
