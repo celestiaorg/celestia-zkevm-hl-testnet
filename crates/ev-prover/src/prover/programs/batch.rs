@@ -21,16 +21,13 @@ use ev_types::v1::SignedData;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput, State};
 use prost::Message;
 use rsp_client_executor::io::EthClientExecutorInput;
-use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use storage::hyperlane::message::HyperlaneMessageStore;
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
-
-/// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const BATCH_ELF: &[u8] = include_elf!("ev-batch-program");
 
 /// ProverStatus of the latest Celestia state relevant to the prover loop.
 ///
@@ -147,7 +144,8 @@ impl BatchExecProver {
 
     /// Returns the prover config.
     pub fn default_config(prover: &SP1Prover) -> BatchProverConfig {
-        let (pk, vk) = prover.setup(BATCH_ELF);
+        let batch_elf = std::fs::read("elfs/ev-batch-elf").expect("Failed to read ev-batch-elf");
+        let (pk, vk) = prover.setup(&batch_elf);
         BatchProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 

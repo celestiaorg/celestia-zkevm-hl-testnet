@@ -17,16 +17,13 @@ use ev_zkevm_types::programs::hyperlane::types::{
     HyperlaneBranchProof, HyperlaneBranchProofInputs, HyperlaneMessageInputs, HyperlaneMessageOutputs,
     HYPERLANE_MERKLE_TREE_KEYS,
 };
-use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
-use std::{env, sync::Arc};
+use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use std::sync::Arc;
 use storage::hyperlane::StoredHyperlaneMessage;
 use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore};
 use storage::proofs::ProofStorage;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info};
-
-/// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const EV_HYPERLANE_ELF: &[u8] = include_elf!("ev-hyperlane-program");
 
 #[derive(Clone)]
 pub struct MessageProverConfig {
@@ -134,7 +131,8 @@ impl HyperlaneMessageProver {
 
     /// Returns the default prover configuration for the block execution program.
     pub fn default_config(prover: &SP1Prover) -> MessageProverConfig {
-        let (pk, vk) = prover.setup(EV_HYPERLANE_ELF);
+        let ev_hyperlane_elf = std::fs::read("elfs/ev-hyperlane-elf").expect("Failed to read ev-hyperlane-elf");
+        let (pk, vk) = prover.setup(&ev_hyperlane_elf);
         MessageProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
