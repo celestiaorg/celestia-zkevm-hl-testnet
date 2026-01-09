@@ -72,6 +72,25 @@ func parseHooksIDFromEvents(events []abci.Event) util.HexAddress {
 	return hookID
 }
 
+func parseMerkleTreeHookIDFromEvents(events []abci.Event) util.HexAddress {
+	var merkleTreeHookID util.HexAddress
+	for _, evt := range events {
+		if evt.GetType() == proto.MessageName(&hooktypes.EventCreateMerkleTreeHook{}) {
+			event, err := sdk.ParseTypedEvent(evt)
+			if err != nil {
+				log.Fatalf("failed to parse typed event: %v", err)
+			}
+
+			if hookEvent, ok := event.(*hooktypes.EventCreateMerkleTreeHook); ok {
+				log.Printf("successfully created NoopHook: %s\n", hookEvent)
+				merkleTreeHookID = hookEvent.MerkleTreeHookId
+			}
+		}
+	}
+
+	return merkleTreeHookID
+}
+
 func parseMailboxIDFromEvents(events []abci.Event) util.HexAddress {
 	var mailboxID util.HexAddress
 	for _, evt := range events {

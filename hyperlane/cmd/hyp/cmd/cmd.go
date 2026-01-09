@@ -19,10 +19,11 @@ import (
 )
 
 type HyperlaneConfig struct {
-	IsmID     util.HexAddress `json:"ism_id"`
-	MailboxID util.HexAddress `json:"mailbox_id"`
-	HooksID   util.HexAddress `json:"hooks_id"`
-	TokenID   util.HexAddress `json:"collateral_token_id"`
+	IsmID          util.HexAddress `json:"ism_id"`
+	MailboxID      util.HexAddress `json:"mailbox_id"`
+	DefaultHookID  util.HexAddress `json:"default_hook_id"`
+	RequiredHookID util.HexAddress `json:"required_hook_id"`
+	TokenID        util.HexAddress `json:"collateral_token_id"`
 }
 
 func NewRootCmd() *cobra.Command {

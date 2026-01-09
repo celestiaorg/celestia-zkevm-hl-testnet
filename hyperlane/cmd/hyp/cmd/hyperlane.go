@@ -96,6 +96,25 @@ func SetupWithIsm(ctx context.Context, broadcaster *Broadcaster, ismID util.HexA
 	res = broadcaster.BroadcastTx(ctx, &msgCreateMailBox)
 	mailboxID := parseMailboxIDFromEvents(res.Events)
 
+	msgCreateMerkleTreeHook := hooktypes.MsgCreateMerkleTreeHook{
+		MailboxId: mailboxID,
+		Owner:     broadcaster.address.String(),
+	}
+
+	res = broadcaster.BroadcastTx(ctx, &msgCreateMerkleTreeHook)
+	merkleTreeHookID := parseMerkleTreeHookIDFromEvents(res.Events)
+
+	msgSetMailbox := coretypes.MsgSetMailbox{
+		Owner:             broadcaster.address.String(),
+		MailboxId:         mailboxID,
+		DefaultIsm:        &ismID,
+		DefaultHook:       &hooksID,
+		RequiredHook:      &merkleTreeHookID,
+		RenounceOwnership: false,
+	}
+
+	res = broadcaster.BroadcastTx(ctx, &msgSetMailbox)
+
 	msgCreateCollateralToken := warptypes.MsgCreateCollateralToken{
 		Owner:         broadcaster.address.String(),
 		OriginMailbox: mailboxID,
@@ -116,10 +135,11 @@ func SetupWithIsm(ctx context.Context, broadcaster *Broadcaster, ismID util.HexA
 	broadcaster.BroadcastTx(ctx, &msgSetToken)
 
 	cfg := &HyperlaneConfig{
-		IsmID:     ismID,
-		HooksID:   hooksID,
-		MailboxID: mailboxID,
-		TokenID:   tokenID,
+		IsmID:          ismID,
+		DefaultHookID:  hooksID,
+		RequiredHookID: merkleTreeHookID,
+		MailboxID:      mailboxID,
+		TokenID:        tokenID,
 	}
 
 	writeConfig(cfg)
@@ -149,10 +169,11 @@ func OverwriteIsm(ctx context.Context, broadcaster *Broadcaster, ismID util.HexA
 	broadcaster.BroadcastTx(ctx, &msgSetMailbox, &msgSetToken)
 
 	cfg := &HyperlaneConfig{
-		IsmID:     ismID,
-		HooksID:   *mailbox.RequiredHook,
-		MailboxID: mailbox.Id,
-		TokenID:   tokenID,
+		IsmID:          ismID,
+		DefaultHookID:  *mailbox.DefaultHook,
+		RequiredHookID: *mailbox.RequiredHook,
+		MailboxID:      mailbox.Id,
+		TokenID:        tokenID,
 	}
 
 	writeConfig(cfg)

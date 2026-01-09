@@ -32,14 +32,14 @@
             "interchainGasPaymaster": "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5",
             "interchainSecurityModule": "0xa05915fD6E32A1AA7E67d800164CaCB12487142d",
             "mailbox": "0xb1c938F5BA4B3593377F399e12175e8db0C787Ff",
-            "merkleTreeHook": "0xFCb1d485ef46344029D9E8A7925925e146B3430E",
-            "protocolFee": "0x8A93d247134d91e0de6f96547cB0204e5BE8e5D8",
+            "merkleTreeHook": "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5",
+            "protocolFee": "0xFCb1d485ef46344029D9E8A7925925e146B3430E",
             "proxyAdmin": "0x7e7aD18Adc99b94d4c728fDf13D4dE97B926A0D8",
             "storageGasOracle": "0x457cCf29090fe5A24c19c1bc95F492168C0EaFdb",
-            "testRecipient": "0xd7958B336f0019081Ad2279B2B7B7c3f744Bce0a",
-            "validatorAnnounce": "0x79ec7bF05AF122D3782934d4Fb94eE32f0C01c97"
+            "testRecipient": "0x6253964a75a5ae755a05C8460E690AF5914f93b2",
+            "validatorAnnounce": "0x67cff9B0F9F25c00C71bd8300c3f38553088e234"
         },
-        "celestia": {
+        "celestiadev": {
             "bech32Prefix": "celestia",
             "blocks": {
                 "confirmations": 1,
@@ -57,14 +57,14 @@
             "domainId": 69420,
             "gasPrice": {
                 "denom": "utia",
-                "amount": "0.002"
+                "amount": "0.1"
             },
             "index": {
                 "from": 1150,
                 "chunk": 10
             },
             "isTestnet": true,
-            "name": "celestia",
+            "name": "celestiadev",
             "nativeToken": {
                 "decimals": 6,
                 "denom": "utia",
@@ -89,6 +89,9 @@
             },
             "slip44": 118,
             "technicalStack": "other",
+            "transactionOverrides": {
+                "gasPrice": "0.0"
+            },
             "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000000000000000000000",
             "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
             "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000000000000000000000",
@@ -102,5 +105,5 @@
         }
     },
     "defaultRpcConsensusType": "fallback",
-    "relayChains": "rethlocal,celestia"
+    "relayChains": "rethlocal,celestiadev"
 }
