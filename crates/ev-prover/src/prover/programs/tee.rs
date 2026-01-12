@@ -308,7 +308,11 @@ impl TeeExecProver {
 
             let input = TeeAttestationInput {
                 quote,
-                event_log: hex::decode(attestation.event_log.ok_or_else(|| anyhow!("Missing event log"))?)?,
+                event_log: attestation
+                    .event_log
+                    .ok_or_else(|| anyhow!("Missing event log"))?
+                    .as_bytes()
+                    .to_vec(),
                 report_data: Vec::new(), // not used in circuit, extracted from quote
                 output: hex::decode(attestation.output.ok_or_else(|| anyhow!("Missing output"))?)?,
                 collateral,
