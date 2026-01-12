@@ -109,7 +109,7 @@ deploy-ism:
 
 deploy-ism-tee:
 	@echo "--> Deploying ISM"
-	@RUST_LOG="ev_prover=info" cargo run -p ev-prover create-ism --features tee_mode
+	@RUST_LOG="ev_prover=info" cargo run --features tee_mode -p ev-prover create-ism
 .PHONY: deploy-ism-tee
 
 update-ism:
