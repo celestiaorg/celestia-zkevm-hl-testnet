@@ -28,7 +28,7 @@ use crate::prover::programs::message::HyperlaneMessageProver;
 use crate::prover::service::ProverService;
 use crate::prover::{MessageProofRequest, MessageProofSync};
 
-#[cfg(not(feature = "batch_mode"))]
+#[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
 use crate::prover::{
     programs::{
         block::BlockExecProver,
@@ -45,9 +45,9 @@ use {crate::prover::programs::tee::TeeExecProver, std::time::Duration};
 
 struct Server {
     pub message_prover: Arc<HyperlaneMessageProver>,
-    #[cfg(not(feature = "batch_mode"))]
+    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
     pub block_prover: Arc<BlockExecProver>,
-    #[cfg(not(feature = "batch_mode"))]
+    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
     pub block_range_prover: Arc<BlockRangeExecProver>,
     #[cfg(feature = "batch_mode")]
     pub batch_prover: Arc<BatchExecProver>,
@@ -58,16 +58,18 @@ struct Server {
 impl Server {
     pub fn new(
         message_prover: Arc<HyperlaneMessageProver>,
-        #[cfg(not(feature = "batch_mode"))] block_prover: Arc<BlockExecProver>,
-        #[cfg(not(feature = "batch_mode"))] block_range_prover: Arc<BlockRangeExecProver>,
+        #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))] block_prover: Arc<BlockExecProver>,
+        #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))] block_range_prover: Arc<
+            BlockRangeExecProver,
+        >,
         #[cfg(feature = "batch_mode")] batch_prover: Arc<BatchExecProver>,
         #[cfg(feature = "tee_mode")] tee_prover: Arc<TeeExecProver>,
     ) -> Self {
         Self {
             message_prover,
-            #[cfg(not(feature = "batch_mode"))]
+            #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
             block_prover,
-            #[cfg(not(feature = "batch_mode"))]
+            #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
             block_range_prover,
             #[cfg(feature = "batch_mode")]
             batch_prover: batch_prover,
@@ -87,7 +89,7 @@ impl Server {
             }
         }))
     }
-    #[cfg(not(feature = "batch_mode"))]
+    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
     pub async fn start_block_prover(&self) -> Result<JoinHandle<()>> {
         let block_prover = Arc::clone(&self.block_prover);
         Ok(tokio::spawn(async move {
@@ -96,7 +98,7 @@ impl Server {
             }
         }))
     }
-    #[cfg(not(feature = "batch_mode"))]
+    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
     #[allow(clippy::too_many_arguments)]
     pub async fn start_block_range_prover(
         self,
@@ -175,7 +177,7 @@ pub async fn start_server(config: Config) -> Result<()> {
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
     let ctx = ChainContext::from_config(config_clone.clone(), ism_client.clone()).await?;
 
-    #[cfg(not(feature = "batch_mode"))]
+    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
     let wrapper_task = Some({
         let client_config = ClientConfig::from_env()?;
         let client = CelestiaIsmClient::new(client_config).await?;
