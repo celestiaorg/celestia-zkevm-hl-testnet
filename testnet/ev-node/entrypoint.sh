@@ -6,9 +6,18 @@ cd /usr/bin
 sleep 5
 
 # Create default evnode config if missing
-# TODO: The --evnode.signer.path flag is not respected: https://github.com/evstack/ev-node/issues/2603
-if [ ! -f "$HOME/.evm-single/config/signer.json" ]; then
+if [ ! -f "$HOME/.evm-single/config/genesis.json" ]; then
+  # Run init to create directory structure and initial config
   ./evm-single init --evnode.node.aggregator=true --evnode.signer.passphrase_file "/config/passphrase.txt"
+
+  # Replace the randomly generated signer.json with the deterministic one
+  cp /config/signer.json "$HOME/.evm-single/config/signer.json"
+
+  # Update genesis.json with the proposer address
+  PROPOSER="rO87DUbjx+1tN8jVrpJiA6nVFGNNoRXdNBd2PeBSMYk="
+
+  # Update the genesis.json file
+  sed -i "s/\"proposer_address\": *\"[^\"]*\"/\"proposer_address\": \"$PROPOSER\"/" "$HOME/.evm-single/config/genesis.json"
 fi
 
 # Conditionally add --evnode.da.address if DA_ADDRESS is set
@@ -42,7 +51,8 @@ exec ./evm-single start \
   --evnode.node.block_time $EVM_BLOCK_TIME \
   --evnode.node.aggregator=true \
   --evnode.rpc.address "0.0.0.0:7331" \
-  --evnode.signer.passphrase_file "/config/passphrase.txt"\
+  --evnode.signer.passphrase_file "/config/passphrase.txt" \
+  --evnode.signer.signer_path "$HOME/.evm-single/config" \
   $da_flag \
   $da_auth_token_flag \
   $da_header_namespace_flag \
