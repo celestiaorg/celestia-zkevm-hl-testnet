@@ -16,7 +16,6 @@ use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;
 use rsp_host_executor::EthHostExecutor;
 use rsp_primitives::genesis::Genesis;
-use rsp_rpc_db::RpcDb;
 use std::{fs, sync::Arc};
 use tracing::debug;
 
@@ -30,10 +29,9 @@ pub async fn generate_client_executor_input(
     let host_executor = EthHostExecutor::eth(chain_spec.clone(), None);
 
     let provider = ProviderBuilder::new().connect_http(rpc_url.parse()?);
-    let rpc_db = RpcDb::new(provider.clone(), block_number - 1);
 
     let client_input = host_executor
-        .execute(block_number, &rpc_db, &provider, genesis, None, false)
+        .execute(block_number, &provider, genesis, None, false)
         .await
         .with_context(|| format!("Failed to execute block {block_number}"))?;
 

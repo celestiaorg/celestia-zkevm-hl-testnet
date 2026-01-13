@@ -139,7 +139,7 @@ NETWORK_PRIVATE_KEY="PRIVATE_KEY" to the SP1 prover network private key from Cel
     Note that depending on your hardware it can take a while for the e2e to run,
     as it will prove a series of EVM blocks leading up to a target height, as well as state inclusion of a Hyperlane deposit message at the target height.
 
-### Start the Prover Service 
+### Start the Prover Service
 You will find detailed documentation on how to run the joint hyperlane message and block prover service `ev-prover` [here](crates/ev-prover/README.md).
 
 ## Architecture
