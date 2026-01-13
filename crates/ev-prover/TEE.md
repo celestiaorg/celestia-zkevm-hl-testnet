@@ -1,81 +1,157 @@
-# TEE Testnet Deployment Guide
+# TEE Deployment Guide
 
-Deploy testnet with Phala TEE instance and middleware.
+This guide covers deploying and testing the Celestia zkEVM prover with Trusted Execution Environment (TEE) support using Phala Network.
+
+## Overview
+
+The TEE integration provides hardware-based security guarantees for the zkEVM prover. This guide includes:
+- **Deploying your own TEE instance on Phala Cloud** (recommended for development)
+- **Using the internal testnet** (for team members with access)
 
 ---
 
-## Prerequisites
+## Quick Start: Deploy Your Own TEE on Phala
 
-SSH into the internal server (details in the Lazybridging Testnet: TEE notion doc).
+This is the recommended approach for development and testing.
+
+### Prerequisites
+
+- Git access to [celestiaorg/evolve-tee](https://github.com/celestiaorg/evolve-tee)
+- Phala Cloud account
+
+### Setup Steps
+
+**1. Install the Phala CLI**
+
+Follow the [Phala Cloud CLI documentation](https://docs.phala.com/phala-cloud/phala-cloud-cli/overview) to install the CLI tool.
+
+**2. Clone and deploy the TEE**
+
+```bash
+# Clone the TEE repository
+git clone git@github.com:celestiaorg/evolve-tee
+cd evolve-tee
+
+# Deploy interactively to Phala Cloud
+phala deploy --interactive
+```
+
+**3. Configure celestia-zkevm**
+
+After deployment, you'll receive a dashboard link with your TEE instance details. Copy the **RPC endpoint** from the dashboard and add it to your `celestia-zkevm/.env` file:
+
+```env
+TEE_RPC_ENDPOINT=<your-tee-rpc-endpoint>
+```
+
+> **Note:** Middleware endpoints are hardcoded in the TEE image. If you need custom middleware endpoints, you'll need to rebuild the TEE image.
+
+**4. Start the prover**
+
+```bash
+cd celestia-zkevm
+
+# Initialize prover (removes any existing state)
+rm -rf ~/.ev-prover
+cargo run -p ev-prover init
+
+# Start prover in TEE mode with debug logging
+RUST_LOG="ev_prover=debug" cargo run --release --features tee_mode -p ev-prover start
+```
+
+The prover is now running and ready to process transactions through your TEE instance.
 
 ---
 
-## Deployment Steps
+## Advanced: Internal Testnet Deployment
 
-### 1. Start Middleware
+> **For team members only:** This section describes deploying to the internal testnet infrastructure. You'll need SSH access to internal servers (see Lazybridging Testnet: TEE notion doc for details).
 
-**On internal server:**
+### Architecture
+
+The internal testnet consists of:
+- **Middleware**: Routes requests between the prover and TEE
+- **Testnet infrastructure**: Local blockchain environment for testing
+- **TEE instance**: Phala-hosted TEE for secure proof generation
+
+### Deployment Steps
+
+**Step 1: Start the Middleware**
+
+SSH into the internal server and start the middleware service:
 
 ```bash
 cd /home/tee/evolve-tee
 cargo run -p middleware
 ```
 
-### 2. Deploy Testnet
+Keep this running in a separate terminal/tmux session.
 
-**On internal server:**
+**Step 2: Deploy the Testnet**
+
+In a new terminal on the internal server:
 
 ```bash
 cd /home/tee/celestia-zkevm
 make stop && make start && make deploy-ism-tee && make update-ism
 ```
 
-> Wait for everything to start.
+Wait for all services to initialize completely before proceeding.
 
-### 3. Start the Prover
+**Step 3: Start the Prover**
 
-**On your local machine:**
+On your local machine:
 
 ```bash
 cd celestia-zkevm
+
+# Clean existing state
 rm -rf ~/.ev-prover
+
+# Initialize and start prover
 cargo run -p ev-prover init
 RUST_LOG="ev_prover=debug" cargo run --release --features tee_mode -p ev-prover start
 ```
 
-> The prover service is now running and waiting for transactions (similar to batch_mode).
+The prover service is now running in TEE mode, similar to batch_mode but with hardware security guarantees.
 
-### 4. Submit Test Transactions
+**Step 4: Test with Transactions**
 
-**On internal server:**
+On the internal server, submit test transactions:
 
 ```bash
 cd /home/tee/evolve-tee
-make transfer
-make transfer-back
+
+# Test bridge transfers
+make transfer       # Bridge assets to L2
+make transfer-back  # Bridge assets back to L1
 ```
+
+Monitor the prover logs to see transaction processing through the TEE.
 
 ---
 
-## Deploying Your Own TEE on Phala
+## Troubleshooting
 
-To start your own TEE instance on Phala, follow these steps:
+### TEE connection issues
+- Verify the `TEE_RPC_ENDPOINT` in your `.env` file is correct
+- Check that your TEE instance is running in the Phala dashboard
+- Ensure network connectivity to the Phala Cloud endpoints
 
-1. Install the Phala CLI as per the [Phala Cloud CLI documentation](https://docs.phala.com/phala-cloud/phala-cloud-cli/overview)
+### Middleware connection issues
+- Confirm middleware is running and accessible
+- Remember that middleware endpoints are hardcoded in the TEE image
+- Check firewall rules if using custom infrastructure
 
-2. Clone the evolve-tee repository:
-   ```bash
-   git clone git@github.com:celestiaorg/evolve-tee
-   ```
+### Prover initialization failures
+- Remove `~/.ev-prover` directory and reinitialize
+- Verify the `tee_mode` feature is enabled in your build
+- Check that all dependencies are installed with `cargo check -p ev-prover --features tee_mode`
 
-3. Navigate to the repository:
-   ```bash
-   cd evolve-tee
-   ```
+---
 
-4. Deploy using the Phala CLI:
-   ```bash
-   phala deploy --interactive
-   ```
+## Next Steps
 
-5. This will return a link to the dashboard where you can view all necessary information, including the RPC endpoint that must be set in celestia-zkevm's `.env` file.
+- Learn about [TEE security guarantees](https://docs.phala.com/)
+- Explore the [evolve-tee source code](https://github.com/celestiaorg/evolve-tee)
+- Review the [ev-prover documentation](../README.md)
