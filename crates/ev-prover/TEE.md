@@ -54,3 +54,28 @@ cd /home/tee/evolve-tee
 make transfer
 make transfer-back
 ```
+
+---
+
+## Deploying Your Own TEE on Phala
+
+To start your own TEE instance on Phala, follow these steps:
+
+1. Install the Phala CLI as per the [Phala Cloud CLI documentation](https://docs.phala.com/phala-cloud/phala-cloud-cli/overview)
+
+2. Clone the evolve-tee repository:
+   ```bash
+   git clone git@github.com:celestiaorg/evolve-tee
+   ```
+
+3. Navigate to the repository:
+   ```bash
+   cd evolve-tee
+   ```
+
+4. Deploy using the Phala CLI:
+   ```bash
+   phala deploy --interactive
+   ```
+
+5. This will return a link to the dashboard where you can view all necessary information, including the RPC endpoint that must be set in celestia-zkevm's `.env` file.
