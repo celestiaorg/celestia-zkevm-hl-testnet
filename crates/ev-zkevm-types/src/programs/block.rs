@@ -9,7 +9,7 @@ use celestia_types::{
     nmt::{Namespace, NamespaceProof},
 };
 use hex::encode;
-use rsp_client_executor::io::EthClientExecutorInput;
+use rsp_client_executor::io::EvolveClientExecutorInput;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::error::Error;
@@ -31,7 +31,7 @@ use ev_types::v1::{Data, SignedData};
 use nmt_rs::NamespacedSha2Hasher;
 use prost::Message;
 use reth_primitives::TransactionSigned;
-use rsp_client_executor::{executor::EthClientExecutor, io::WitnessInput};
+use rsp_client_executor::{executor::EvolveClientExecutor, io::WitnessInput};
 use tendermint::{Time, block::Header};
 
 /// BlockExecInput is the input for the BlockExec circuit.
@@ -43,7 +43,7 @@ pub struct BlockExecInput {
     pub pub_key: Vec<u8>,
     pub namespace: Namespace,
     pub proofs: Vec<NamespaceProof>,
-    pub executor_inputs: Vec<EthClientExecutorInput>,
+    pub executor_inputs: Vec<EvolveClientExecutorInput>,
     pub trusted_height: u64,
     pub trusted_root: FixedBytes<32>,
 }
@@ -272,9 +272,11 @@ impl BlockVerifier {
                 "Trusted height must be less than or equal to parent header height",
             );
 
-            let executor = EthClientExecutor::eth(
-                Arc::new((&first_input.genesis).try_into().expect("invalid genesis block")),
+            let chain_spec = Arc::new((&first_input.genesis).try_into().expect("invalid genesis block"));
+            let executor = EvolveClientExecutor::evolve(
+                chain_spec,
                 first_input.custom_beneficiary,
+                &first_input.genesis,
             );
 
             for input in &input.executor_inputs {

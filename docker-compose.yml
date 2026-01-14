@@ -96,7 +96,7 @@ services:
   reth:
     container_name: reth
     # release tag v0.1.0
-    image: ghcr.io/evstack/ev-reth:v0.1.0
+    image: ghcr.io/evstack/ev-reth:v0.2.1
     ports:
       - "9001:9001" # metrics
       - "30303:30303" # eth/66 peering
@@ -131,7 +131,6 @@ services:
           --txpool.max-new-txns 2048 \
           --txpool.additional-validation-tasks 16 \
           --rpc.eth-proof-window 120000 \
-          --ev-reth.enable
     networks:
       - celestia-zkevm-net
 

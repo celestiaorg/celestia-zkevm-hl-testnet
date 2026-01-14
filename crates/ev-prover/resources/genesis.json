@@ -16,7 +16,15 @@
     "terminalTotalDifficultyPassed": true,
     "shanghaiTime": 0,
     "cancunTime": 0,
-    "pragueTime": 0
+    "pragueTime": 0,
+    "evolve": {
+      "baseFeeSink": "0x0000000000000000000000000000000000001000",
+      "baseFeeRedirectActivationHeight": 0,
+      "mintAdmin": "0x0000000000000000000000000000000000002000",
+      "mintPrecompileActivationHeight": 0,
+      "contractSizeLimit": 50000,
+      "contractSizeLimitActivationHeight": 0
+    }
   },
   "nonce": "0x0",
   "timestamp": "0x0",

@@ -6,7 +6,7 @@
 //!
 //! You must provide the block number via `--height`, along with either `--execute` or `--prove`.
 //! The `--trusted-height` and `--trusted-root` flags are optional, however they must be set if proving
-//! an empty Celestia block, i.e. where there is no EthClientExecutorInputs.
+//! an empty Celestia block, i.e. where there is no EvolveClientExecutorInputs.
 //!
 //! You can run this script using the following command from the root of this repository:
 //! ```shell
@@ -29,7 +29,7 @@ use celestia_types::{Blob, DataAvailabilityHeader};
 use clap::Parser;
 use ev_zkevm_types::programs::block::{BlockExecInput, BlockExecOutput};
 use hashbrown::HashMap;
-use rsp_client_executor::io::{EthClientExecutorInput, WitnessInput};
+use rsp_client_executor::io::{EvolveClientExecutorInput, WitnessInput};
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{include_elf, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 use tendermint::block::header::Header;
@@ -182,7 +182,7 @@ fn write_proof_inputs(stdin: &mut SP1Stdin, input_dir: &str, args: &Args) -> Res
     let proofs: Vec<NamespaceProof> = bincode::deserialize(&proofs_encoded)?;
 
     let executor_inputs_encoded = fs::read(format!("{input_dir}/executor_inputs.bin"))?;
-    let executor_inputs: Vec<EthClientExecutorInput> = bincode::deserialize(&executor_inputs_encoded)?;
+    let executor_inputs: Vec<EvolveClientExecutorInput> = bincode::deserialize(&executor_inputs_encoded)?;
 
     // Determine trusted height
     let trusted_height = if let Some(h) = args.trusted_height {

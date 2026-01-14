@@ -17,20 +17,20 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-alloy = { version = "=1.0.32", default-features = false, features = ["serde"] }
+alloy = { version = "=1.0.37", default-features = false, features = ["serde"] }
 alloy-consensus = { version = "=1.0.41", default-features = false, features = [
     "std",
     "serde",
 ] }
-alloy-genesis = { version = "=1.0.32", default-features = false }
-alloy-primitives = { version = "=1.3.0", default-features = false }
-alloy-provider = { version = "=1.0.32", default-features = false, features = [
+alloy-genesis = { version = "=1.0.37", default-features = false }
+alloy-primitives = { version = "1.3.1", default-features = false }
+alloy-provider = { version = "=1.0.37", default-features = false, features = [
     "ws",
     "reqwest",
     "reqwest-rustls-tls",
 ] }
 alloy-rlp = { version = "=0.3.12", default-features = false }
-alloy-rpc-types = { version = "=1.0.32", default-features = false }
+alloy-rpc-types = { version = "=1.0.37", default-features = false }
 alloy-sol-types = "=1.3"
 alloy-trie = { version = "=0.9.1", default-features = false }
 anyhow = { version = "1.0", default-features = false }
@@ -60,12 +60,12 @@ md5 = "0.8.0"
 nmt-rs = "*"
 prost = "0.12"
 reqwest = "0.12.20"
-reth-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0", default-features = false }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0", default-features = false }
-rsp-client-executor = { git = "https://github.com/succinctlabs/rsp.git", tag = "reth-1.5.0" }
-rsp-host-executor = { git = "https://github.com/succinctlabs/rsp.git", tag = "reth-1.5.0" }
-rsp-primitives = { git = "https://github.com/succinctlabs/rsp.git", tag = "reth-1.5.0" }
-rsp-rpc-db = { git = "https://github.com/succinctlabs/rsp.git", tag = "reth-1.5.0" }
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.8.3", default-features = false }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.8.3", default-features = false }
+rsp-client-executor = { path = "../rsp-workspace/rsp/crates/executor/client" }
+rsp-host-executor = { path = "../rsp-workspace/rsp/crates/executor/host" }
+rsp-primitives = { path = "../rsp-workspace/rsp/crates/primitives" }
+rsp-rpc-db = { path = "../rsp-workspace/rsp/crates/storage/rpc-db" }
 rustls = { version = "0.23", features = ["aws_lc_rs"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_cbor = "0.11.2"

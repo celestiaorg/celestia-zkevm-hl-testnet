@@ -9,7 +9,7 @@
 //! - Blobs
 //! - Sequencer Public Key
 //! - NamespaceProofs
-//! - EthClientExecutorInputs (RSP - state transition function)
+//! - EvolveClientExecutorInputs (RSP - state transition function)
 //! - Trusted Height
 //! - Trusted State Root
 //!

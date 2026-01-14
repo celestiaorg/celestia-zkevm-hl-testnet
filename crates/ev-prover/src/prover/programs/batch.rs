@@ -20,7 +20,7 @@ use celestia_types::{
 use ev_types::v1::SignedData;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput, State};
 use prost::Message;
-use rsp_client_executor::io::EthClientExecutorInput;
+use rsp_client_executor::io::EvolveClientExecutorInput;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use storage::hyperlane::message::HyperlaneMessageStore;
 use tokio::{sync::mpsc, time::interval};
@@ -319,7 +319,7 @@ impl BatchExecProver {
         }
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 
-        let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();
+        let mut executor_inputs: Vec<EvolveClientExecutorInput> = Vec::new();
 
         if blobs.is_empty() {
             debug!(
