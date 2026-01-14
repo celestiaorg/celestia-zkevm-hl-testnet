@@ -8059,7 +8059,7 @@ dependencies = [
 [[package]]
 name = "rsp-client-executor"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#b8a30f011a885b31198501ffe5226b971be07240"
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
@@ -8098,7 +8098,7 @@ dependencies = [
 [[package]]
 name = "rsp-host-executor"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#b8a30f011a885b31198501ffe5226b971be07240"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -8141,7 +8141,7 @@ dependencies = [
 [[package]]
 name = "rsp-mpt"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#b8a30f011a885b31198501ffe5226b971be07240"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -8156,12 +8156,13 @@ dependencies = [
 [[package]]
 name = "rsp-primitives"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#b8a30f011a885b31198501ffe5226b971be07240"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
  "alloy-primitives",
  "alloy-rpc-types",
+ "alloy-serde",
  "reth-chainspec",
  "reth-optimism-chainspec",
  "reth-optimism-forks",
@@ -8176,7 +8177,7 @@ dependencies = [
 [[package]]
 name = "rsp-rpc-db"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#b8a30f011a885b31198501ffe5226b971be07240"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
