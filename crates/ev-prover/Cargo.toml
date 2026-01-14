@@ -35,6 +35,8 @@ reqwest = { workspace = true }
 reth-chainspec = { workspace = true }
 rocksdb = "0.24"
 rsp-client-executor = { workspace = true }
+rsp-host-executor = { workspace = true }
+rsp-primitives = { workspace = true }
 rustls = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_cbor = { workspace = true }

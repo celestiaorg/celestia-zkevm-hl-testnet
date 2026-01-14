@@ -40,6 +40,8 @@ eyre = { workspace = true }
 prost = { workspace = true }
 reth-chainspec = { workspace = true }
 rsp-client-executor = { workspace = true }
+rsp-host-executor = { workspace = true }
+rsp-primitives = { workspace = true }
 rustls = "0.23.31"
 serde = { workspace = true }
 serde_cbor = { workspace = true }
