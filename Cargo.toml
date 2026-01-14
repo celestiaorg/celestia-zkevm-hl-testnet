@@ -63,9 +63,6 @@ reqwest = "0.12.20"
 reth-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.8.3", default-features = false }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.8.3", default-features = false }
 rsp-client-executor = { path = "../rsp-workspace/rsp/crates/executor/client" }
-rsp-host-executor = { path = "../rsp-workspace/rsp/crates/executor/host" }
-rsp-primitives = { path = "../rsp-workspace/rsp/crates/primitives" }
-rsp-rpc-db = { path = "../rsp-workspace/rsp/crates/storage/rpc-db" }
 rustls = { version = "0.23", features = ["aws_lc_rs"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_cbor = "0.11.2"

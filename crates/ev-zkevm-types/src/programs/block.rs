@@ -273,11 +273,8 @@ impl BlockVerifier {
             );
 
             let chain_spec = Arc::new((&first_input.genesis).try_into().expect("invalid genesis block"));
-            let executor = EvolveClientExecutor::evolve(
-                chain_spec,
-                first_input.custom_beneficiary,
-                &first_input.genesis,
-            );
+            let executor =
+                EvolveClientExecutor::evolve(chain_spec, first_input.custom_beneficiary, &first_input.genesis);
 
             for input in &input.executor_inputs {
                 let header = executor.execute(input.clone()).expect("EVM block execution failed");
