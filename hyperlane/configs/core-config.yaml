@@ -30,5 +30,5 @@ proxyAdmin:
   address: "0x7e7aD18Adc99b94d4c728fDf13D4dE97B926A0D8"
   owner: "0xaF9053bB6c4346381C77C2FeD279B17ABAfCDf4d"
 requiredHook:
-  address: "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5"
+  address: "0xFCb1d485ef46344029D9E8A7925925e146B3430E"
   type: merkleTreeHook
