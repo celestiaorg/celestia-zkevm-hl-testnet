@@ -25,5 +25,3 @@ sp1-zkvm = { workspace = true, features = ["verify"] }
 tendermint = { workspace = true }
 tendermint-light-client-verifier = { workspace = true }
 tendermint-proto = { workspace = true }
-ev-revm = {git="https://github.com/jonas089/ev-reth", branch="jonas/rsp"}
-

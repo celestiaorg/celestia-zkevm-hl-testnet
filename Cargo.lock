@@ -3514,7 +3514,6 @@ dependencies = [
  "bincode",
  "celestia-types 0.15.0",
  "ed25519-dalek",
- "ev-revm 0.1.0 (git+https://github.com/jonas089/ev-reth?branch=jonas%2Frsp)",
  "ev-types",
  "ev-zkevm-types",
  "hex",
@@ -3638,23 +3637,6 @@ dependencies = [
 [[package]]
 name = "ev-precompiles"
 version = "0.1.0"
-dependencies = [
- "alloy",
- "alloy-evm",
- "alloy-primitives",
- "bytes",
- "eyre",
- "reth-ethereum",
- "reth-primitives",
- "reth-revm",
- "revm",
- "thiserror 1.0.69",
- "tracing",
-]
-
-[[package]]
-name = "ev-precompiles"
-version = "0.1.0"
 source = "git+https://github.com/jonas089/ev-reth?branch=jonas%2Frsp#c1641fae618368b669c8dd0792dd1099f1895ad7"
 dependencies = [
  "alloy",
@@ -3767,27 +3749,11 @@ dependencies = [
 [[package]]
 name = "ev-revm"
 version = "0.1.0"
-dependencies = [
- "alloy-evm",
- "alloy-primitives",
- "ev-precompiles 0.1.0",
- "reth-evm",
- "reth-evm-ethereum",
- "reth-primitives",
- "reth-revm",
- "revm-context-interface",
- "revm-inspector",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "ev-revm"
-version = "0.1.0"
 source = "git+https://github.com/jonas089/ev-reth?branch=jonas%2Frsp#c1641fae618368b669c8dd0792dd1099f1895ad7"
 dependencies = [
  "alloy-evm",
  "alloy-primitives",
- "ev-precompiles 0.1.0 (git+https://github.com/jonas089/ev-reth?branch=jonas%2Frsp)",
+ "ev-precompiles",
  "reth-evm",
  "reth-evm-ethereum",
  "reth-primitives",
@@ -8093,13 +8059,14 @@ dependencies = [
 [[package]]
 name = "rsp-client-executor"
 version = "0.1.0"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
 dependencies = [
  "alloy-consensus",
  "alloy-evm",
  "alloy-network",
  "alloy-primitives",
  "alloy-rpc-types",
- "ev-revm 0.1.0",
+ "ev-revm",
  "itertools 0.13.0",
  "op-alloy-network",
  "op-alloy-rpc-types",
@@ -8131,6 +8098,7 @@ dependencies = [
 [[package]]
 name = "rsp-host-executor"
 version = "0.1.0"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -8142,7 +8110,7 @@ dependencies = [
  "alloy-transport",
  "bincode",
  "either",
- "ev-revm 0.1.0",
+ "ev-revm",
  "eyre",
  "op-alloy-network",
  "reth-chainspec",
@@ -8173,6 +8141,7 @@ dependencies = [
 [[package]]
 name = "rsp-mpt"
 version = "0.1.0"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -8187,6 +8156,7 @@ dependencies = [
 [[package]]
 name = "rsp-primitives"
 version = "0.1.0"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -8206,6 +8176,7 @@ dependencies = [
 [[package]]
 name = "rsp-rpc-db"
 version = "0.1.0"
+source = "git+https://github.com/jonas089/rsp?branch=damian%2Freth-v1.8.4#cb9e50b96f714bc908ea90351c82d61374f315fb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",

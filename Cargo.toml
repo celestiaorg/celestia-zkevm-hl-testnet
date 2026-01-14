@@ -62,9 +62,9 @@ prost = "0.12"
 reqwest = "0.12.20"
 reth-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.8.3", default-features = false }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.8.3", default-features = false }
-rsp-client-executor = { path = "../rsp-workspace/rsp/crates/executor/client" }
-rsp-host-executor = { path = "../rsp-workspace/rsp/crates/executor/host" }
-rsp-primitives = { path = "../rsp-workspace/rsp/crates/primitives" }
+rsp-client-executor = { git = "https://github.com/jonas089/rsp", branch = "damian/reth-v1.8.4" }
+rsp-host-executor = { git = "https://github.com/jonas089/rsp", branch = "damian/reth-v1.8.4" }
+rsp-primitives = { git = "https://github.com/jonas089/rsp", branch = "damian/reth-v1.8.4" }
 rustls = { version = "0.23", features = ["aws_lc_rs"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_cbor = "0.11.2"
