@@ -2,6 +2,20 @@
 
 This guide covers deploying and testing the Celestia zkEVM prover with Trusted Execution Environment (TEE) support using Phala Network.
 
+## Security: Critical
+For development purposes, the circuit does not yet fully constrain the execution environment. The following TEE measurements need to be asserted in the circuit:
+
+- `os_image_hash` - Hash of the operating system image
+- `mr_system` - Measurement register for system components
+- `mr_aggregated` - Aggregated measurement register
+- `mrtd` - Measurement register for TDX domains
+- `rtmr0-3` - Runtime Measurement Registers (0 through 3)
+- `compose_hash` - Hash of the compose configuration
+
+These constraints will ensure that proofs can only be generated from authorized TEE environments with verified configurations.
+
+> **⚠️ WARNING: Without these additional constraints the TEE circuit is NOT SAFE TO USE IN PRODUCTION!**
+
 ## Overview
 
 The TEE integration provides hardware-based security guarantees for the zkEVM prover. This guide includes:
