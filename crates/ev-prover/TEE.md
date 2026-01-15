@@ -52,27 +52,10 @@ MIDDLEWARE_ENDPOINT="http://testnet-server-ip:9091"
 TEE_APP_URL="https://fc87b8918d4489663dfe47b82f48ed4b117dc518-8080.dstack-pha-prod5.phala.network"
 
 ```
-
-> **Note:** Middleware endpoints are hardcoded in the TEE image. If you need custom middleware endpoints, you'll need to rebuild the TEE image.
-
-**4. Start the prover**
-
-```bash
-cd celestia-zkevm
-
-# Initialize prover (removes any existing state)
-rm -rf ~/.ev-prover
-cargo run -p ev-prover init
-
-# Start prover in TEE mode with debug logging
-RUST_LOG="ev_prover=debug" cargo run --release --features tee_mode -p ev-prover start
+> **Note:** Middleware endpoints are derived from evolve-tee's .env in the TEE image. If you need custom middleware endpoints, you'll need to rebuild the TEE image.
 ```
 
-The prover is now running and ready to process transactions through your TEE instance.
-
----
-
-## Advanced: Internal Testnet Deployment
+## Internal Testnet Deployment
 
 > **For team members only:** This section describes deploying to the internal testnet infrastructure. You'll need SSH access to internal servers (see Lazybridging Testnet: TEE notion doc for details).
 
