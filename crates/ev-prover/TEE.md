@@ -42,6 +42,15 @@ After deployment, you'll receive a dashboard link with your TEE instance details
 
 ```env
 TEE_RPC_ENDPOINT=<your-tee-rpc-endpoint>
+RETH_RPC_URL="http://testnet-server-ip:8545"
+RETH_WS_URL="ws://testnet-server-ip:8546"
+SEQUENCER_RPC_URL="http://testnet-server-ip:7331"
+CELESTIA_RPC_URL="http://testnet-server-ip:26658"
+TENDERMINT_RPC_URL="http://testnet-server-ip:26657"
+CELESTIA_GRPC_ENDPOINT="http://testnet-server-ip:9090"
+MIDDLEWARE_ENDPOINT="http://testnet-server-ip:9091"
+TEE_APP_URL="https://fc87b8918d4489663dfe47b82f48ed4b117dc518-8080.dstack-pha-prod5.phala.network"
+
 ```
 
 > **Note:** Middleware endpoints are hardcoded in the TEE image. If you need custom middleware endpoints, you'll need to rebuild the TEE image.
