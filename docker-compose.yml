@@ -1,7 +1,7 @@
 services:
   celestia-init:
     # Branch: feature/zk-execution-ism
-    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:082581bbef524c8e3fb1cc67066945604ac108bdfdfb89cb63f1ee24bfac4f40
+    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:4e7e3c1defb0058ba41f1c76f02ec716295f7d7cd9e791564f40b44234083360
     container_name: celestia-init
     entrypoint: /scripts/init.sh
     volumes:
@@ -11,7 +11,7 @@ services:
 
   celestia-validator:
     # Branch: feature/zk-execution-ism
-    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:082581bbef524c8e3fb1cc67066945604ac108bdfdfb89cb63f1ee24bfac4f40
+    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:4e7e3c1defb0058ba41f1c76f02ec716295f7d7cd9e791564f40b44234083360
     container_name: celestia-validator
     ports:
       - "26656:26656"
@@ -152,7 +152,7 @@ services:
       - celestia-zkevm-net
 
   relayer:
-    image: gcr.io/abacus-labs-dev/hyperlane-agent:main
+    image: gcr.io/abacus-labs-dev/hyperlane-agent:agents-v1.7.0
     platform: linux/amd64
     container_name: relayer
     environment:
