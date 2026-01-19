@@ -115,7 +115,7 @@ cd celestia-zkevm
 rm -rf ~/.ev-prover
 
 # Initialize and start prover
-cargo run -p ev-prover init
+RUST_LOG="ev_prover=debug" cargo run --release --features tee_mode -p ev-prover init
 RUST_LOG="ev_prover=debug" cargo run --release --features tee_mode -p ev-prover start
 ```
 
