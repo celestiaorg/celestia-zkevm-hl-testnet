@@ -13,7 +13,7 @@ pub mod e2e {
 /// Other configs (block, message binaries), only useful for debugging
 pub mod debug {
     pub const MAILBOX_ADDRESS: &str = "0xb1c938f5ba4b3593377f399e12175e8db0c787ff";
-    pub const MERKLE_TREE_ADDRESS: &str = "0xfcb1d485ef46344029d9e8a7925925e146b3430e";
+    pub const MERKLE_TREE_ADDRESS: &str = "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5";
     // initial trusted evm height for block prover
     pub const TRUSTED_HEIGHT: u64 = 165;
     // target height for message prover
