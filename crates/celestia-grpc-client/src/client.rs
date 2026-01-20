@@ -91,8 +91,10 @@ impl CelestiaIsmClient {
     }
 
     /// Query hyperlane ISMs from the interchain_security module
-    pub async fn hyperlane_isms(&self, req: crate::proto::hyperlane::core::interchain_security::v1::QueryIsmsRequest)
-        -> Result<crate::proto::hyperlane::core::interchain_security::v1::QueryIsmsResponse> {
+    pub async fn hyperlane_isms(
+        &self,
+        req: crate::proto::hyperlane::core::interchain_security::v1::QueryIsmsRequest,
+    ) -> Result<crate::proto::hyperlane::core::interchain_security::v1::QueryIsmsResponse> {
         use crate::proto::hyperlane::core::interchain_security::v1::query_client::QueryClient as HyperlaneQueryClient;
 
         let mut client = HyperlaneQueryClient::new(self.channel.clone());
@@ -101,23 +103,31 @@ impl CelestiaIsmClient {
     }
 
     /// Create a Noop ISM using the tonic-generated client (returns ID directly)
-    pub async fn create_noop_ism(&self, msg: crate::proto::hyperlane::core::interchain_security::v1::MsgCreateNoopIsm)
-        -> Result<crate::proto::hyperlane::core::interchain_security::v1::MsgCreateNoopIsmResponse> {
+    pub async fn create_noop_ism(
+        &self,
+        msg: crate::proto::hyperlane::core::interchain_security::v1::MsgCreateNoopIsm,
+    ) -> Result<crate::proto::hyperlane::core::interchain_security::v1::MsgCreateNoopIsmResponse> {
         use crate::proto::hyperlane::core::interchain_security::v1::msg_client::MsgClient;
 
         let mut client = MsgClient::new(self.channel.clone());
-        let resp = client.create_noop_ism(Request::new(msg)).await
+        let resp = client
+            .create_noop_ism(Request::new(msg))
+            .await
             .map_err(|e| IsmClientError::TxFailed(format!("Failed to create Noop ISM: {}", e)))?;
         Ok(resp.into_inner())
     }
 
     /// Create an Aggregation ISM using the tonic-generated client (returns ID directly)
-    pub async fn create_aggregation_ism(&self, msg: crate::proto::hyperlane::core::interchain_security::v1::MsgCreateAggregationIsm)
-        -> Result<crate::proto::hyperlane::core::interchain_security::v1::MsgCreateAggregationIsmResponse> {
+    pub async fn create_aggregation_ism(
+        &self,
+        msg: crate::proto::hyperlane::core::interchain_security::v1::MsgCreateAggregationIsm,
+    ) -> Result<crate::proto::hyperlane::core::interchain_security::v1::MsgCreateAggregationIsmResponse> {
         use crate::proto::hyperlane::core::interchain_security::v1::msg_client::MsgClient;
 
         let mut client = MsgClient::new(self.channel.clone());
-        let resp = client.create_aggregation_ism(Request::new(msg)).await
+        let resp = client
+            .create_aggregation_ism(Request::new(msg))
+            .await
             .map_err(|e| IsmClientError::TxFailed(format!("Failed to create Aggregation ISM: {}", e)))?;
         Ok(resp.into_inner())
     }
@@ -168,7 +178,11 @@ impl CelestiaIsmClient {
     }
 
     /// Wait for a transaction to be confirmed by polling for the new ISM
-    async fn wait_for_ism_creation(&self, ids_before: &std::collections::HashSet<String>, max_retries: u32) -> Result<String> {
+    async fn wait_for_ism_creation(
+        &self,
+        ids_before: &std::collections::HashSet<String>,
+        max_retries: u32,
+    ) -> Result<String> {
         use crate::proto::celestia::zkism::v1::QueryIsmsRequest;
 
         for attempt in 0..max_retries {
@@ -190,9 +204,10 @@ impl CelestiaIsmClient {
             }
         }
 
-        Err(IsmClientError::TxFailed(
-            format!("ISM was not found after {} attempts", max_retries),
-        ))
+        Err(IsmClientError::TxFailed(format!(
+            "ISM was not found after {} attempts",
+            max_retries
+        )))
     }
 
     /// Create an ISM and return the created ISM ID.
@@ -208,24 +223,20 @@ impl CelestiaIsmClient {
             use crate::proto::celestia::zkism::v1::QueryIsmsRequest;
 
             let isms_before = self.isms(QueryIsmsRequest { pagination: None }).await?;
-            let ids_before: std::collections::HashSet<String> = isms_before
-                .isms
-                .iter()
-                .map(|ism| ism.id.clone())
-                .collect();
+            let ids_before: std::collections::HashSet<String> =
+                isms_before.isms.iter().map(|ism| ism.id.clone()).collect();
 
             let tx_response = self.send_tx(message).await?;
             let ism_id = self.wait_for_ism_creation(&ids_before, 20).await?;
 
-            Ok(crate::types::IsmCreationResponse {
-                tx_response,
-                ism_id,
-            })
+            Ok(crate::types::IsmCreationResponse { tx_response, ism_id })
         } else {
             // For hyperlane ISM messages - same pattern
             use crate::proto::hyperlane::core::interchain_security::v1::QueryIsmsRequest as HyperlaneQueryIsmsRequest;
 
-            let isms_before = self.hyperlane_isms(HyperlaneQueryIsmsRequest { pagination: None }).await?;
+            let isms_before = self
+                .hyperlane_isms(HyperlaneQueryIsmsRequest { pagination: None })
+                .await?;
             let ids_before: std::collections::HashSet<String> = isms_before
                 .isms
                 .iter()
@@ -235,10 +246,7 @@ impl CelestiaIsmClient {
             let tx_response = self.send_tx(message).await?;
             let ism_id = self.wait_for_hyperlane_ism_creation(&ids_before, 20).await?;
 
-            Ok(crate::types::IsmCreationResponse {
-                tx_response,
-                ism_id,
-            })
+            Ok(crate::types::IsmCreationResponse { tx_response, ism_id })
         }
     }
 
@@ -256,19 +264,17 @@ impl CelestiaIsmClient {
         } else if type_url.contains("RoutingISM") {
             use crate::proto::hyperlane::core::interchain_security::v1::RoutingIsm;
             RoutingIsm::decode(&*ism_any.value).ok().map(|ism| ism.id)
-        } else if type_url.contains("MessageIdMultisigISM") {
-            use crate::proto::hyperlane::core::interchain_security::v1::MessageIdMultisigIsm;
-            MessageIdMultisigIsm::decode(&*ism_any.value).ok().map(|ism| ism.id)
-        } else if type_url.contains("MerkleRootMultisigISM") {
-            use crate::proto::hyperlane::core::interchain_security::v1::MerkleRootMultisigIsm;
-            MerkleRootMultisigIsm::decode(&*ism_any.value).ok().map(|ism| ism.id)
         } else {
             None
         }
     }
 
     /// Wait for a hyperlane ISM to be created by polling the hyperlane query service
-    async fn wait_for_hyperlane_ism_creation(&self, ids_before: &std::collections::HashSet<String>, max_retries: u32) -> Result<String> {
+    async fn wait_for_hyperlane_ism_creation(
+        &self,
+        ids_before: &std::collections::HashSet<String>,
+        max_retries: u32,
+    ) -> Result<String> {
         use crate::proto::hyperlane::core::interchain_security::v1::QueryIsmsRequest;
 
         info!("Waiting for hyperlane ISM creation. IDs before: {:?}", ids_before);
@@ -278,7 +284,11 @@ impl CelestiaIsmClient {
 
             match self.hyperlane_isms(QueryIsmsRequest { pagination: None }).await {
                 Ok(isms_after) => {
-                    info!("Query returned {} ISMs (attempt {})", isms_after.isms.len(), attempt + 1);
+                    info!(
+                        "Query returned {} ISMs (attempt {})",
+                        isms_after.isms.len(),
+                        attempt + 1
+                    );
 
                     // Try to decode each ISM to get its ID
                     for (i, ism_any) in isms_after.isms.iter().enumerate() {
@@ -286,7 +296,11 @@ impl CelestiaIsmClient {
                         if let Some(id) = self.decode_hyperlane_ism_id(ism_any) {
                             debug!("  Decoded ID: {}", id);
                             if !ids_before.contains(&id) {
-                                info!("Found newly created hyperlane ISM with ID: {} (attempt {})", id, attempt + 1);
+                                info!(
+                                    "Found newly created hyperlane ISM with ID: {} (attempt {})",
+                                    id,
+                                    attempt + 1
+                                );
                                 return Ok(id);
                             } else {
                                 debug!("  ID was in the before set, skipping");
@@ -303,9 +317,10 @@ impl CelestiaIsmClient {
             }
         }
 
-        Err(IsmClientError::TxFailed(
-            format!("Hyperlane ISM was not found after {} attempts", max_retries),
-        ))
+        Err(IsmClientError::TxFailed(format!(
+            "Hyperlane ISM was not found after {} attempts",
+            max_retries
+        )))
     }
 }
 #[cfg(test)]
