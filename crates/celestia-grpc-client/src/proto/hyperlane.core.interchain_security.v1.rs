@@ -97,42 +97,6 @@ pub struct RoutingIsm {
     #[prost(message, repeated, tag="3")]
     pub routes: ::prost::alloc::vec::Vec<Route>,
 }
-/// MessageIdMultisigISM ...
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MessageIdMultisigIsm {
-    /// id ...
-    #[prost(string, tag="1")]
-    pub id: ::prost::alloc::string::String,
-    /// owner ...
-    #[prost(string, tag="2")]
-    pub owner: ::prost::alloc::string::String,
-    /// validators
-    /// these are 20 byte long ethereum style addresses
-    #[prost(string, repeated, tag="3")]
-    pub validators: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// threshold ...
-    #[prost(uint32, tag="4")]
-    pub threshold: u32,
-}
-/// MerkleRootMultisigISM ...
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MerkleRootMultisigIsm {
-    /// XXX ...
-    #[prost(string, tag="1")]
-    pub id: ::prost::alloc::string::String,
-    /// owner ...
-    #[prost(string, tag="2")]
-    pub owner: ::prost::alloc::string::String,
-    /// validators
-    /// these are 20 byte long ethereum style addresses
-    #[prost(string, repeated, tag="3")]
-    pub validators: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// threshold ...
-    #[prost(uint32, tag="4")]
-    pub threshold: u32,
-}
 /// AggregationISM ...
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
