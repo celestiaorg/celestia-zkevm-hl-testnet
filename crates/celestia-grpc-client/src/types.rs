@@ -15,6 +15,18 @@ pub struct TxResponse {
     pub success: bool,
     /// Error message if transaction failed
     pub error_message: Option<String>,
+    /// Raw transaction data (optional, for parsing events)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_data: Option<Vec<u8>>,
+}
+
+/// Response from ISM creation including the created ISM ID
+#[derive(Debug, Clone)]
+pub struct IsmCreationResponse {
+    /// Base transaction response
+    pub tx_response: TxResponse,
+    /// The created ISM ID (hex-encoded)
+    pub ism_id: String,
 }
 
 /// Configuration for the Celestia proof client

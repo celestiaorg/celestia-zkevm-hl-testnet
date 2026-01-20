@@ -17,6 +17,9 @@ pub use proto::celestia::zkism::v1::{
     MsgSubmitMessages, MsgSubmitMessagesResponse, MsgUpdateInterchainSecurityModule,
     MsgUpdateInterchainSecurityModuleResponse, QueryIsmRequest,
 };
+pub use proto::hyperlane::core::interchain_security::v1::{
+    MsgCreateAggregationIsm, MsgCreateAggregationIsmResponse, MsgCreateNoopIsm, MsgCreateNoopIsmResponse,
+};
 pub use proto::hyperlane::core::v1::MsgProcessMessage;
 pub use proto::hyperlane::warp::v1::MsgRemoteTransfer;
-pub use types::TxResponse;
+pub use types::{IsmCreationResponse, TxResponse};

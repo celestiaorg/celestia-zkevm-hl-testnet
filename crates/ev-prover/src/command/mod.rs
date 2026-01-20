@@ -9,6 +9,7 @@ use celestia_grpc_client::proto::celestia::zkism::v1::MsgCreateInterchainSecurit
 use celestia_grpc_client::proto::hyperlane::warp::v1::MsgSetToken;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::CelestiaIsmClient;
+use celestia_grpc_client::{MsgCreateAggregationIsm, MsgCreateNoopIsm};
 use celestia_rpc::HeaderClient;
 use sp1_sdk::{HashableKey, Prover, ProverClient};
 use tracing::info;
@@ -85,7 +86,6 @@ pub async fn create_ism() -> Result<()> {
 
     let ev_state_root = block.header.state_root;
 
-    // todo: deploy the ISM and Update
     let pub_key = get_sequencer_pubkey(config.rpc.evnode_rpc).await?;
 
     let groth16_vkey = Config::groth16_vkey();
@@ -104,7 +104,9 @@ pub async fn create_ism() -> Result<()> {
     let merkle_tree_address = *Address::from_str(&config.hyperlane.evm.merkle_tree_address)
         .unwrap()
         .into_word();
-    let create_message = MsgCreateInterchainSecurityModule {
+
+    // Step 1: Create the custom Multisig ISM
+    let create_custom_ism_message = MsgCreateInterchainSecurityModule {
         creator: ism_client.signer_address().to_string(),
         state: bincode::serialize(&initial_state)?,
         merkle_tree_address: merkle_tree_address.to_vec(),
@@ -113,14 +115,43 @@ pub async fn create_ism() -> Result<()> {
         state_membership_vkey,
     };
 
-    let response = ism_client.send_tx(create_message).await?;
-    if !response.success {
-        let tx_hash = response.tx_hash;
-        let error_msg = response.error_message.unwrap_or("unknown error".to_string());
-        return Err(anyhow::anyhow!("Tx {tx_hash} failed to create ism: {error_msg}",));
-    }
+    // Step 1: Create the custom ZK ISM and wait for confirmation
+    let response = ism_client.create_ism_with_response(create_custom_ism_message).await?;
+    let custom_ism_id = response.ism_id;
+    info!("Custom ZK ISM created with ID: {}", custom_ism_id);
 
-    info!("ISM created successfully");
+    // Step 2: Create a Noop ISM (using same pattern as custom ISM)
+    let create_noop_message = MsgCreateNoopIsm {
+        creator: ism_client.signer_address().to_string(),
+    };
+
+    info!("Creating Noop ISM...");
+    let response = ism_client.create_ism_with_response(create_noop_message).await?;
+    let noop_ism_id = response.ism_id;
+    info!("Noop ISM created with ID: {}", noop_ism_id);
+
+    // Step 3: Create an AggregationISM combining both with 2/2 threshold
+    let create_aggregation_message = MsgCreateAggregationIsm {
+        creator: ism_client.signer_address().to_string(),
+        modules: vec![custom_ism_id.clone(), noop_ism_id.clone()],
+        threshold: 2,
+    };
+
+    info!("Creating Aggregation ISM with 2/2 threshold...");
+    let response = ism_client.create_ism_with_response(create_aggregation_message).await?;
+    let aggregation_ism_id = response.ism_id;
+    info!("Aggregation ISM created with ID: {}", aggregation_ism_id);
+    info!(
+        "  - Combines Custom ZK ISM ({}) and Noop ISM ({})",
+        custom_ism_id, noop_ism_id
+    );
+    info!("  - Threshold: 2/2 (both ISMs must verify)");
+    info!("");
+    info!(
+        "Use the Aggregation ISM ID when calling set_token_ism: {}",
+        aggregation_ism_id
+    );
+
     Ok(())
 }
 

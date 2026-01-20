@@ -21,6 +21,11 @@ pub mod cosmos {
 
 pub mod hyperlane {
     pub mod core {
+        pub mod interchain_security {
+            pub mod v1 {
+                include!("hyperlane.core.interchain_security.v1.rs");
+            }
+        }
         pub mod v1 {
             include!("hyperlane.core.v1.rs");
         }

@@ -1,7 +1,8 @@
 services:
   celestia-init:
-    # Branch: feature/zk-execution-ism
-    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:4e7e3c1defb0058ba41f1c76f02ec716295f7d7cd9e791564f40b44234083360
+    # Built locally from jonas/aggregation branch
+    # Run: ~/Desktop/build-celestia-app-image.sh to rebuild
+    image: celestia-app-standalone:local
     container_name: celestia-init
     entrypoint: /scripts/init.sh
     volumes:
@@ -10,8 +11,9 @@ services:
     restart: "no"
 
   celestia-validator:
-    # Branch: feature/zk-execution-ism
-    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:4e7e3c1defb0058ba41f1c76f02ec716295f7d7cd9e791564f40b44234083360
+    # Built locally from jonas/aggregation branch
+    # Run: ~/Desktop/build-celestia-app-image.sh to rebuild
+    image: celestia-app-standalone:local
     container_name: celestia-validator
     ports:
       - "26656:26656"

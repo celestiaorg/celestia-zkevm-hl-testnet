@@ -1,7 +1,10 @@
 use crate::{
     proto::{
         celestia::zkism::v1::{MsgCreateInterchainSecurityModule, MsgUpdateInterchainSecurityModule},
-        hyperlane::warp::v1::MsgSetToken,
+        hyperlane::{
+            core::interchain_security::v1::{MsgCreateAggregationIsm, MsgCreateNoopIsm},
+            warp::v1::MsgSetToken,
+        },
     },
     MsgProcessMessage, MsgRemoteTransfer, MsgSubmitMessages,
 };
@@ -96,4 +99,14 @@ impl MsgRemoteTransfer {
 impl Name for MsgRemoteTransfer {
     const NAME: &'static str = "MsgRemoteTransfer";
     const PACKAGE: &'static str = "hyperlane.warp.v1";
+}
+
+impl Name for MsgCreateNoopIsm {
+    const NAME: &'static str = "MsgCreateNoopIsm";
+    const PACKAGE: &'static str = "hyperlane.core.interchain_security.v1";
+}
+
+impl Name for MsgCreateAggregationIsm {
+    const NAME: &'static str = "MsgCreateAggregationIsm";
+    const PACKAGE: &'static str = "hyperlane.core.interchain_security.v1";
 }
