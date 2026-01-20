@@ -21,22 +21,6 @@ service Query {
   rpc Ism(QueryIsmRequest) returns (QueryIsmResponse) {
     option (google.api.http).get = "/hyperlane/v1/isms/{id}";
   }
-
-  // AnnouncedStorageLocations ...
-  rpc AnnouncedStorageLocations(QueryAnnouncedStorageLocationsRequest)
-      returns (QueryAnnouncedStorageLocationsResponse) {
-    option (google.api.http).get =
-        "/hyperlane/v1/mailboxes/{mailbox_id}/announced_storage_locations/"
-        "{validator_address}";
-  }
-
-  // LatestAnnouncedStorageLocation ...
-  rpc LatestAnnouncedStorageLocation(QueryLatestAnnouncedStorageLocationRequest)
-      returns (QueryLatestAnnouncedStorageLocationResponse) {
-    option (google.api.http).get =
-        "/hyperlane/v1/mailboxes/{mailbox_id}/announced_storage_locations/"
-        "{validator_address}/latest";
-  }
 }
 
 // QueryIsmsRequest ...
@@ -62,26 +46,4 @@ message QueryIsmRequest { string id = 1; }
 message QueryIsmResponse {
   google.protobuf.Any ism = 1
       [ (gogoproto.nullable) = false, (amino.dont_omitempty) = true ];
-}
-
-// QueryAnnouncedStorageLocationsRequest ...
-message QueryAnnouncedStorageLocationsRequest {
-  string mailbox_id = 1;
-  string validator_address = 2;
-}
-
-// QueryAnnouncedStorageLocationsResponse ...
-message QueryAnnouncedStorageLocationsResponse {
-  repeated string storage_locations = 1;
-}
-
-// QueryLatestAnnouncedStorageLocationRequest ...
-message QueryLatestAnnouncedStorageLocationRequest {
-  string mailbox_id = 1;
-  string validator_address = 2;
-}
-
-// QueryLatestAnnouncedStorageLocationResponse ...
-message QueryLatestAnnouncedStorageLocationResponse {
-  string storage_location = 1;
 }
