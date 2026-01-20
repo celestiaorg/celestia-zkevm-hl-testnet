@@ -54,7 +54,7 @@ See `.env.example` at the root of the repository.
 Run the `ev-hyperlane` binary in execution mode.
 
 ```shell
-RUST_LOG=info cargo run -p ev-hyperlane-script --release -- --execute --contract 0xFCb1d485ef46344029D9E8A7925925e146B3430E --start-height 0 --target-height 268 --rpc-url http://127.0.0.1:8545
+RUST_LOG=info cargo run -p ev-hyperlane-script --release -- --execute --contract 0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5 --start-height 0 --target-height 268 --rpc-url http://127.0.0.1:8545
 ```
 
 Run the `ev-hyperlane` binary in proving mode.
