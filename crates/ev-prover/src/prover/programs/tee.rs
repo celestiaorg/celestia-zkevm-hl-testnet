@@ -281,7 +281,7 @@ impl TeeExecProver {
             // Fetch attestation from the TEE app
             let client = reqwest::Client::new();
             let response = client
-                .get(format!("{}/attestation", tee_app_url))
+                .get(format!("{tee_app_url}/attestation"))
                 .send()
                 .await
                 .expect("Failed to connect to TEE app");
