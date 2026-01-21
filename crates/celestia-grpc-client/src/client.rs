@@ -261,9 +261,6 @@ impl CelestiaIsmClient {
         } else if type_url.contains("AggregationISM") {
             use crate::proto::hyperlane::core::interchain_security::v1::AggregationIsm;
             AggregationIsm::decode(&*ism_any.value).ok().map(|ism| ism.id)
-        } else if type_url.contains("RoutingISM") {
-            use crate::proto::hyperlane::core::interchain_security::v1::RoutingIsm;
-            RoutingIsm::decode(&*ism_any.value).ok().map(|ism| ism.id)
         } else {
             None
         }

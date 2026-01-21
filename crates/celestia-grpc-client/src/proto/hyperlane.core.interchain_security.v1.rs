@@ -79,24 +79,6 @@ pub struct Route {
     #[prost(uint32, tag="2")]
     pub domain: u32,
 }
-/// Routing ISM ...
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RoutingIsm {
-    /// id ...
-    #[prost(string, tag="1")]
-    pub id: ::prost::alloc::string::String,
-    /// owner ...
-    #[prost(string, tag="2")]
-    pub owner: ::prost::alloc::string::String,
-    /// Routes associated with the Routing ISM.
-    /// These are stored directly within the ISM to simplify the design,
-    /// as the number of routes is expected to remain small.
-    /// This approach avoids the added complexity of managing a separate
-    /// collection.
-    #[prost(message, repeated, tag="3")]
-    pub routes: ::prost::alloc::vec::Vec<Route>,
-}
 /// AggregationISM ...
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
