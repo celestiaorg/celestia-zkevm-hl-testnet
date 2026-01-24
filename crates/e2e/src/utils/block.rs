@@ -75,7 +75,7 @@ pub async fn parallel_prover(
     let namespace_hex = env::var("CELESTIA_NAMESPACE").expect("CELESTIA_NAMESPACE must be set");
     let namespace = Namespace::new_v0(&hex::decode(namespace_hex)?)?;
 
-    let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None)
+    let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None, None, None)
         .await
         .context("Failed creating Celestia RPC client")?;
     let pub_key = get_sequencer_pubkey(rpc_config::SEQUENCER_URL.to_string()).await?;
@@ -145,7 +145,7 @@ pub async fn parallel_prover(
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
     for block_number in start_height..=(start_height + num_blocks) {
         let handle = tokio::spawn({
-            let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None)
+            let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None, None, None)
                 .await
                 .context("Failed creating Celestia RPC client")?;
             let chain_spec = chain_spec.clone();
@@ -276,7 +276,7 @@ pub async fn synchronous_prover(
     let (genesis, chain_spec) = load_chain_spec_from_genesis(genesis_path.to_str().unwrap())?;
     let namespace_hex = env::var("CELESTIA_NAMESPACE").expect("CELESTIA_NAMESPACE must be set");
     let namespace = Namespace::new_v0(&hex::decode(namespace_hex)?)?;
-    let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None)
+    let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None, None, None)
         .await
         .context("Failed creating Celestia RPC client")?;
     let pub_key = get_sequencer_pubkey(rpc_config::SEQUENCER_URL.to_string()).await?;
@@ -382,7 +382,7 @@ pub async fn get_block_inputs(
         .share_get_namespace_data(&extended_header, namespace)
         .await?;
     let mut proofs: Vec<NamespaceProof> = Vec::new();
-    for row in namespace_data.rows {
+    for row in namespace_data.rows() {
         proofs.push(row.proof);
     }
     debug!("Got NamespaceProofs, total: {}", proofs.len());
