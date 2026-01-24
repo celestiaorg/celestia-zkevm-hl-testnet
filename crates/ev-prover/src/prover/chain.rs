@@ -121,7 +121,9 @@ impl ChainContext {
     pub async fn celestia_ws_client(&self) -> Result<Client> {
         let url = self.celestia_ws_url()?;
         let auth_token = self.config.rpc.celestia_auth_token.as_deref();
-        Client::new(url.as_str(), auth_token, None, None).await.map_err(|e| anyhow!(e))
+        Client::new(url.as_str(), auth_token, None, None)
+            .await
+            .map_err(|e| anyhow!(e))
     }
 
     /// Returns the ISM client.

@@ -15,7 +15,6 @@ use celestia_types::nmt::NamespaceProof;
 use celestia_types::Blob;
 use ev_types::v1::SignedData;
 use ev_zkevm_types::programs::block::{BlockExecInput, BlockExecOutput};
-use tokio_stream::StreamExt;
 use prost::Message;
 use rsp_client_executor::io::EthClientExecutorInput;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
@@ -23,6 +22,7 @@ use tokio::{
     sync::{mpsc, mpsc::Sender, RwLock, Semaphore},
     task::JoinSet,
 };
+use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
 
 use crate::prover::chain::ChainContext;
@@ -217,10 +217,11 @@ impl BlockExecProver {
         // Create WS client and subscription directly here to keep client alive for stream lifetime
         let ws_client = self.ctx.celestia_ws_client().await?;
         let client = self.ctx.celestia_client();
-        
+
         // blob_subscribe returns a Stream directly (not a Future), so no .await needed
         // The Stream's error type is jsonrpsee::core::ClientError which can be converted to celestia_rpc::Error
-        let mut subscription = ws_client.blob_subscribe(self.ctx.namespace())
+        let mut subscription = ws_client
+            .blob_subscribe(self.ctx.namespace())
             .map(|result| result.map_err(celestia_rpc::Error::from));
 
         // Queues for the 3-stage pipeline
@@ -374,7 +375,11 @@ impl BlockExecProver {
         // Fetch Celestia header and namespace data
         let extended_header = client.header_get_by_height(event.height).await?;
         let namespace_data = client
-            .share_get_namespace_data(extended_header.height(), extended_header.app_version(), self.ctx.namespace())
+            .share_get_namespace_data(
+                extended_header.height(),
+                extended_header.app_version(),
+                self.ctx.namespace(),
+            )
             .await?;
 
         let proofs: Vec<NamespaceProof> = namespace_data.rows().iter().map(|row| row.proof.clone()).collect();
