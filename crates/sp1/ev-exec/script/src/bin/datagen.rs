@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let namespace_hex = env::var("CELESTIA_NAMESPACE").expect("CELESTIA_NAMESPACE must be set");
     let namespace = Namespace::new_v0(&hex::decode(namespace_hex)?)?;
 
-    let celestia_client = Client::new(&celestia_rpc_url, None)
+    let celestia_client = Client::new(&celestia_rpc_url, None, None, None)
         .await
         .context("Failed creating Celestia RPC client")?;
 
@@ -123,10 +123,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         let extended_header = celestia_client.header_get_by_height(block_number).await?;
         let namespace_data = celestia_client
-            .share_get_namespace_data(&extended_header, namespace)
+            .share_get_namespace_data(extended_header.height(), extended_header.app_version(), namespace)
             .await?;
 
-        let proofs: Vec<NamespaceProof> = namespace_data.rows.into_iter().map(|row| row.proof).collect();
+        let proofs: Vec<NamespaceProof> = namespace_data.rows().iter().map(|row| row.proof.clone()).collect();
         println!("Got NamespaceProofs, total: {}", proofs.len());
 
         let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();

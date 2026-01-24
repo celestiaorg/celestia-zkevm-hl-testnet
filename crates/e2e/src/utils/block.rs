@@ -104,12 +104,12 @@ pub async fn parallel_prover(
             .await
             .expect("Failed to get extended header");
         let namespace_data = celestia_client
-            .share_get_namespace_data(extended_header.height(), celestia_types::AppVersion::V7, namespace)
+            .share_get_namespace_data(extended_header.height(), extended_header.app_version(), namespace)
             .await
             .expect("Failed to get namespace data");
         let mut proofs: Vec<NamespaceProof> = Vec::new();
         for row in namespace_data.rows() {
-            proofs.push(row.proof);
+            proofs.push(row.proof.clone());
         }
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 
@@ -379,11 +379,11 @@ pub async fn get_block_inputs(
 
     let extended_header = celestia_client.header_get_by_height(block_number).await?;
     let namespace_data = celestia_client
-        .share_get_namespace_data(extended_header.height(), celestia_types::AppVersion::V7, namespace)
+        .share_get_namespace_data(extended_header.height(), extended_header.app_version(), namespace)
         .await?;
     let mut proofs: Vec<NamespaceProof> = Vec::new();
     for row in namespace_data.rows() {
-        proofs.push(row.proof);
+        proofs.push(row.proof.clone());
     }
     debug!("Got NamespaceProofs, total: {}", proofs.len());
 
