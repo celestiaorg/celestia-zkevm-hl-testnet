@@ -164,7 +164,7 @@ impl BatchExecProver {
         let ism = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
         let state: State = bincode::deserialize(&ism.state).unwrap();
         let trusted_root = FixedBytes::from_slice(&state.state_root);
-        let celestia_head = self.ctx.celestia_client().header_local_head().await?.height().value();
+        let celestia_head = self.ctx.celestia_client().header_local_head().await?.height();
 
         Ok(ProverStatus {
             trusted_height: state.height,
@@ -311,11 +311,11 @@ impl BatchExecProver {
         let namespace_data = self
             .ctx
             .celestia_client()
-            .share_get_namespace_data(&extended_header, namespace)
+            .share_get_namespace_data(extended_header.height(), extended_header.app_version(), namespace)
             .await?;
         let mut proofs: Vec<NamespaceProof> = Vec::new();
-        for row in namespace_data.rows {
-            proofs.push(row.proof);
+        for row in namespace_data.rows() {
+            proofs.push(row.proof.clone());
         }
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 

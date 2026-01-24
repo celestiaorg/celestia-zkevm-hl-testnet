@@ -63,7 +63,7 @@ pub async fn create_ism() -> Result<()> {
     let namespace = chain_ctx.namespace();
 
     // Find the most recent Celestia height with a blob and retrieve the associated EVM block height.
-    let mut search_height: u64 = celestia_client.header_local_head().await?.height().value();
+    let mut search_height: u64 = celestia_client.header_local_head().await?.height();
     let (header, ev_block_height) = loop {
         let header = celestia_client.header_get_by_height(search_height).await?;
         if let Some(block_height) = chain_ctx.latest_block_for_height(search_height).await? {
@@ -76,7 +76,7 @@ pub async fn create_ism() -> Result<()> {
         search_height -= 1;
     };
 
-    let height: u64 = header.height().value();
+    let height: u64 = header.height();
     let block_hash = header.hash().as_bytes().to_vec();
 
     let block = chain_ctx

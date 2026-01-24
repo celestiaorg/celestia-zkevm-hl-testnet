@@ -7,16 +7,15 @@ use std::result::Result::{Err, Ok};
 use std::sync::Arc;
 
 use alloy_primitives::FixedBytes;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
-use celestia_rpc::blob::BlobsAtHeight;
 use celestia_rpc::{client::Client, BlobClient, HeaderClient, ShareClient};
 use celestia_types::nmt::NamespaceProof;
 use celestia_types::Blob;
 use ev_types::v1::SignedData;
 use ev_zkevm_types::programs::block::{BlockExecInput, BlockExecOutput};
-use jsonrpsee_core::client::Subscription;
+use tokio_stream::StreamExt;
 use prost::Message;
 use rsp_client_executor::io::EthClientExecutorInput;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
@@ -198,15 +197,7 @@ impl BlockExecProver {
         BlockExecConfig::new(pk, vk, SP1ProofMode::Compressed)
     }
 
-    async fn connect_and_subscribe(&self) -> Result<(Arc<Client>, Subscription<BlobsAtHeight>)> {
-        let client = self.ctx.celestia_ws_client().await?;
-        let subscription = client
-            .blob_subscribe(self.ctx.namespace())
-            .await
-            .context("Blob subscription failed")?;
-
-        Ok((self.ctx.celestia_client(), subscription))
-    }
+    // Removed connect_and_subscribe - subscription creation moved to run() to fix lifetime issues
 
     /// Runs the block prover loop with a 3-stage pipeline:
     ///
@@ -223,7 +214,14 @@ impl BlockExecProver {
     /// proofs are generated concurrently while ensuring the trusted state is updated
     /// monotonically in block-height order.
     pub async fn run(self: Arc<Self>) -> Result<()> {
-        let (client, mut subscription) = self.connect_and_subscribe().await?;
+        // Create WS client and subscription directly here to keep client alive for stream lifetime
+        let ws_client = self.ctx.celestia_ws_client().await?;
+        let client = self.ctx.celestia_client();
+        
+        // blob_subscribe returns a Stream directly (not a Future), so no .await needed
+        // The Stream's error type is jsonrpsee::core::ClientError which can be converted to celestia_rpc::Error
+        let mut subscription = ws_client.blob_subscribe(self.ctx.namespace())
+            .map(|result| result.map_err(celestia_rpc::Error::from));
 
         // Queues for the 3-stage pipeline
         let (event_tx, mut event_rx) = mpsc::channel::<BlockEvent>(self.queue_capacity);
@@ -376,10 +374,10 @@ impl BlockExecProver {
         // Fetch Celestia header and namespace data
         let extended_header = client.header_get_by_height(event.height).await?;
         let namespace_data = client
-            .share_get_namespace_data(&extended_header, self.ctx.namespace())
+            .share_get_namespace_data(extended_header.height(), extended_header.app_version(), self.ctx.namespace())
             .await?;
 
-        let proofs: Vec<NamespaceProof> = namespace_data.rows.iter().map(|row| row.proof.clone()).collect();
+        let proofs: Vec<NamespaceProof> = namespace_data.rows().iter().map(|row| row.proof.clone()).collect();
 
         // Decode blob data to extract block heights
         let signed_data: Vec<SignedData> = event
