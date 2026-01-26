@@ -21,6 +21,7 @@ path = "src/bin/vkey.rs"
 alloy-genesis = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-provider = { workspace = true }
+alloy-tx-macros = { workspace = true }
 anyhow = { workspace = true }
 base64 = { workspace = true }
 bincode = { workspace = true }
