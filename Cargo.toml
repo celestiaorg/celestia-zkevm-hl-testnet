@@ -45,10 +45,11 @@ celestia-rpc = "=0.13.0"
 celestia-types = "=0.15.0"
 chrono = "0.4"
 cosmrs = { version = "0.22", features = ["grpc", "cosmwasm"] }
-dcap-qvl = { git = "https://github.com/jonas089/dcap-qvl", default-features = false, features = [
+dcap-qvl = { git = "https://github.com/Phala-Network/dcap-qvl", tag = "v0.3.11", default-features = false, features = [
     "std",
+    "rustcrypto",
     "report",
-], branch = "v0.3.4-zk" }
+] }
 dirs = "5.0.1"
 dotenvy = "0.15.7"
 ed25519-dalek = { version = "2.1.0", features = ["alloc", "serde"] }

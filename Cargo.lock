@@ -2941,8 +2941,8 @@ dependencies = [
 
 [[package]]
 name = "dcap-qvl"
-version = "0.3.4"
-source = "git+https://github.com/jonas089/dcap-qvl?branch=v0.3.4-zk#039ff387086f5c77dcd422b9d627f779f61d5c6d"
+version = "0.3.11"
+source = "git+https://github.com/Phala-Network/dcap-qvl?tag=v0.3.11#b637e767132dd15b82847353c7331e161d97133d"
 dependencies = [
  "anyhow",
  "asn1_der",
@@ -2951,7 +2951,9 @@ dependencies = [
  "byteorder",
  "chrono",
  "const-oid",
+ "dcap-qvl-webpki",
  "der",
+ "derive_more 2.1.1",
  "futures",
  "hex",
  "log",
@@ -2959,15 +2961,35 @@ dependencies = [
  "parity-scale-codec",
  "pem",
  "reqwest 0.12.28",
+ "rustls-pki-types",
  "scale-info",
  "serde",
  "serde-human-bytes",
  "serde_json",
  "sha2 0.10.9",
- "spki",
+ "signature",
  "tracing",
  "urlencoding",
+ "wasm-bindgen-futures",
  "x509-cert",
+]
+
+[[package]]
+name = "dcap-qvl-webpki"
+version = "0.103.4+dcap.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0af040afe66c4f26ca05f308482d98bd75a35a80a227d877c2e28c9947a9fa6"
+dependencies = [
+ "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ed25519-dalek",
+ "p256",
+ "p384",
+ "ring",
+ "rsa",
+ "rustls-pki-types",
+ "sha2 0.10.9",
+ "signature",
+ "untrusted",
 ]
 
 [[package]]
@@ -3231,12 +3253,25 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
+dependencies = [
+ "der",
+ "digest 0.10.7",
+ "elliptic-curve",
+ "rfc6979 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signature",
+]
+
+[[package]]
+name = "ecdsa"
+version = "0.16.9"
 source = "git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0#1880299a48fe7ef249edaa616fd411239fb5daf1"
 dependencies = [
  "der",
  "digest 0.10.7",
  "elliptic-curve",
- "rfc6979",
+ "rfc6979 0.4.0 (git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0)",
  "serdect",
  "signature",
  "spki",
@@ -5018,7 +5053,7 @@ version = "0.13.4"
 source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-5.0.0#f7d8998e05d8cbcbd8e543eba1030a7385011fa8"
 dependencies = [
  "cfg-if",
- "ecdsa",
+ "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0)",
  "elliptic-curve",
  "hex",
  "once_cell",
@@ -5615,6 +5650,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-bigint-dig"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e661dda6640fad38e827a6d4a310ff4763082116fe217f279885c97f511bb0b7"
+dependencies = [
+ "lazy_static",
+ "libm",
+ "num-integer",
+ "num-iter",
+ "num-traits",
+ "rand 0.8.5",
+ "smallvec",
+ "zeroize",
+]
+
+[[package]]
 name = "num-complex"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5935,10 +5986,10 @@ name = "p256"
 version = "0.13.2"
 source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-5.0.0#10cca2ef98bebbad35e2475849433fc3e75e27d9"
 dependencies = [
- "ecdsa",
+ "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0)",
  "elliptic-curve",
  "hex",
- "primeorder",
+ "primeorder 0.13.1",
  "sha2 0.10.9",
  "sp1-lib",
 ]
@@ -6189,6 +6240,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c2c2010678b9332b563eaa38364915b585c1a94b5ca61e2c7541c087ddda5c"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "p384"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe42f1670a52a47d448f14b6a5c61dd78fce51856e68edaa38f7ae3a46b8d6b6"
+dependencies = [
+ "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "elliptic-curve",
+ "primeorder 0.13.6",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -6470,6 +6533,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pkcs1"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f"
+dependencies = [
+ "der",
+ "pkcs8",
+ "spki",
+]
+
+[[package]]
 name = "pkcs8"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6529,6 +6603,15 @@ dependencies = [
 name = "primeorder"
 version = "0.13.1"
 source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-5.0.0#10cca2ef98bebbad35e2475849433fc3e75e27d9"
+dependencies = [
+ "elliptic-curve",
+]
+
+[[package]]
+name = "primeorder"
+version = "0.13.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
  "elliptic-curve",
 ]
@@ -7854,6 +7937,16 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
+dependencies = [
+ "hmac",
+ "subtle",
+]
+
+[[package]]
+name = "rfc6979"
+version = "0.4.0"
 source = "git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0#1880299a48fe7ef249edaa616fd411239fb5daf1"
 dependencies = [
  "hmac",
@@ -7912,6 +8005,27 @@ dependencies = [
  "downcast-rs",
  "num_enum 0.5.11",
  "paste",
+]
+
+[[package]]
+name = "rsa"
+version = "0.9.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8573f03f5883dcaebdfcf4725caa1ecb9c15b2ef50c43a07b816e06799bb12d"
+dependencies = [
+ "const-oid",
+ "digest 0.10.7",
+ "num-bigint-dig",
+ "num-integer",
+ "num-traits",
+ "pkcs1",
+ "pkcs8",
+ "rand_core 0.6.4",
+ "sha2 0.10.9",
+ "signature",
+ "spki",
+ "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -9641,7 +9755,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 [[package]]
 name = "tee-attestation-types"
 version = "0.1.0"
-source = "git+https://github.com/celestiaorg/evolve-tee#8448c9e28086ea59b57ff3c6bc1fd0372aa0234e"
+source = "git+https://github.com/celestiaorg/evolve-tee#4ef505628014ae96caa86ef4aebde5ff9a0cd5c8"
 dependencies = [
  "dcap-qvl",
  "hex",
