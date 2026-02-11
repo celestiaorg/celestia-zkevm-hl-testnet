@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
+use chrono::{DateTime, Utc};
 
 use crate::prover::chain::ChainContext;
 use crate::prover::config::{MAX_BATCH_SIZE, MAX_INDEXING_RANGE};
@@ -306,6 +307,14 @@ impl TeeExecProver {
                 .expect("Failed to get current time")
                 .as_secs();
 
+            // Add buffer to account for potential clock drift with PCCS server
+            const CLOCK_DRIFT_BUFFER_SECS: u64 = 300; // 5 minutes
+            let now_with_buffer = now + CLOCK_DRIFT_BUFFER_SECS;
+
+            // Debug: Print the timestamp we're passing to the circuit
+            let now_dt = DateTime::from_timestamp(now_with_buffer as i64, 0).unwrap();
+            info!("Current timestamp being passed to circuit: {} (Unix: {})", now_dt, now_with_buffer);
+
             let input = TeeAttestationInput {
                 quote,
                 event_log: attestation
@@ -316,7 +325,7 @@ impl TeeExecProver {
                 report_data: Vec::new(), // not used in circuit, extracted from quote
                 output: hex::decode(attestation.output.ok_or_else(|| anyhow!("Missing output"))?)?,
                 collateral,
-                now,
+                now: now_with_buffer,
             };
 
             // Generate the proof
