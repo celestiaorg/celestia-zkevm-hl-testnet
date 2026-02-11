@@ -1,6 +1,6 @@
+use chrono::DateTime;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
-use chrono::{DateTime, Utc};
 
 use crate::prover::chain::ChainContext;
 use crate::prover::config::{MAX_BATCH_SIZE, MAX_INDEXING_RANGE};
@@ -313,7 +313,10 @@ impl TeeExecProver {
 
             // Debug: Print the timestamp we're passing to the circuit
             let now_dt = DateTime::from_timestamp(now_with_buffer as i64, 0).unwrap();
-            info!("Current timestamp being passed to circuit: {} (Unix: {})", now_dt, now_with_buffer);
+            info!(
+                "Current timestamp being passed to circuit: {} (Unix: {})",
+                now_dt, now_with_buffer
+            );
 
             let input = TeeAttestationInput {
                 quote,

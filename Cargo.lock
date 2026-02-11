@@ -3608,6 +3608,7 @@ dependencies = [
  "celestia-grpc-client",
  "celestia-rpc",
  "celestia-types 0.15.0",
+ "chrono",
  "clap",
  "dcap-qvl",
  "dirs",

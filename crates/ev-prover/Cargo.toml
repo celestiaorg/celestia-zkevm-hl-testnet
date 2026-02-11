@@ -62,6 +62,7 @@ tonic-reflection = "0.10"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 url = { workspace = true }
+chrono = "0.4"
 
 [build-dependencies]
 sp1-build = { workspace = true }
