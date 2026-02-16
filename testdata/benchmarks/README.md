@@ -23,7 +23,7 @@ make stop
 ```
 
 Collect proof input data for a range of blocks.
-As mentioned in the `ev-exec` documentation, using the `--start` and `--blocks` flags allows the user to chose a starting height and number of blocks to gather input data for.
+As mentioned in the `ev-exec` documentation, using the `--start` and `--blocks` flags allows the user to choose a starting height and number of blocks to gather input data for.
 
 ```shell
 cargo run -p ev-exec-script --bin data-gen --release -- --start 15 --blocks 5
@@ -40,7 +40,7 @@ RUST_LOG=info cargo run -p ev-exec-script --release -- --execute --height 15 --o
 
 Using the outputs displayed on screen we can invoke the program for the subsequent blocks passing the `--trusted-height` and `--trusted-root` flags.
 Note, as we are chaining celestia blocks sequentially, we do not have a guarantee that each block will contain a `SignedData` blob for the EVM application.
-Thus, we explitcitly pass these flags to ensure empty blocks maintain a trusted height and state root moving forward.
+Thus, we explicitly pass these flags to ensure empty blocks maintain a trusted height and state root moving forward.
 
 ```shell
 RUST_LOG=info cargo run -p ev-exec-script --release -- --execute --height 16 --output-file block-15.json --trusted-height {N} --trusted-root {abcdef...}
