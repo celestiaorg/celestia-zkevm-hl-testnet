@@ -418,7 +418,10 @@ impl TeeExecProver {
 
             // Fetch light blocks for Tendermint light client verification
             let trusted_light_block = self.ctx.get_light_block(status.trusted_celestia_height).await?;
-            let new_light_block = self.ctx.get_light_block(status.trusted_celestia_height + batch_size).await?;
+            let new_light_block = self
+                .ctx
+                .get_light_block(status.trusted_celestia_height + batch_size)
+                .await?;
 
             // Serialize light blocks using CBOR (bincode doesn't work with tendermint's serde attrs)
             let trusted_light_block_raw = hex::encode(serde_cbor::to_vec(&trusted_light_block)?);
