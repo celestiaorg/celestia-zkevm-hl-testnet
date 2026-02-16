@@ -47,7 +47,7 @@ The prover service indexes EvolveEvm blocks for `EventDispatch` emissions. When 
 In order for Celestia to mint synthetic tokens on behalf of the locked collateral tokens, the relayer must present two proofs:
 	- A state transition proof showing the EvolveEvm chain's current state evolved from a previously known (trusted) state. This allows Celestia to trust the new state root.
 	- A state inclusion proof showing that the commitment (message ID) is a valid Merkle leaf in the EvolveEvm chain state tree.
-The prover services runs zk circuits built using SP1:
+The prover service runs zk circuits built using SP1:
 	- The first circuit verifies sequential EvolveEvm header-to-header state transitions using [RSP](https://github.com/succinctlabs/rsp/tree/main) and additionally proves blob inclusion in Celestia’s data availability layer. The process is repeated for a batch of Celestia blocks.
     - The second circuit verifies Merkle inclusion of the commitment (message ID).
 6.	**ProverService submits proofs + message to Celestia.**

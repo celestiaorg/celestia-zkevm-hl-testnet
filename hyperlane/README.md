@@ -115,7 +115,7 @@ Now that we've deployed the Hyperlane core and warp route infrastructure for a c
 we must establish a link between the two tokens and mailboxes.
 
 1. Enroll the synthetic token contract on Reth as the remote router contract on the celestia-app cosmosnative module.
-NOTE: Here we left-pad the 20byte EVM address to conform to the `HexAddress` spec of cosmosnative.
+NOTE: Here we left-pad the 20-byte EVM address to conform to the `HexAddress` spec of cosmosnative.
 
 NOTE: The following can be run from inside the `celestia-validator` service container, or from your host machine if you have access to a key for a funded account.
 
@@ -132,7 +132,7 @@ celestia-appd q warp remote-routers 0x726f757465725f6170700000000000000000000000
 ```
 
 2. Enroll the collateral token ID from the celestia-app cosmosnative module as the remote router on the synthetic token contract (EVM).
-Normally this should be possible to configure in a `warp-config.yaml` using the hyperlane CLI however, there isn't cosmosnative support yet.
+Normally this should be possible to configure in a `warp-config.yaml` using the hyperlane CLI however, there isn't any cosmos-native support yet.
 Instead, we attempt to do this manually by invoking the EVM contract directly.
 
 ```
@@ -194,7 +194,7 @@ cast call 0x345a583028762De4d733852c9D4f419077093A48 \
 
 #### Deploy a `HypNative` token on Evolve
 
-This guide will walkthrough the steps to deploy a `HypNative` token on EVM and a corresponding `Synthetic` token on Celestia and 
+This guide will walk through the steps to deploy a `HypNative` token on EVM and a corresponding `Synthetic` token on Celestia and 
 establish a link between the two.
 
 Ensure you have a valid private key set for deploying EVM contracts under the env variable `HYP_KEY`.
@@ -211,7 +211,7 @@ Example using the docker compose network in this repository:
 4. Select `No` for the trusted relayer ism.
 5. Select `Native` from the token list.
 
-Deploy the Warp contract using the `hyperlane` CLI. Provide the flag `--symbol ETH` to refer to the file created under `deployments/ETH` from the initial step. Alternatively provide 
+Deploy the Warp contract using the `hyperlane` CLI. Provide the flag `--symbol ETH` to refer to the file created under `deployments/ETH` from the initial step.
 Note, if running the CLI locally against the docker network then you will need to adjust the `rpcUrl` in `registry/chains` to use localhost.
 ```
 hyperlane warp deploy --registry ./hyperlane/registry --warp  --symbol ETH
@@ -237,7 +237,7 @@ celestia-appd q warp tokens
 
 #### Set the remote routers to establish a link between both tokens
 
-Finally we will set the remote router for both new tokens. Firstly on the EVM side and then on Celestia, the order in which this is done is does not matter.
+Finally we will set the remote router for both new tokens. Firstly on the EVM side and then on Celestia, the order in which this is done does not matter.
 
 Using `cast` we can invoke the contract directly to enroll the remote router providing both the `domain` and `Synthetic` token identifier.
 ```
