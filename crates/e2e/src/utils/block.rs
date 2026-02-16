@@ -13,7 +13,7 @@ use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecInput, Bloc
 use eyre::Context;
 use prost::Message;
 use reth_chainspec::ChainSpec;
-use rsp_client_executor::io::EthClientExecutorInput;
+use rsp_client_executor::io::EvolveClientExecutorInput;
 use rsp_primitives::genesis::Genesis;
 use sp1_sdk::{EnvProver, HashableKey, SP1Proof, SP1ProofWithPublicValues, SP1Stdin};
 use std::env;
@@ -113,7 +113,7 @@ pub async fn parallel_prover(
         }
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 
-        let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();
+        let mut executor_inputs: Vec<EvolveClientExecutorInput> = Vec::new();
         let mut last_height = *trusted_height;
         for blob in blobs.as_slice() {
             let data = match SignedData::decode(blob.data.as_slice()) {
@@ -387,7 +387,7 @@ pub async fn get_block_inputs(
     }
     debug!("Got NamespaceProofs, total: {}", proofs.len());
 
-    let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();
+    let mut executor_inputs: Vec<EvolveClientExecutorInput> = Vec::new();
     if blobs.is_empty() {
         debug!(
             "No blobs for Celestia height {}, keeping trusted_height={} and trusted_root unchanged",

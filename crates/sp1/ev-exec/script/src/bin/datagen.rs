@@ -4,7 +4,7 @@
 //! - Celestia header and data availability header.
 //! - Blobs for the provided namespace.
 //! - NamespaceProofs for the provided namespace.
-//! - EVM state transition inputs (EthClientExecutorInput) for n EVM blocks included in the Celestia block.
+//! - EVM state transition inputs (EvolveClientExecutorInput) for n EVM blocks included in the Celestia block.
 //!
 //! For each Celestia block, the generated inputs are written to a directory:
 //! `testdata/inputs/block-<number>`
@@ -31,10 +31,9 @@ use ev_types::v1::{GetBlockRequest, SignedData};
 use eyre::Context;
 use prost::Message;
 use reth_chainspec::ChainSpec;
-use rsp_client_executor::io::EthClientExecutorInput;
-use rsp_host_executor::EthHostExecutor;
+use rsp_client_executor::io::EvolveClientExecutorInput;
+use rsp_host_executor::EvolveHostExecutor;
 use rsp_primitives::genesis::Genesis;
-use rsp_rpc_db::RpcDb;
 
 /// The arguments for the command.
 #[derive(Parser, Debug)]
@@ -64,14 +63,13 @@ async fn generate_client_executor_input(
     block_number: u64,
     chain_spec: Arc<ChainSpec>,
     genesis: Genesis,
-) -> Result<EthClientExecutorInput, Box<dyn Error>> {
-    let host_executor = EthHostExecutor::eth(chain_spec.clone(), None);
+) -> Result<EvolveClientExecutorInput, Box<dyn Error>> {
+    let host_executor = EvolveHostExecutor::evolve(chain_spec.clone(), None, &genesis);
 
     let provider = ProviderBuilder::new().connect_http(rpc_url.parse().unwrap());
-    let rpc_db = RpcDb::new(provider.clone(), block_number - 1);
 
     let client_input = host_executor
-        .execute(block_number, &rpc_db, &provider, genesis, None, false)
+        .execute(block_number, &provider, genesis, None, false)
         .await
         .wrap_err_with(|| format!("Failed to execute block {block_number}"))?;
 
@@ -129,7 +127,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let proofs: Vec<NamespaceProof> = namespace_data.rows.into_iter().map(|row| row.proof).collect();
         println!("Got NamespaceProofs, total: {}", proofs.len());
 
-        let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();
+        let mut executor_inputs: Vec<EvolveClientExecutorInput> = Vec::new();
         for blob in blobs.as_slice() {
             let data = match SignedData::decode(blob.data.as_slice()) {
                 Ok(data) => data.data.unwrap(),
@@ -145,7 +143,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             executor_inputs.push(client_executor_input);
         }
 
-        println!("Got EthClientExecutorInputs, total: {}", executor_inputs.len());
+        println!("Got EvolveClientExecutorInputs, total: {}", executor_inputs.len());
 
         // Create output dir: testdata/inputs/block-{celestia_block_number}/
         let block_dir = format!("testdata/inputs/block-{block_number}");

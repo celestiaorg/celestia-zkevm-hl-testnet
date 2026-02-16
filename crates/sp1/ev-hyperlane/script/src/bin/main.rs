@@ -3,11 +3,11 @@
 //!
 //! You can run this script using the following command:
 //! ```shell
-//! RUST_LOG=info cargo run -p ev-hyperlane-script --release -- --execute --contract 0xFCb1d485ef46344029D9E8A7925925e146B3430E --start-idx 0 --end-idx 23 --target-height 268 --rpc-url http://127.0.0.1:8545
+//! RUST_LOG=info cargo run -p ev-hyperlane-script --release -- --execute --contract 0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5 --start-idx 0 --end-idx 23 --target-height 268 --rpc-url http://127.0.0.1:8545
 //! ```
 //! or
 //! ```shell
-//! RUST_LOG=info cargo run -p ev-hyperlane-script --release -- --prove --contract 0xFCb1d485ef46344029D9E8A7925925e146B3430E --start-idx 0 --end-idx 23 --target-height 268 --rpc-url http://127.0.0.1:8545
+//! RUST_LOG=info cargo run -p ev-hyperlane-script --release -- --prove --contract 0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5 --start-idx 0 --end-idx 23 --target-height 268 --rpc-url http://127.0.0.1:8545
 //! ```
 
 use alloy_primitives::{hex::FromHex, Address, FixedBytes};

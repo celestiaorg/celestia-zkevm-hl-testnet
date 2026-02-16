@@ -18,7 +18,7 @@ use ev_types::v1::SignedData;
 use ev_zkevm_types::programs::block::{BlockExecInput, BlockExecOutput};
 use jsonrpsee_core::client::Subscription;
 use prost::Message;
-use rsp_client_executor::io::EthClientExecutorInput;
+use rsp_client_executor::io::EvolveClientExecutorInput;
 use sp1_sdk::{include_elf, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use tokio::{
     sync::{mpsc, mpsc::Sender, RwLock, Semaphore},
@@ -67,7 +67,7 @@ impl ProverConfig for BlockExecConfig {
 }
 
 /// TrustedState tracks the trusted height and state root which is provided to the proof system as inputs.
-/// Updates are made optimisticly using the EthClientExecutorInputs queried from the configured EVM full node.
+/// Updates are made optimisticly using the EvolveClientExecutorInputs queried from the configured EVM full node.
 pub struct TrustedState {
     height: u64,
     root: FixedBytes<32>,
@@ -156,7 +156,7 @@ struct ProofJob {
     extended_header: ExtendedHeader,
     proofs: Vec<NamespaceProof>,
     blobs: Vec<Blob>,
-    executor_inputs: Vec<EthClientExecutorInput>,
+    executor_inputs: Vec<EvolveClientExecutorInput>,
 }
 
 struct ScheduledProofJob {
