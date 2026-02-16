@@ -8,17 +8,33 @@ use crate::prover::{
     config::{BATCH_SIZE, MIN_BATCH_SIZE, WARN_DISTANCE},
     MessageProofRequest, MessageProofSync, ProverConfig, RangeProofCommitted,
 };
+use alloy_primitives::FixedBytes;
+use alloy_provider::Provider;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use celestia_grpc_client::{MsgUpdateInterchainSecurityModule, QueryIsmRequest};
-use celestia_rpc::HeaderClient;
-use ev_zkevm_types::programs::block::{BlockRangeExecOutput, State};
+use celestia_rpc::{BlobClient, HeaderClient, ShareClient};
+use celestia_types::{
+    nmt::{Namespace, NamespaceProof},
+    Blob,
+};
+use ev_types::v1::SignedData;
+use ev_zkevm_types::programs::block::{BlockExecInput, BlockRangeExecOutput, State};
+use prost::Message;
+use serde::{Deserialize, Serialize};
 use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use storage::hyperlane::message::HyperlaneMessageStore;
 use tee_attestation_types::{AttestationResponse, Inputs as TeeAttestationInput};
 
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
+
+#[derive(Deserialize, Serialize)]
+struct AttestationRequest {
+    block_inputs: Vec<String>,
+    trusted_light_block_raw: String,
+    new_light_block_raw: String,
+}
 
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
@@ -235,6 +251,97 @@ impl TeeExecProver {
         Ok(())
     }
 
+    /// Builds a single block prover input for the given height.
+    async fn build_block_input(
+        &self,
+        height: u64,
+        namespace: Namespace,
+        trusted_height: &mut u64,
+        trusted_root: &mut FixedBytes<32>,
+    ) -> Result<BlockExecInput> {
+        let blobs: Vec<Blob> = self
+            .ctx
+            .celestia_client()
+            .blob_get_all(height, &[namespace])
+            .await?
+            .unwrap_or_default();
+        debug!("Got {} blobs for block: {}", blobs.len(), height);
+
+        let extended_header = self.ctx.celestia_client().header_get_by_height(height).await?;
+        let namespace_data = self
+            .ctx
+            .celestia_client()
+            .share_get_namespace_data(&extended_header, namespace)
+            .await?;
+        let mut proofs: Vec<NamespaceProof> = Vec::new();
+        for row in namespace_data.rows {
+            proofs.push(row.proof);
+        }
+        debug!("Got NamespaceProofs, total: {}", proofs.len());
+
+        let mut executor_inputs = Vec::new();
+
+        if blobs.is_empty() {
+            debug!(
+                "No blobs for Celestia height {}, keeping trusted_height={} and trusted_root unchanged",
+                height, trusted_height
+            );
+            return Ok(BlockExecInput {
+                header_raw: serde_cbor::to_vec(&extended_header.header)?,
+                dah: extended_header.dah,
+                blobs_raw: serde_cbor::to_vec(&blobs)?,
+                pub_key: self.ctx.pub_key_bytes(),
+                namespace,
+                proofs,
+                executor_inputs: vec![],
+                trusted_height: *trusted_height,
+                trusted_root: *trusted_root,
+            });
+        }
+
+        // Process blobs to extract executor inputs
+        let mut last_height = 0;
+        for blob in blobs.as_slice() {
+            let signed_data = match SignedData::decode(blob.data.as_slice()) {
+                Ok(data) => data,
+                Err(_) => continue,
+            };
+            let data = signed_data.data.ok_or_else(|| anyhow!("Data not found"))?;
+            let height = data.metadata.ok_or_else(|| anyhow!("Metadata not found"))?.height;
+            last_height = height;
+            debug!("Got SignedData for ev block {height}");
+
+            let client_executor_input = self.ctx.generate_executor_input(height).await?;
+            executor_inputs.push(client_executor_input);
+        }
+
+        // Construct the block execution input
+        let input = BlockExecInput {
+            header_raw: serde_cbor::to_vec(&extended_header.header)?,
+            dah: extended_header.dah,
+            blobs_raw: serde_cbor::to_vec(&blobs)?,
+            pub_key: self.ctx.pub_key_bytes(),
+            namespace,
+            proofs,
+            executor_inputs: executor_inputs.clone(),
+            trusted_height: *trusted_height,
+            trusted_root: *trusted_root,
+        };
+
+        // Update trusted state based on the last EVM block processed
+        let block = self
+            .ctx
+            .evm_provider()
+            .get_block_by_number(last_height.into())
+            .await?
+            .ok_or_else(|| anyhow!("Block {last_height} not found"))?;
+
+        *trusted_height = last_height;
+        *trusted_root = block.header.state_root;
+
+        Ok(input)
+    }
+
     /// Starts the batched prover loop.
     pub async fn run(self: Arc<Self>, message_sync: Arc<MessageProofSync>) -> Result<()> {
         let mut batch_size = BATCH_SIZE;
@@ -279,10 +386,54 @@ impl TeeExecProver {
 
             let tee_app_url = std::env::var("TEE_APP_URL").expect("TEE_APP_URL environment variable is not set");
 
-            // Fetch attestation from the TEE app
+            // Build block inputs for the batch
+            let mut trusted_height = status.trusted_height;
+            let mut trusted_state_root = {
+                let block = self
+                    .ctx
+                    .evm_provider()
+                    .get_block_by_number(trusted_height.into())
+                    .await?
+                    .ok_or_else(|| anyhow!("Block {trusted_height} not found"))?;
+                block.header.state_root
+            };
+            let namespace = self.ctx.namespace();
+            let mut block_inputs: Vec<BlockExecInput> = Vec::new();
+
+            for celestia_height in status.trusted_celestia_height + 1..=status.trusted_celestia_height + batch_size {
+                let input = self
+                    .build_block_input(celestia_height, namespace, &mut trusted_height, &mut trusted_state_root)
+                    .await?;
+                block_inputs.push(input);
+            }
+
+            // Serialize block inputs to hex strings
+            let serialized_inputs: Vec<String> = block_inputs
+                .iter()
+                .map(|input| {
+                    let bytes = bincode::serialize(&input).expect("failed to serialize input");
+                    hex::encode(bytes)
+                })
+                .collect();
+
+            // Fetch light blocks for Tendermint light client verification
+            let trusted_light_block = self.ctx.get_light_block(status.trusted_celestia_height).await?;
+            let new_light_block = self.ctx.get_light_block(status.trusted_celestia_height + batch_size).await?;
+
+            // Serialize light blocks using CBOR (bincode doesn't work with tendermint's serde attrs)
+            let trusted_light_block_raw = hex::encode(serde_cbor::to_vec(&trusted_light_block)?);
+            let new_light_block_raw = hex::encode(serde_cbor::to_vec(&new_light_block)?);
+
+            // Fetch attestation from the TEE app via POST with block inputs and light blocks
             let client = reqwest::Client::new();
+            let request_body = AttestationRequest {
+                block_inputs: serialized_inputs,
+                trusted_light_block_raw,
+                new_light_block_raw,
+            };
             let response = client
-                .get(format!("{tee_app_url}/attestation"))
+                .post(format!("{tee_app_url}/attestation"))
+                .json(&request_body)
                 .send()
                 .await
                 .expect("Failed to connect to TEE app");

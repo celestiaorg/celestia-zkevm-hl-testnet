@@ -145,7 +145,7 @@ You will find detailed documentation on how to run the joint hyperlane message a
 
 ### TEE Deployment
 
-For deploying the testnet with Phala TEE instance and middleware, see the [TEE deployment guide](crates/ev-prover/TEE.md).
+For deploying the testnet with Phala TEE instance, see the [TEE deployment guide](crates/ev-prover/TEE.md).
 
 ## Architecture
 

@@ -18,7 +18,13 @@ These constraints will ensure that proofs can only be generated from authorized 
 
 ## Overview
 
-The TEE integration provides hardware-based security guarantees for the zkEVM prover. This guide includes:
+The TEE integration provides hardware-based security guarantees for the zkEVM prover. The architecture is designed for minimal dependencies:
+
+- **Prover**: Fetches block inputs and light blocks from Celestia/EVM nodes
+- **TEE App**: Receives serialized data via POST, performs native verification, generates attestation
+- **No middleware required**: The prover communicates directly with the TEE app
+
+This guide includes:
 - **Deploying your own TEE instance on Phala Cloud** (recommended for development)
 - **Using the internal testnet** (for team members with access)
 
@@ -55,18 +61,16 @@ phala deploy --interactive
 After deployment, you'll receive a dashboard link with your TEE instance details. Copy the **RPC endpoint** from the dashboard and add it to your `celestia-zkevm/.env` file:
 
 ```env
-TEE_RPC_ENDPOINT=<your-tee-rpc-endpoint>
-RETH_RPC_URL="http://testnet-server-ip:8545"
-RETH_WS_URL="ws://testnet-server-ip:8546"
-SEQUENCER_RPC_URL="http://testnet-server-ip:7331"
-CELESTIA_RPC_URL="http://testnet-server-ip:26658"
-TENDERMINT_RPC_URL="http://testnet-server-ip:26657"
-CELESTIA_GRPC_ENDPOINT="http://testnet-server-ip:9090"
-MIDDLEWARE_ENDPOINT="http://testnet-server-ip:9091"
+RETH_RPC_URL="http://127.0.0.1:8545"
+RETH_WS_URL="ws://127.0.0.1:8546"
+SEQUENCER_RPC_URL="http://127.0.0.1:7331"
+CELESTIA_RPC_URL="http://127.0.0.1:26658"
+TENDERMINT_RPC_URL="http://127.0.0.1:26657"
+CELESTIA_GRPC_ENDPOINT="http://127.0.0.1:9090"
 TEE_APP_URL="https://fc87b8918d4489663dfe47b82f48ed4b117dc518-8080.dstack-pha-prod5.phala.network"
-
 ```
-> **Note:** Middleware endpoints are derived from evolve-tee's .env in the TEE image. If you need custom middleware endpoints, you'll need to rebuild the TEE image.
+
+> **Note:** The prover sends all necessary data (block inputs and light blocks) directly to the TEE app via POST request. No middleware is required.
 ```
 
 ## Internal Testnet Deployment
@@ -76,26 +80,15 @@ TEE_APP_URL="https://fc87b8918d4489663dfe47b82f48ed4b117dc518-8080.dstack-pha-pr
 ### Architecture
 
 The internal testnet consists of:
-- **Middleware**: Routes requests between the prover and TEE
-- **Testnet infrastructure**: Local blockchain environment for testing
+- **Testnet infrastructure**: Local blockchain environment for testing (ev-node, ev-reth, celestia-app)
 - **TEE instance**: Phala-hosted TEE for secure proof generation
+- **Prover**: Fetches data from testnet and sends to TEE for attestation
 
 ### Deployment Steps
 
-**Step 1: Start the Middleware**
+**Step 1: Deploy the Testnet**
 
-SSH into the internal server and start the middleware service:
-
-```bash
-cd /home/tee/evolve-tee
-cargo run -p middleware
-```
-
-Keep this running in a separate terminal/tmux session.
-
-**Step 2: Deploy the Testnet**
-
-In a new terminal on the internal server:
+SSH into the internal server:
 
 ```bash
 cd /home/tee/celestia-zkevm
@@ -104,7 +97,7 @@ make stop && make start && make deploy-ism-tee && make update-ism
 
 Wait for all services to initialize completely before proceeding.
 
-**Step 3: Start the Prover**
+**Step 2: Start the Prover**
 
 On your local machine:
 
@@ -119,9 +112,9 @@ RUST_LOG="ev_prover=debug" cargo run --release --features tee_mode -p ev-prover 
 RUST_LOG="ev_prover=debug" cargo run --release --features tee_mode -p ev-prover start
 ```
 
-The prover service is now running in TEE mode, similar to batch_mode but with hardware security guarantees.
+The prover service is now running in TEE mode. The prover fetches block inputs and light blocks from the local testnet, then sends them to the TEE app for verification and attestation.
 
-**Step 4: Test with Transactions**
+**Step 3: Test with Transactions**
 
 On the internal server, submit test transactions:
 
@@ -140,19 +133,20 @@ Monitor the prover logs to see transaction processing through the TEE.
 ## Troubleshooting
 
 ### TEE connection issues
-- Verify the `TEE_RPC_ENDPOINT` in your `.env` file is correct
+- Verify the `TEE_APP_URL` in your `.env` file is correct
 - Check that your TEE instance is running in the Phala dashboard
 - Ensure network connectivity to the Phala Cloud endpoints
-
-### Middleware connection issues
-- Confirm middleware is running and accessible
-- Remember that middleware endpoints are hardcoded in the TEE image
-- Check firewall rules if using custom infrastructure
+- Test the TEE app health endpoint: `curl <TEE_APP_URL>/health`
 
 ### Prover initialization failures
 - Remove `~/.ev-prover` directory and reinitialize
 - Verify the `tee_mode` feature is enabled in your build
 - Check that all dependencies are installed with `cargo check -p ev-prover --features tee_mode`
+
+### Block verification failures
+- Ensure Celestia/EVM RPC endpoints are accessible from the prover
+- Check that light blocks can be fetched from Tendermint RPC
+- Verify the TEE app logs for detailed error messages
 
 ---
 
