@@ -15,7 +15,7 @@ An SP1 program that verifies the existence of Hyperlane Messages against a given
 | Name | Type | Description |
 |---|---|---|
 | state_root | String | The state root of the execution client reth at the target height for verification |
-| messages | [String] | The ids of the Hyperlane messages that we proofed |
+| messages | [String] | The ids of the Hyperlane messages that we proved |
 
 
 ## Usage
