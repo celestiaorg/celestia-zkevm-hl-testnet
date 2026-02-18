@@ -112,14 +112,12 @@ impl CelestiaIsmClient {
             Ok(tx_info) => {
                 info!(
                     "Successfully submitted {} message: tx_hash={}, height={}",
-                    message_type,
-                    tx_info.hash,
-                    tx_info.height.value()
+                    message_type, tx_info.hash, tx_info.height
                 );
 
                 Ok(TxResponse {
                     tx_hash: tx_info.hash.to_string(),
-                    height: tx_info.height.value(),
+                    height: tx_info.height,
                     gas_used: 0, // TxInfo doesn't provide gas_used, use estimation
                     success: true,
                     error_message: None,

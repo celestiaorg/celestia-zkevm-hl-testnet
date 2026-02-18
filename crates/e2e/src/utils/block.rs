@@ -75,7 +75,7 @@ pub async fn parallel_prover(
     let namespace_hex = env::var("CELESTIA_NAMESPACE").expect("CELESTIA_NAMESPACE must be set");
     let namespace = Namespace::new_v0(&hex::decode(namespace_hex)?)?;
 
-    let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None)
+    let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None, None, None)
         .await
         .context("Failed creating Celestia RPC client")?;
     let pub_key = get_sequencer_pubkey(rpc_config::SEQUENCER_URL.to_string()).await?;
@@ -104,12 +104,12 @@ pub async fn parallel_prover(
             .await
             .expect("Failed to get extended header");
         let namespace_data = celestia_client
-            .share_get_namespace_data(&extended_header, namespace)
+            .share_get_namespace_data(extended_header.height(), extended_header.app_version(), namespace)
             .await
             .expect("Failed to get namespace data");
         let mut proofs: Vec<NamespaceProof> = Vec::new();
-        for row in namespace_data.rows {
-            proofs.push(row.proof);
+        for row in namespace_data.rows() {
+            proofs.push(row.proof.clone());
         }
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 
@@ -145,7 +145,7 @@ pub async fn parallel_prover(
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
     for block_number in start_height..=(start_height + num_blocks) {
         let handle = tokio::spawn({
-            let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None)
+            let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None, None, None)
                 .await
                 .context("Failed creating Celestia RPC client")?;
             let chain_spec = chain_spec.clone();
@@ -276,7 +276,7 @@ pub async fn synchronous_prover(
     let (genesis, chain_spec) = load_chain_spec_from_genesis(genesis_path.to_str().unwrap())?;
     let namespace_hex = env::var("CELESTIA_NAMESPACE").expect("CELESTIA_NAMESPACE must be set");
     let namespace = Namespace::new_v0(&hex::decode(namespace_hex)?)?;
-    let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None)
+    let celestia_client = Client::new(rpc_config::CELESTIA_RPC_URL, None, None, None)
         .await
         .context("Failed creating Celestia RPC client")?;
     let pub_key = get_sequencer_pubkey(rpc_config::SEQUENCER_URL.to_string()).await?;
@@ -379,11 +379,11 @@ pub async fn get_block_inputs(
 
     let extended_header = celestia_client.header_get_by_height(block_number).await?;
     let namespace_data = celestia_client
-        .share_get_namespace_data(&extended_header, namespace)
+        .share_get_namespace_data(extended_header.height(), extended_header.app_version(), namespace)
         .await?;
     let mut proofs: Vec<NamespaceProof> = Vec::new();
-    for row in namespace_data.rows {
-        proofs.push(row.proof);
+    for row in namespace_data.rows() {
+        proofs.push(row.proof.clone());
     }
     debug!("Got NamespaceProofs, total: {}", proofs.len());
 
