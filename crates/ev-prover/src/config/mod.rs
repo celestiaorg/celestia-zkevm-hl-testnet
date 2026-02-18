@@ -70,20 +70,6 @@ impl Config {
     /// The groth16 verifier key.
     const GROTH16_VK: &[u8] = include_bytes!("../../resources/groth16_vk.bin");
 
-    /// Creates a Config instance from environment variables.
-    pub fn from_env() -> Result<Self> {
-        Ok(Self {
-            grpc_address: "127.0.0.1:50051".into(),
-            rpc: RpcConfig::from_env()?,
-            hyperlane: HyperlaneConfig::default(),
-            namespace: Namespace::new_v0(&hex::decode(DEFAULT_NAMESPACE).unwrap()).unwrap(),
-            pub_key: DEFAULT_PUB_KEY_HEX.into(),
-            queue_capacity: 256,
-            concurrency: 16,
-            batch_size: 10,
-        })
-    }
-
     /// Initializes the local configuration directory and writes default files if missing.
     pub fn init() -> Result<()> {
         let home_dir = dirs::home_dir()
@@ -97,7 +83,7 @@ impl Config {
         let config_path = config_dir.join(Self::CONFIG_FILE);
         if !config_path.exists() {
             info!("Creating default config at {config_path:?}");
-            let yaml = serde_yaml::to_string(&Config::from_env()?)?;
+            let yaml = serde_yaml::to_string(&Config::default())?;
             fs::write(&config_path, yaml)?;
         } else {
             info!("Config file already exists at {config_path:?}");

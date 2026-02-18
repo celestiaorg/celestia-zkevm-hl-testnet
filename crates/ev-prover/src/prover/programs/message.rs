@@ -131,8 +131,8 @@ impl HyperlaneMessageProver {
 
     /// Returns the default prover configuration for the block execution program.
     pub fn default_config(prover: &SP1Prover) -> MessageProverConfig {
-        let ev_hyperlane_elf = std::fs::read("elfs/ev-hyperlane-elf").expect("Failed to read ev-hyperlane-elf");
-        let (pk, vk) = prover.setup(&ev_hyperlane_elf);
+        let ev_hyperlane_elf = include_bytes!("../../../../../elfs/ev-hyperlane-elf");
+        let (pk, vk) = prover.setup(ev_hyperlane_elf);
         MessageProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 

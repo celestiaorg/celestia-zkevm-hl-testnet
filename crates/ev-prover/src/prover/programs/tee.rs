@@ -29,15 +29,15 @@ use tee_attestation_types::{AttestationResponse, Inputs as TeeAttestationInput};
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
+use crate::prover::ProgramProver;
+use crate::prover::{prover_from_env, SP1Prover};
+
 #[derive(Deserialize, Serialize)]
 struct AttestationRequest {
     block_inputs: Vec<String>,
     trusted_light_block_raw: String,
     new_light_block_raw: String,
 }
-
-use crate::prover::ProgramProver;
-use crate::prover::{prover_from_env, SP1Prover};
 
 struct ProverStatus {
     trusted_height: u64,
@@ -146,8 +146,8 @@ impl TeeExecProver {
 
     /// Returns the prover config.
     pub fn default_config(prover: &SP1Prover) -> TeeProverConfig {
-        let elf_bytes = std::fs::read("elfs/tee-attestation-elf").expect("Failed to read tee-attestation-elf");
-        let (pk, vk) = prover.setup(&elf_bytes);
+        let elf_bytes = include_bytes!("../../../../../elfs/tee-attestation-elf");
+        let (pk, vk) = prover.setup(elf_bytes);
         TeeProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 

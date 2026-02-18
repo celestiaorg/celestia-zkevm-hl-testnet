@@ -129,17 +129,16 @@ fn setup_state_vkeys() -> (Vec<u8>, Vec<u8>) {
     let prover = ProverClient::builder().cpu().build();
 
     #[cfg(feature = "tee_mode")]
-    let state_transition_elf =
-        { std::fs::read("elfs/tee-attestation-elf").expect("Failed to read tee-attestation-elf") };
+    let state_transition_elf = include_bytes!("../../../../elfs/tee-attestation-elf");
 
     #[cfg(not(feature = "tee_mode"))]
-    let state_transition_elf = std::fs::read("elfs/ev-batch-elf").expect("Failed to read ev-batch-elf");
+    let state_transition_elf = include_bytes!("../../../../elfs/ev-batch-elf");
 
-    let (_, state_transition_vkey) = prover.setup(&state_transition_elf);
+    let (_, state_transition_vkey) = prover.setup(state_transition_elf);
 
-    let ev_hyperlane_elf = std::fs::read("elfs/ev-hyperlane-elf").expect("Failed to read ev-hyperlane-elf");
+    let ev_hyperlane_elf = include_bytes!("../../../../elfs/ev-hyperlane-elf");
     info!("Setting up ELF for membership proofs");
-    let (_, state_membership_vkey) = prover.setup(&ev_hyperlane_elf);
+    let (_, state_membership_vkey) = prover.setup(ev_hyperlane_elf);
 
     (
         state_transition_vkey.bytes32_raw().to_vec(),

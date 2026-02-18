@@ -22,7 +22,6 @@ The TEE integration provides hardware-based security guarantees for the zkEVM pr
 
 - **Prover**: Fetches block inputs and light blocks from Celestia/EVM nodes
 - **TEE App**: Receives serialized data via POST, performs native verification, generates attestation
-- **No middleware required**: The prover communicates directly with the TEE app
 
 This guide includes:
 - **Deploying your own TEE instance on Phala Cloud** (recommended for development)
@@ -70,7 +69,7 @@ CELESTIA_GRPC_ENDPOINT="http://127.0.0.1:9090"
 TEE_APP_URL="https://fc87b8918d4489663dfe47b82f48ed4b117dc518-8080.dstack-pha-prod5.phala.network"
 ```
 
-> **Note:** The prover sends all necessary data (block inputs and light blocks) directly to the TEE app via POST request. No middleware is required.
+> **Note:** The prover sends all necessary data (block inputs and light blocks) directly to the TEE app via POST request.
 ```
 
 ## Internal Testnet Deployment

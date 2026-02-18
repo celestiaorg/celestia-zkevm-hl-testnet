@@ -18,7 +18,6 @@ use rsp_primitives::genesis::Genesis;
 use sp1_sdk::{EnvProver, HashableKey, SP1Proof, SP1ProofWithPublicValues, SP1Stdin};
 use std::env;
 use std::error::Error;
-use std::fs;
 use std::sync::Arc;
 use storage::proofs::{ProofStorage, RocksDbProofStorage};
 use tokio::task::JoinHandle;
@@ -80,8 +79,8 @@ pub async fn parallel_prover(
         .context("Failed creating Celestia RPC client")?;
     let pub_key = get_sequencer_pubkey(rpc_config::SEQUENCER_URL.to_string()).await?;
 
-    let block_prover_elf = fs::read("elfs/ev-exec-elf").expect("Failed to read ELF");
-    let (pk, vk) = (*client).setup(&block_prover_elf);
+    let block_prover_elf = include_bytes!("../../../../elfs/ev-exec-elf");
+    let (pk, vk) = (*client).setup(block_prover_elf);
 
     let mut trusted_heights = Vec::new();
     let mut trusted_roots = Vec::new();
@@ -208,8 +207,8 @@ pub async fn parallel_prover(
 
     // reinitialize the prover client
     let mut stdin = SP1Stdin::new();
-    let range_prover_elf = fs::read("elfs/ev-range-exec-elf").expect("Failed to read ELF");
-    let (pk, _) = client.clone().setup(&range_prover_elf);
+    let range_prover_elf = include_bytes!("../../../../elfs/ev-range-exec-elf");
+    let (pk, _) = client.clone().setup(range_prover_elf);
 
     // load all proofs from storage for range proof
     debug!("Loading block proofs from storage for range proof");
@@ -280,8 +279,8 @@ pub async fn synchronous_prover(
         .await
         .context("Failed creating Celestia RPC client")?;
     let pub_key = get_sequencer_pubkey(rpc_config::SEQUENCER_URL.to_string()).await?;
-    let block_prover_elf = fs::read("elfs/ev-exec-elf").expect("Failed to read ELF");
-    let (pk, vk) = client.clone().setup(&block_prover_elf);
+    let block_prover_elf = include_bytes!("../../../../elfs/ev-exec-elf");
+    let (pk, vk) = client.clone().setup(block_prover_elf);
 
     let mut block_proofs: Vec<SP1ProofWithPublicValues> = Vec::new();
     // loop and adjust trusted state for each iteration,
@@ -323,8 +322,8 @@ pub async fn synchronous_prover(
 
     // reinitialize the prover client
     let mut stdin = SP1Stdin::new();
-    let range_prover_elf = fs::read("elfs/ev-range-exec-elf").expect("Failed to read ELF");
-    let (pk, _) = client.clone().setup(&range_prover_elf);
+    let range_prover_elf = include_bytes!("../../../../elfs/ev-range-exec-elf");
+    let (pk, _) = client.clone().setup(range_prover_elf);
 
     let vkeys = vec![vk.hash_u32(); block_proofs.len()];
 

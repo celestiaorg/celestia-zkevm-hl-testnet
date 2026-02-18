@@ -144,8 +144,8 @@ impl BatchExecProver {
 
     /// Returns the prover config.
     pub fn default_config(prover: &SP1Prover) -> BatchProverConfig {
-        let batch_elf = std::fs::read("elfs/ev-batch-elf").expect("Failed to read ev-batch-elf");
-        let (pk, vk) = prover.setup(&batch_elf);
+        let batch_elf = include_bytes!("../../../../../elfs/ev-batch-elf");
+        let (pk, vk) = prover.setup(batch_elf);
         BatchProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
