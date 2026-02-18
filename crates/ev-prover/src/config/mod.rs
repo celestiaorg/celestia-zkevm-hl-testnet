@@ -194,6 +194,26 @@ impl Default for RpcConfig {
     }
 }
 
+impl RpcConfig {
+    pub fn from_env() -> Result<Self> {
+        let celestia_rpc = env::var("CELESTIA_RPC_URL").unwrap_or_else(|_| "http://localhost:26658".to_string());
+        let tendermint_rpc = env::var("TENDERMINT_RPC_URL").unwrap_or_else(|_| "http://localhost:26657".to_string());
+        let celestia_auth_token = env::var("CELESTIA_AUTH_TOKEN").ok();
+        let evnode_rpc = env::var("SEQUENCER_RPC_URL").unwrap_or_else(|_| "http://localhost:7331".to_string());
+        let evreth_rpc = env::var("RETH_RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string());
+        let evreth_ws = env::var("RETH_WS_URL").unwrap_or_else(|_| "ws://localhost:8546".to_string());
+
+        Ok(Self {
+            celestia_rpc,
+            tendermint_rpc,
+            celestia_auth_token,
+            evnode_rpc,
+            evreth_rpc,
+            evreth_ws,
+        })
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct HyperlaneConfig {
     #[serde(default)]
@@ -242,6 +262,16 @@ pub struct CelestiaHyperlaneConfig {
 
     /// Celestia mailbox identifier / address (whatever format you use).
     pub mailbox_id: String,
+}
+
+impl CelestiaHyperlaneConfig {
+    pub fn from_env() -> Result<Self> {
+        let ism_id = env::var("CELESTIA_ISM_ID")
+            .unwrap_or_else(|_| "0x726f757465725f69736d000000000000000000000000002a0000000000000001".to_string());
+        let mailbox_id = env::var("CELESTIA_MAILBOX_ADDRESS")
+            .unwrap_or_else(|_| "0x68797065726c616e650000000000000000000000000000000000000000000000".to_string());
+        Ok(Self { ism_id, mailbox_id })
+    }
 }
 
 impl Default for CelestiaHyperlaneConfig {

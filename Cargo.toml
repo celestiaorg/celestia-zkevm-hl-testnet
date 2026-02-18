@@ -45,6 +45,11 @@ celestia-rpc = "=0.13.0"
 celestia-types = "=0.15.0"
 chrono = "0.4"
 cosmrs = { version = "0.22", features = ["grpc", "cosmwasm"] }
+dcap-qvl = { git = "https://github.com/Phala-Network/dcap-qvl", tag = "v0.3.11", default-features = false, features = [
+    "std",
+    "rustcrypto",
+    "report",
+] }
 dirs = "5.0.1"
 dotenvy = "0.15.7"
 ed25519-dalek = { version = "2.1.0", features = ["alloc", "serde"] }
@@ -78,6 +83,7 @@ sp1-prover = "=5.2.2"
 sp1-sdk = { version = "=5.2.2", features = ["native-gnark"] }
 sp1-zkvm = "=5.2.2"
 storage = { path = "crates/storage" }
+tee-attestation-types = { git = "https://github.com/celestiaorg/evolve-tee" }
 tempfile = "3.8"
 tendermint = "0.40.1"
 tendermint-light-client-verifier = { version = "0.40.1", default-features = false, features = [

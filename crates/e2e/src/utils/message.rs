@@ -1,7 +1,7 @@
 // This endpoint generates a message proof for a new height,
 // always starting with the original, empty Hyperlane Merkle Tree.
 
-use std::{fs, str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 
 use alloy_primitives::{Address, FixedBytes, hex::FromHex};
 use alloy_provider::Provider;
@@ -111,8 +111,8 @@ pub async fn prove_messages(
     // generate and return the Groth16 proof
     let mut stdin = SP1Stdin::new();
     stdin.write(&input);
-    let ev_hyperlane_elf = fs::read("elfs/ev-hyperlane-elf").expect("Failed to read ELF");
-    let (pk, vk) = client.setup(&ev_hyperlane_elf);
+    let ev_hyperlane_elf = include_bytes!("../../../../elfs/ev-hyperlane-elf");
+    let (pk, vk) = client.setup(ev_hyperlane_elf);
     let proof = client
         .prove(&pk, &stdin)
         .groth16()

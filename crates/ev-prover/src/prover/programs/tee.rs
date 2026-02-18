@@ -1,5 +1,6 @@
+use chrono::DateTime;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use crate::prover::chain::ChainContext;
 use crate::prover::config::{MAX_BATCH_SIZE, MAX_INDEXING_RANGE};
@@ -18,55 +19,56 @@ use celestia_types::{
     Blob,
 };
 use ev_types::v1::SignedData;
-use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput, State};
+use ev_zkevm_types::programs::block::{BlockExecInput, BlockRangeExecOutput, State};
 use prost::Message;
-use rsp_client_executor::io::EthClientExecutorInput;
+use serde::{Deserialize, Serialize};
 use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use storage::hyperlane::message::HyperlaneMessageStore;
+use tee_attestation_types::{AttestationResponse, Inputs as TeeAttestationInput};
+
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 
 use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, SP1Prover};
 
-/// ProverStatus of the latest Celestia state relevant to the prover loop.
-///
-/// The methods on this type encapsulate small pieces of batching logic so
-/// the main control flow stays readable.
+#[derive(Deserialize, Serialize)]
+struct AttestationRequest {
+    block_inputs: Vec<String>,
+    trusted_light_block_raw: String,
+    new_light_block_raw: String,
+}
+
 struct ProverStatus {
     trusted_height: u64,
-    trusted_root: FixedBytes<32>,
     trusted_celestia_height: u64,
     celestia_head: u64,
 }
 
 impl ProverStatus {
-    /// Returns true if enough new blocks have been produced to start proving a batch.
     fn is_batch_ready(&self, batch_size: u64) -> bool {
         self.trusted_celestia_height + batch_size <= self.celestia_head
     }
 
-    /// Returns how many more blocks are needed to reach a full batch.
     fn blocks_remaining(&self, batch_size: u64) -> u64 {
         (self.trusted_celestia_height + batch_size).saturating_sub(self.celestia_head)
     }
 
-    /// Returns how far ahead the Celestia head is from the trusted height.
     fn distance(&self) -> u64 {
         self.celestia_head.saturating_sub(self.trusted_celestia_height)
     }
 }
 
 #[derive(Clone)]
-pub struct BatchProverConfig {
+pub struct TeeProverConfig {
     pub pk: Arc<SP1ProvingKey>,
     pub vk: Arc<SP1VerifyingKey>,
     pub proof_mode: SP1ProofMode,
 }
 
-impl BatchProverConfig {
+impl TeeProverConfig {
     pub fn new(pk: SP1ProvingKey, vk: SP1VerifyingKey, mode: SP1ProofMode) -> Self {
-        BatchProverConfig {
+        TeeProverConfig {
             pk: Arc::new(pk),
             vk: Arc::new(vk),
             proof_mode: mode,
@@ -74,7 +76,7 @@ impl BatchProverConfig {
     }
 }
 
-impl ProverConfig for BatchProverConfig {
+impl ProverConfig for TeeProverConfig {
     fn pk(&self) -> Arc<SP1ProvingKey> {
         Arc::clone(&self.pk)
     }
@@ -88,18 +90,18 @@ impl ProverConfig for BatchProverConfig {
     }
 }
 
-pub struct BatchExecProver {
+pub struct TeeExecProver {
     ctx: Arc<ChainContext>,
     range_tx: mpsc::Sender<MessageProofRequest>,
-    config: BatchProverConfig,
+    config: TeeProverConfig,
     prover: Arc<SP1Prover>,
     hyperlane_message_store: Arc<HyperlaneMessageStore>,
 }
 
 #[async_trait]
-impl ProgramProver for BatchExecProver {
-    type Config = BatchProverConfig;
-    type Input = BatchExecInput;
+impl ProgramProver for TeeExecProver {
+    type Config = TeeProverConfig;
+    type Input = TeeAttestationInput;
     type Output = BlockRangeExecOutput;
 
     fn cfg(&self) -> &Self::Config {
@@ -123,7 +125,7 @@ impl ProgramProver for BatchExecProver {
     }
 }
 
-impl BatchExecProver {
+impl TeeExecProver {
     /// Creates a new prover instance.
     pub fn new(
         ctx: Arc<ChainContext>,
@@ -131,7 +133,7 @@ impl BatchExecProver {
         hyperlane_message_store: Arc<HyperlaneMessageStore>,
     ) -> Result<Self> {
         let prover = prover_from_env();
-        let config = BatchExecProver::default_config(prover.as_ref());
+        let config = TeeExecProver::default_config(prover.as_ref());
 
         Ok(Self {
             ctx,
@@ -143,10 +145,10 @@ impl BatchExecProver {
     }
 
     /// Returns the prover config.
-    pub fn default_config(prover: &SP1Prover) -> BatchProverConfig {
-        let batch_elf = include_bytes!("../../../../../elfs/ev-batch-elf");
-        let (pk, vk) = prover.setup(batch_elf);
-        BatchProverConfig::new(pk, vk, SP1ProofMode::Groth16)
+    pub fn default_config(prover: &SP1Prover) -> TeeProverConfig {
+        let elf_bytes = include_bytes!("../../../../../elfs/tee-attestation-elf");
+        let (pk, vk) = prover.setup(elf_bytes);
+        TeeProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
     /// Loads the ProverStatus by querying the trusted state from the on-chain ism and the
@@ -161,12 +163,10 @@ impl BatchExecProver {
             .await?;
         let ism = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
         let state: State = bincode::deserialize(&ism.state).unwrap();
-        let trusted_root = FixedBytes::from_slice(&state.state_root);
         let celestia_head = self.ctx.celestia_client().header_local_head().await?.height().value();
 
         Ok(ProverStatus {
             trusted_height: state.height,
-            trusted_root,
             trusted_celestia_height: state.celestia_height,
             celestia_head,
         })
@@ -251,44 +251,6 @@ impl BatchExecProver {
         Ok(())
     }
 
-    /// Builds the proof input structure for the given batch size starting from the provided height.
-    async fn build_proof_inputs(
-        &self,
-        start_height: u64,
-        status: &ProverStatus,
-        batch_size: u64,
-    ) -> Result<BatchExecInput> {
-        let mut current_height = status.trusted_height;
-        let mut current_root = status.trusted_root;
-        let namespace = self.ctx.namespace();
-        let mut block_inputs: Vec<BlockExecInput> = Vec::new();
-
-        for block_number in start_height..=start_height + batch_size {
-            let input = self
-                .build_block_input(block_number, namespace, &mut current_height, &mut current_root)
-                .await?;
-
-            block_inputs.push(input);
-        }
-
-        // Fetch light blocks for Tendermint light client verification
-        // The trusted light block is at the height before the first block in the batch
-        let trusted_light_block = self.ctx.get_light_block(status.trusted_celestia_height).await?;
-
-        // The new light block is at the end of the batch
-        let new_light_block = self.ctx.get_light_block(start_height + batch_size).await?;
-
-        // Serialize light blocks using CBOR (bincode doesn't work with tendermint's serde attrs)
-        let trusted_light_block_raw = serde_cbor::to_vec(&trusted_light_block)?;
-        let new_light_block_raw = serde_cbor::to_vec(&new_light_block)?;
-
-        Ok(BatchExecInput {
-            blocks: block_inputs,
-            trusted_light_block_raw,
-            new_light_block_raw,
-        })
-    }
-
     /// Builds a single block prover input for the given height.
     async fn build_block_input(
         &self,
@@ -317,7 +279,7 @@ impl BatchExecProver {
         }
         debug!("Got NamespaceProofs, total: {}", proofs.len());
 
-        let mut executor_inputs: Vec<EthClientExecutorInput> = Vec::new();
+        let mut executor_inputs = Vec::new();
 
         if blobs.is_empty() {
             debug!(
@@ -377,11 +339,6 @@ impl BatchExecProver {
         *trusted_height = last_height;
         *trusted_root = block.header.state_root;
 
-        debug!(
-            "Updated trusted_height to {} and trusted_root to {:?}",
-            trusted_height, trusted_root
-        );
-
         Ok(input)
     }
 
@@ -427,12 +384,111 @@ impl BatchExecProver {
                 info!("Prover is {distance} blocks behind Celestia head");
             }
 
-            let start_height = status.trusted_celestia_height + 1;
-            let input = self.build_proof_inputs(start_height, &status, batch_size).await?;
+            let tee_app_url = std::env::var("TEE_APP_URL").expect("TEE_APP_URL environment variable is not set");
+
+            // Build block inputs for the batch
+            let mut trusted_height = status.trusted_height;
+            let mut trusted_state_root = {
+                let block = self
+                    .ctx
+                    .evm_provider()
+                    .get_block_by_number(trusted_height.into())
+                    .await?
+                    .ok_or_else(|| anyhow!("Block {trusted_height} not found"))?;
+                block.header.state_root
+            };
+            let namespace = self.ctx.namespace();
+            let mut block_inputs: Vec<BlockExecInput> = Vec::new();
+
+            for celestia_height in status.trusted_celestia_height + 1..=status.trusted_celestia_height + batch_size {
+                let input = self
+                    .build_block_input(celestia_height, namespace, &mut trusted_height, &mut trusted_state_root)
+                    .await?;
+                block_inputs.push(input);
+            }
+
+            // Serialize block inputs to hex strings
+            let serialized_inputs: Vec<String> = block_inputs
+                .iter()
+                .map(|input| {
+                    let bytes = bincode::serialize(&input).expect("failed to serialize input");
+                    hex::encode(bytes)
+                })
+                .collect();
+
+            // Fetch light blocks for Tendermint light client verification
+            let trusted_light_block = self.ctx.get_light_block(status.trusted_celestia_height).await?;
+            let new_light_block = self
+                .ctx
+                .get_light_block(status.trusted_celestia_height + batch_size)
+                .await?;
+
+            // Serialize light blocks using CBOR (bincode doesn't work with tendermint's serde attrs)
+            let trusted_light_block_raw = hex::encode(serde_cbor::to_vec(&trusted_light_block)?);
+            let new_light_block_raw = hex::encode(serde_cbor::to_vec(&new_light_block)?);
+
+            // Fetch attestation from the TEE app via POST with block inputs and light blocks
+            let client = reqwest::Client::new();
+            let request_body = AttestationRequest {
+                block_inputs: serialized_inputs,
+                trusted_light_block_raw,
+                new_light_block_raw,
+            };
+            let response = client
+                .post(format!("{tee_app_url}/attestation"))
+                .json(&request_body)
+                .send()
+                .await
+                .expect("Failed to connect to TEE app");
+
+            let attestation: AttestationResponse = response.json().await.expect("Failed to parse attestation response");
+
+            if !attestation.success {
+                panic!(
+                    "Attestation failed at step {:?}: {:?}",
+                    attestation.step, attestation.error
+                );
+            }
+
+            let quote = hex::decode(attestation.quote.ok_or_else(|| anyhow!("Missing quote"))?)?;
+
+            let collateral =
+                dcap_qvl::collateral::get_collateral("https://pccs.phala.network/sgx/certification/v4/", &quote)
+                    .await?;
+
+            let now = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("Failed to get current time")
+                .as_secs();
+
+            // Add buffer to account for potential clock drift with PCCS server
+            const CLOCK_DRIFT_BUFFER_SECS: u64 = 300; // 5 minutes
+            let now_with_buffer = now + CLOCK_DRIFT_BUFFER_SECS;
+
+            // Debug: Print the timestamp we're passing to the circuit
+            let now_dt = DateTime::from_timestamp(now_with_buffer as i64, 0).unwrap();
+            info!(
+                "Current timestamp being passed to circuit: {} (Unix: {})",
+                now_dt, now_with_buffer
+            );
+
+            let input = TeeAttestationInput {
+                quote,
+                event_log: attestation
+                    .event_log
+                    .ok_or_else(|| anyhow!("Missing event log"))?
+                    .as_bytes()
+                    .to_vec(),
+                report_data: Vec::new(), // not used in circuit, extracted from quote
+                output: hex::decode(attestation.output.ok_or_else(|| anyhow!("Missing output"))?)?,
+                collateral,
+                now: now_with_buffer,
+            };
 
             // Generate the proof
             let start_time = Instant::now();
             let (proof, output) = self.prove(input).await?;
+            // generate proof here
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
             // Index if new ev blocks were included.

@@ -22,8 +22,6 @@ use crate::proto::celestia::prover::v1::{
     GetMembershipProofRequest, GetRangeProofsRequest,
 };
 use crate::prover::chain::ChainContext;
-use crate::prover::programs::batch::BATCH_ELF;
-use crate::prover::programs::message::EV_HYPERLANE_ELF;
 use crate::server::start_server;
 use ev_zkevm_types::programs::block::State;
 use storage::proofs::{ProofStorage, RocksDbProofStorage};
@@ -129,10 +127,18 @@ pub async fn create_ism() -> Result<()> {
 fn setup_state_vkeys() -> (Vec<u8>, Vec<u8>) {
     info!("Setting up ELF for state proofs");
     let prover = ProverClient::builder().cpu().build();
-    let (_, state_transition_vkey) = prover.setup(BATCH_ELF);
 
+    #[cfg(feature = "tee_mode")]
+    let state_transition_elf = include_bytes!("../../../../elfs/tee-attestation-elf");
+
+    #[cfg(not(feature = "tee_mode"))]
+    let state_transition_elf = include_bytes!("../../../../elfs/ev-batch-elf");
+
+    let (_, state_transition_vkey) = prover.setup(state_transition_elf);
+
+    let ev_hyperlane_elf = include_bytes!("../../../../elfs/ev-hyperlane-elf");
     info!("Setting up ELF for membership proofs");
-    let (_, state_membership_vkey) = prover.setup(EV_HYPERLANE_ELF);
+    let (_, state_membership_vkey) = prover.setup(ev_hyperlane_elf);
 
     (
         state_transition_vkey.bytes32_raw().to_vec(),

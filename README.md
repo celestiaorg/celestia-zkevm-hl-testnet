@@ -140,7 +140,12 @@ NETWORK_PRIVATE_KEY="PRIVATE_KEY" to the SP1 prover network private key from Cel
     as it will prove a series of EVM blocks leading up to a target height, as well as state inclusion of a Hyperlane deposit message at the target height.
 
 ### Start the Prover Service 
+
 You will find detailed documentation on how to run the joint hyperlane message and block prover service `ev-prover` [here](crates/ev-prover/README.md).
+
+### TEE Deployment
+
+For deploying the testnet with Phala TEE instance, see the [TEE deployment guide](crates/ev-prover/TEE.md).
 
 ## Architecture
 
