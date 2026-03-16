@@ -105,6 +105,7 @@ services:
       - "8546:8546" # ws
     volumes:
       - ./testnet/reth:/home/reth
+      - ./testnet/eth-genesis.json:/home/reth/eth-genesis.json:ro
       - reth:/home/reth/eth-home
     entrypoint: /bin/sh -c
     command:
@@ -166,12 +167,45 @@ services:
     networks:
       - celestia-zkevm-net
 
+  ev-prover:
+    build:
+      context: .
+      dockerfile: crates/ev-prover/Dockerfile
+    platform: linux/amd64
+    container_name: ev-prover
+    profiles:
+      - prover
+    ports:
+      - "50051:50051"
+    environment:
+      - SP1_PROVER=mock
+    volumes:
+      - ./testnet/ev-prover/docker-entrypoint.sh:/app/docker-entrypoint.sh:ro
+      - ./testnet/ev-prover/config.yaml:/home/ev-prover/.ev-prover/config/config.yaml:ro
+      - ev-prover-data:/home/ev-prover
+    entrypoint: /app/docker-entrypoint.sh
+    healthcheck:
+      test: >
+        grpc_health_probe -addr=localhost:50051
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      ev-node-evm-single:
+        condition: service_started
+      celestia-bridge:
+        condition: service_healthy
+    networks:
+      - celestia-zkevm-net
+
 volumes:
   celestia-app:
   celestia-bridge:
   hyperlane:
   reth:
   evm-single-data:
+  ev-prover-data:
 
 networks:
   celestia-zkevm-net:
