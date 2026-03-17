@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    const EV_BATCH_ELF: &[u8] = include_bytes!("../../../elfs/ev-batch-elf");
+    const EV_BATCH_ELF: &[u8] = include_bytes!("../../../../elfs/ev-batch-elf");
     use celestia_types::nmt::Namespace;
     use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecOutput, State};
     use sp1_sdk::{ProverClient, SP1ProofMode, SP1ProofWithPublicValues, SP1PublicValues, SP1_CIRCUIT_VERSION};
