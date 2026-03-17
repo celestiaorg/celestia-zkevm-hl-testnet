@@ -3206,51 +3206,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
-name = "e2e"
-version = "0.2.0"
-dependencies = [
- "alloy",
- "alloy-genesis",
- "alloy-primitives",
- "alloy-provider",
- "alloy-rpc-types",
- "alloy-signer-local",
- "alloy-sol-types",
- "anyhow",
- "bincode",
- "celestia-grpc",
- "celestia-grpc-client",
- "celestia-rpc",
- "celestia-types 0.15.0",
- "chrono",
- "dirs",
- "dotenvy",
- "ev-prover",
- "ev-state-queries",
- "ev-types",
- "ev-zkevm-types",
- "eyre",
- "prost 0.12.6",
- "reth-chainspec",
- "rsp-client-executor",
- "rsp-host-executor",
- "rsp-primitives",
- "rsp-rpc-db",
- "rustls 0.23.36",
- "serde",
- "serde_cbor",
- "serde_json",
- "sp1-sdk",
- "storage",
- "tempfile",
- "tendermint-proto",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
 name = "ecdsa"
 version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3496,70 +3451,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ev-exec-program"
-version = "0.2.0"
-dependencies = [
- "alloy-consensus",
- "alloy-primitives",
- "alloy-rlp",
- "bincode",
- "bytes",
- "celestia-types 0.15.0",
- "ed25519-dalek",
- "ev-types",
- "ev-zkevm-types",
- "hex",
- "nmt-rs",
- "prost 0.12.6",
- "reth-primitives",
- "rsp-client-executor",
- "serde_cbor",
- "sha3",
- "sp1-zkvm",
- "tendermint",
- "tendermint-proto",
-]
-
-[[package]]
-name = "ev-exec-script"
-version = "0.2.0"
-dependencies = [
- "alloy-genesis",
- "alloy-primitives",
- "alloy-provider",
- "anyhow",
- "base64 0.22.1",
- "bincode",
- "celestia-rpc",
- "celestia-types 0.15.0",
- "clap",
- "dotenvy",
- "ev-types",
- "ev-zkevm-types",
- "eyre",
- "hashbrown 0.14.5",
- "hex",
- "nmt-rs",
- "prost 0.12.6",
- "reqwest 0.12.28",
- "reth-chainspec",
- "rsp-client-executor",
- "rsp-host-executor",
- "rsp-primitives",
- "rsp-rpc-db",
- "serde",
- "serde_cbor",
- "serde_json",
- "sha3",
- "sp1-build",
- "sp1-sdk",
- "tendermint",
- "tendermint-proto",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "ev-hyperlane-program"
 version = "0.2.0"
 dependencies = [
@@ -3652,41 +3543,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
-]
-
-[[package]]
-name = "ev-range-exec-program"
-version = "0.2.0"
-dependencies = [
- "bincode",
- "celestia-types 0.15.0",
- "ev-zkevm-types",
- "hex",
- "nmt-rs",
- "rsp-client-executor",
- "serde",
- "sha2 0.10.9",
- "sp1-primitives",
- "sp1-zkvm",
- "tendermint",
- "tendermint-proto",
-]
-
-[[package]]
-name = "ev-range-exec-script"
-version = "0.2.0"
-dependencies = [
- "bincode",
- "clap",
- "dotenvy",
- "ev-zkevm-types",
- "hashbrown 0.14.5",
- "hex",
- "serde",
- "serde_json",
- "sp1-build",
- "sp1-sdk",
- "tracing",
 ]
 
 [[package]]

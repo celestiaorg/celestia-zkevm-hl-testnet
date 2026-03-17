@@ -1,17 +1,12 @@
 [workspace]
 members = [
-    "crates/e2e",
     "crates/ev-prover",
     "crates/ev-state-queries",
     "crates/ev-zkevm-types",
     "crates/sp1/ev-batch-exec/program",
     "crates/sp1/ev-batch-exec/script",
-    "crates/sp1/ev-exec/program",
-    "crates/sp1/ev-exec/script",
     "crates/sp1/ev-hyperlane/program",
     "crates/sp1/ev-hyperlane/script",
-    "crates/sp1/ev-range-exec/program",
-    "crates/sp1/ev-range-exec/script",
     "crates/storage",
 ]
 resolver = "2"

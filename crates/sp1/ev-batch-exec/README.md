@@ -23,11 +23,7 @@ The program inputs contain all information required to verify the correct execut
 | blocks | [BlockExecInput] | Inputs required to execute a range of blocks |
 
 
-Note that by design proofs are written separately in recursive circuits like this one.
-We use the standard SP1 approach to write compressed proofs generated using `ev-exec`.
-
 ## Program Outputs
-These are the same as for `ev-range-exec`, because the circuits fulfill a similar purpose and update the same ISM endpoint. The only difference is that `batch-exec` does not prove every single block recursively, but instead takes a block range as input and generates a single proof using just one prover instance.
 
 ### State: Encapsulate the input and output for each state transition step
 | Name | Type | Description |

@@ -117,13 +117,6 @@ impl ChainContext {
         Arc::clone(&self.celestia_client)
     }
 
-    /// Creates a new Celestia WebSocket client for subscriptions.
-    pub async fn celestia_ws_client(&self) -> Result<Client> {
-        let url = self.celestia_ws_url()?;
-        let auth_token = self.config.rpc.celestia_auth_token.as_deref();
-        Client::new(url.as_str(), auth_token).await.map_err(|e| anyhow!(e))
-    }
-
     /// Returns the ISM client.
     pub fn ism_client(&self) -> Arc<CelestiaIsmClient> {
         Arc::clone(&self.ism_client)
@@ -163,11 +156,6 @@ impl ChainContext {
     pub fn merkle_tree_address(&self) -> Address {
         Address::from_str(&self.config.hyperlane.evm.merkle_tree_address)
             .expect("invalid Hyperlane merkle tree address")
-    }
-
-    /// Returns the configured EVM websocket endpoint.
-    pub fn evm_ws_endpoint(&self) -> &str {
-        &self.config.rpc.evreth_ws
     }
 
     /// Returns the configured EVM HTTP endpoint.
@@ -294,18 +282,5 @@ impl ChainContext {
         self.sort_signatures_by_validators_power_desc(&mut signed_header, &validators);
 
         Ok(LightBlock::new(signed_header, validators, next_validators, peer_id))
-    }
-
-    fn celestia_ws_url(&self) -> Result<Url> {
-        let mut url = Url::parse(&self.config.rpc.celestia_rpc).context("invalid celestia rpc url")?;
-        let scheme = match url.scheme() {
-            "http" => "ws",
-            "https" => "wss",
-            other => other,
-        }
-        .to_string();
-        url.set_scheme(&scheme)
-            .map_err(|_| anyhow!("unsupported Celestia RPC scheme: {}", url.scheme()))?;
-        Ok(url)
     }
 }

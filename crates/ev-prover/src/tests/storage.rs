@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::prover::programs::block::EV_EXEC_ELF;
+    const EV_BATCH_ELF: &[u8] = include_bytes!("../../../elfs/ev-batch-elf");
     use celestia_types::nmt::Namespace;
     use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecOutput, State};
     use sp1_sdk::{ProverClient, SP1ProofMode, SP1ProofWithPublicValues, SP1PublicValues, SP1_CIRCUIT_VERSION};
@@ -14,7 +14,7 @@ mod tests {
     }
 
     fn create_mock_proof(mode: SP1ProofMode) -> SP1ProofWithPublicValues {
-        let (pk, _vk) = ProverClient::from_env().setup(EV_EXEC_ELF);
+        let (pk, _vk) = ProverClient::from_env().setup(EV_BATCH_ELF);
         let public_values = SP1PublicValues::from(&[10, 20, 30, 40, 50]);
         SP1ProofWithPublicValues::create_mock_proof(&pk, public_values, mode, SP1_CIRCUIT_VERSION)
     }

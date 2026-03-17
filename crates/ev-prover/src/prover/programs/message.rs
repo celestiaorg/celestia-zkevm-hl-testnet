@@ -3,8 +3,8 @@
 
 #![allow(dead_code)]
 use crate::prover::chain::ChainContext;
+use crate::prover::ProgramProver;
 use crate::prover::{prover_from_env, MessageProofRequest, MessageProofSync, RangeProofCommitted, SP1Prover};
-use crate::prover::{ProgramProver, ProverConfig};
 use alloy::hex::FromHex;
 use alloy_primitives::FixedBytes;
 use alloy_provider::Provider;
@@ -17,7 +17,7 @@ use ev_zkevm_types::programs::hyperlane::types::{
     HyperlaneBranchProof, HyperlaneBranchProofInputs, HyperlaneMessageInputs, HyperlaneMessageOutputs,
     HYPERLANE_MERKLE_TREE_KEYS,
 };
-use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
 use std::sync::Arc;
 use storage::hyperlane::StoredHyperlaneMessage;
 use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore};
@@ -25,36 +25,7 @@ use storage::proofs::ProofStorage;
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info};
 
-#[derive(Clone)]
-pub struct MessageProverConfig {
-    pub pk: Arc<SP1ProvingKey>,
-    pub vk: Arc<SP1VerifyingKey>,
-    pub proof_mode: SP1ProofMode,
-}
-
-impl MessageProverConfig {
-    pub fn new(pk: SP1ProvingKey, vk: SP1VerifyingKey, mode: SP1ProofMode) -> Self {
-        MessageProverConfig {
-            pk: Arc::new(pk),
-            vk: Arc::new(vk),
-            proof_mode: mode,
-        }
-    }
-}
-
-impl ProverConfig for MessageProverConfig {
-    fn pk(&self) -> Arc<SP1ProvingKey> {
-        Arc::clone(&self.pk)
-    }
-
-    fn vk(&self) -> Arc<SP1VerifyingKey> {
-        Arc::clone(&self.vk)
-    }
-
-    fn proof_mode(&self) -> SP1ProofMode {
-        self.proof_mode
-    }
-}
+use crate::prover::config::StandardProverConfig;
 
 /// MerkleTreeState encapsulates the height of the merkle tree in terms of snapshots and blocks
 pub struct MerkleTreeState {
@@ -73,7 +44,7 @@ impl MerkleTreeState {
 /// HyperlaneMessageProver is a prover for generating SP1 proofs for Hyperlane message inclusion in EVM blocks.
 pub struct HyperlaneMessageProver {
     pub ctx: Arc<ChainContext>,
-    pub config: MessageProverConfig,
+    pub config: StandardProverConfig,
     pub prover: Arc<SP1Prover>,
     pub message_store: Arc<HyperlaneMessageStore>,
     pub snapshot_store: Arc<HyperlaneSnapshotStore>,
@@ -82,7 +53,7 @@ pub struct HyperlaneMessageProver {
 }
 
 impl ProgramProver for HyperlaneMessageProver {
-    type Config = MessageProverConfig;
+    type Config = StandardProverConfig;
     type Input = HyperlaneMessageInputs;
     type Output = HyperlaneMessageOutputs;
 
@@ -130,10 +101,10 @@ impl HyperlaneMessageProver {
     }
 
     /// Returns the default prover configuration for the block execution program.
-    pub fn default_config(prover: &SP1Prover) -> MessageProverConfig {
+    pub fn default_config(prover: &SP1Prover) -> StandardProverConfig {
         let ev_hyperlane_elf = include_bytes!("../../../../../elfs/ev-hyperlane-elf");
         let (pk, vk) = prover.setup(ev_hyperlane_elf);
-        MessageProverConfig::new(pk, vk, SP1ProofMode::Groth16)
+        StandardProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
     pub async fn run(

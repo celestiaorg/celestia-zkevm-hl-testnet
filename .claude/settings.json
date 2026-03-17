@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"ev-exec\\\\|ev-range-exec\\\\|ev_exec\\\\|ev_range_exec\" /Users/chef/Desktop/celestia-zkevm --include=*.rs --include=*.toml)",
+      "Bash(grep -r \"tee-attestation-elf\\\\|ev-batch-elf\\\\|ev-hyperlane-elf\\\\|ev-exec-elf\\\\|ev-range-exec-elf\" /Users/chef/Desktop/celestia-zkevm --include=*.rs)",
+      "Bash(find /Users/chef/Desktop/celestia-zkevm -name *.yaml -o -name *.yml -o -name *.json)",
+      "Bash(grep -r \"ev-exec-elf\\\\|ev-range-exec-elf\" /Users/chef/Desktop/celestia-zkevm --include=*.rs)",
+      "Bash(find /Users/chef/Desktop/celestia-zkevm -type d -name *tee* -o -name *attestation*)"
+    ]
+  }
+}
