@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+pub static EV_BATCH_ELF: &[u8] = include_bytes!("../../../../../elfs/ev-batch-elf");
+
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
@@ -72,8 +74,7 @@ impl BatchExecProver {
 
     /// Returns the prover config.
     pub fn default_config(prover: &SP1Prover) -> StandardProverConfig {
-        let batch_elf = include_bytes!("../../../../../elfs/ev-batch-elf");
-        let (pk, vk) = prover.setup(batch_elf);
+        let (pk, vk) = prover.setup(EV_BATCH_ELF);
         StandardProverConfig::new(pk, vk, SP1ProofMode::Groth16)
     }
 
