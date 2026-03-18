@@ -1,14 +1,12 @@
 use std::sync::Arc;
 
-use alloy_primitives::FixedBytes;
 use anyhow::Result;
 use celestia_grpc_client::types::ClientConfig;
-use celestia_grpc_client::{CelestiaIsmClient, QueryIsmRequest};
+use celestia_grpc_client::CelestiaIsmClient;
 use ev_state_queries::MockStateQueryProvider;
 use ev_types::v1::get_block_request::Identifier;
 use ev_types::v1::store_service_client::StoreServiceClient;
 use ev_types::v1::GetBlockRequest;
-use ev_zkevm_types::programs::block::State;
 use storage::hyperlane::message::HyperlaneMessageStore;
 use storage::hyperlane::snapshot::HyperlaneSnapshotStore;
 use storage::proofs::RocksDbProofStorage;
@@ -23,33 +21,19 @@ use tracing::{debug, error};
 use crate::config::Config;
 use crate::proto::celestia::prover::v1::prover_server::ProverServer;
 use crate::prover::chain::ChainContext;
-use crate::prover::programs::block::TrustedState;
 use crate::prover::programs::message::HyperlaneMessageProver;
 use crate::prover::service::ProverService;
 use crate::prover::{MessageProofRequest, MessageProofSync};
 
-#[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
-use crate::prover::{
-    programs::{
-        block::BlockExecProver,
-        range::{BlockRangeExecProver, BlockRangeExecService},
-    },
-    BlockProofCommitted,
-};
-
 use storage::proofs::ProofStorage;
-#[cfg(feature = "batch_mode")]
+#[cfg(not(feature = "tee_mode"))]
 use {crate::prover::programs::batch::BatchExecProver, std::time::Duration};
 #[cfg(feature = "tee_mode")]
 use {crate::prover::programs::tee::TeeExecProver, std::time::Duration};
 
 struct Server {
     pub message_prover: Arc<HyperlaneMessageProver>,
-    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
-    pub block_prover: Arc<BlockExecProver>,
-    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
-    pub block_range_prover: Arc<BlockRangeExecProver>,
-    #[cfg(feature = "batch_mode")]
+    #[cfg(not(feature = "tee_mode"))]
     pub batch_prover: Arc<BatchExecProver>,
     #[cfg(feature = "tee_mode")]
     pub tee_prover: Arc<TeeExecProver>,
@@ -58,23 +42,15 @@ struct Server {
 impl Server {
     pub fn new(
         message_prover: Arc<HyperlaneMessageProver>,
-        #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))] block_prover: Arc<BlockExecProver>,
-        #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))] block_range_prover: Arc<
-            BlockRangeExecProver,
-        >,
-        #[cfg(feature = "batch_mode")] batch_prover: Arc<BatchExecProver>,
+        #[cfg(not(feature = "tee_mode"))] batch_prover: Arc<BatchExecProver>,
         #[cfg(feature = "tee_mode")] tee_prover: Arc<TeeExecProver>,
     ) -> Self {
         Self {
             message_prover,
-            #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
-            block_prover,
-            #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
-            block_range_prover,
-            #[cfg(feature = "batch_mode")]
-            batch_prover: batch_prover,
+            #[cfg(not(feature = "tee_mode"))]
+            batch_prover,
             #[cfg(feature = "tee_mode")]
-            tee_prover: tee_prover,
+            tee_prover,
         }
     }
     pub async fn start_message_prover(
@@ -89,53 +65,7 @@ impl Server {
             }
         }))
     }
-    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
-    pub async fn start_block_prover(&self) -> Result<JoinHandle<()>> {
-        let block_prover = Arc::clone(&self.block_prover);
-        Ok(tokio::spawn(async move {
-            if let Err(e) = block_prover.run().await {
-                error!("Block prover task failed: {e:?}");
-            }
-        }))
-    }
-    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
-    #[allow(clippy::too_many_arguments)]
-    pub async fn start_block_range_prover(
-        self,
-        ctx: Arc<ChainContext>,
-        client: CelestiaIsmClient,
-        proof_store: Arc<dyn ProofStorage>,
-        hyperlane_message_store: Arc<HyperlaneMessageStore>,
-        rx_block: mpsc::Receiver<BlockProofCommitted>,
-        tx_range: mpsc::Sender<MessageProofRequest>,
-        batch_size: usize,
-    ) -> Result<JoinHandle<()>> {
-        Ok(tokio::spawn(async move {
-            match BlockRangeExecService::new(
-                ctx.clone(),
-                client,
-                self.block_range_prover.clone(),
-                proof_store.clone(),
-                hyperlane_message_store.clone(),
-                rx_block,
-                tx_range,
-                batch_size,
-                16,
-            )
-            .await
-            {
-                Ok(service) => {
-                    if let Err(e) = service.run().await {
-                        error!("Block range prover task failed: {e:?}");
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to create BlockRangeExecService: {e:?}");
-                }
-            }
-        }))
-    }
-    #[cfg(feature = "batch_mode")]
+    #[cfg(not(feature = "tee_mode"))]
     pub async fn start_batch_prover(&self, message_sync: Arc<MessageProofSync>) -> Result<JoinHandle<()>> {
         let batch_prover = Arc::clone(&self.batch_prover);
         Ok(tokio::spawn(async move {
@@ -177,110 +107,7 @@ pub async fn start_server(config: Config) -> Result<()> {
     let ism_client = Arc::new(CelestiaIsmClient::new(config).await?);
     let ctx = ChainContext::from_config(config_clone.clone(), ism_client.clone()).await?;
 
-    #[cfg(all(not(feature = "batch_mode"), not(feature = "tee_mode")))]
-    let wrapper_task = Some({
-        let client_config = ClientConfig::from_env()?;
-        let client = CelestiaIsmClient::new(client_config).await?;
-        let proof_store = proof_store.clone();
-        tokio::spawn(async move {
-            loop {
-                let trusted_state = match get_trusted_state(&client).await {
-                    Ok(state) => state,
-                    Err(e) => {
-                        error!("Failed to get trusted state: {e:?}");
-                        continue;
-                    }
-                };
-                debug!("Successfully got trusted state from ism: {}", trusted_state);
-                let message_sync = MessageProofSync::shared();
-                let batch_size = config_clone.batch_size;
-                let concurrency = config_clone.concurrency;
-                let queue_capacity = config_clone.queue_capacity;
-                let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-                let (tx_block, rx_block) = mpsc::channel::<BlockProofCommitted>(256);
-
-                let block_prover = BlockExecProver::new(
-                    ctx.clone(),
-                    trusted_state,
-                    tx_block,
-                    proof_store.clone(),
-                    queue_capacity,
-                    concurrency,
-                );
-                let block_range_prover = match BlockRangeExecProver::new(ctx.clone()) {
-                    Ok(prover) => prover,
-                    Err(e) => {
-                        error!("Failed to create block range prover: {e:?}");
-                        continue;
-                    }
-                };
-                let message_prover =
-                    match prepare_message_prover(ctx.clone(), hyperlane_message_store.clone(), proof_store.clone()) {
-                        Ok(prover) => prover,
-                        Err(e) => {
-                            error!("Failed to create message prover: {e:?}");
-                            continue;
-                        }
-                    };
-                let server = Server::new(
-                    Arc::new(message_prover),
-                    Arc::new(block_prover),
-                    Arc::new(block_range_prover),
-                );
-                let mut block_handle = match server.start_block_prover().await {
-                    Ok(handle) => handle,
-                    Err(e) => {
-                        error!("Failed to start block prover: {e:?}");
-                        continue;
-                    }
-                };
-                let mut message_handle = match server.start_message_prover(rx_range, message_sync).await {
-                    Ok(handle) => handle,
-                    Err(e) => {
-                        error!("Failed to start message prover: {e:?}");
-                        continue;
-                    }
-                };
-                let mut block_range_handle = match server
-                    .start_block_range_prover(
-                        ctx.clone(),
-                        client.clone(),
-                        proof_store.clone(),
-                        hyperlane_message_store.clone(),
-                        rx_block,
-                        tx_range,
-                        batch_size,
-                    )
-                    .await
-                {
-                    Ok(handle) => handle,
-                    Err(e) => {
-                        error!("Failed to start block range prover: {e:?}");
-                        continue;
-                    }
-                };
-                tokio::select! {
-                    r = &mut block_handle => {
-                        error!("Block prover stopped: {:?}", r);
-                        message_handle.abort();
-                        block_range_handle.abort();
-                    }
-                    r = &mut message_handle => {
-                        error!("Message prover stopped: {:?}", r);
-                        block_handle.abort();
-                        block_range_handle.abort();
-                    }
-                    r = &mut block_range_handle => {
-                        error!("Block range prover stopped: {:?}", r);
-                        block_handle.abort();
-                        message_handle.abort();
-                    }
-                }
-            }
-        })
-    });
-
-    #[cfg(feature = "batch_mode")]
+    #[cfg(not(feature = "tee_mode"))]
     let wrapper_task = Some({
         let proof_store_clone: Arc<dyn ProofStorage> = proof_store.clone();
         let message_sync = MessageProofSync::shared();
@@ -454,20 +281,4 @@ pub async fn public_key(sequencer_rpc_url: String) -> Result<String> {
     let resp = sequencer_client.get_block(block_req).await?;
     let pub_key = resp.into_inner().block.unwrap().header.unwrap().signer.unwrap().pub_key;
     Ok(hex::encode(&pub_key[4..]))
-}
-
-pub async fn get_trusted_state(client: &CelestiaIsmClient) -> Result<TrustedState> {
-    let resp = client
-        .ism(QueryIsmRequest {
-            id: client.ism_id().to_string(),
-        })
-        .await?;
-
-    let ism = resp.ism.unwrap();
-
-    let state: State = bincode::deserialize(&ism.state).unwrap();
-    Ok(TrustedState::new(
-        state.height,
-        FixedBytes::from_slice(&state.state_root),
-    ))
 }

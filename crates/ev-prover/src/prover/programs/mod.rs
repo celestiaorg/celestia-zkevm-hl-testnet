@@ -1,5 +1,4 @@
 pub mod batch;
-pub mod block;
+pub mod common;
 pub mod message;
-pub mod range;
 pub mod tee;

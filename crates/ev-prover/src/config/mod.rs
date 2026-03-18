@@ -28,15 +28,6 @@ pub struct Config {
 
     /// Sequencer’s public key in hex.
     pub pub_key: String,
-
-    /// Capacity for internal proof event queue.
-    pub queue_capacity: usize,
-
-    /// Maximum concurrent proof tasks.
-    pub concurrency: usize,
-
-    /// Number of blocks per range proof.
-    pub batch_size: usize,
 }
 
 impl Default for Config {
@@ -47,9 +38,6 @@ impl Default for Config {
             hyperlane: HyperlaneConfig::default(),
             namespace: Namespace::new_v0(&hex::decode(DEFAULT_NAMESPACE).unwrap()).unwrap(),
             pub_key: DEFAULT_PUB_KEY_HEX.into(),
-            queue_capacity: 256,
-            concurrency: 16,
-            batch_size: 10,
         }
     }
 }
@@ -176,9 +164,6 @@ pub struct RpcConfig {
 
     /// RPC endpoint for the EVM node.
     pub evreth_rpc: String,
-
-    /// Websocket endpoint for the EVM node.
-    pub evreth_ws: String,
 }
 
 impl Default for RpcConfig {
@@ -189,7 +174,6 @@ impl Default for RpcConfig {
             celestia_auth_token: None,
             evnode_rpc: "http://localhost:7331".into(),
             evreth_rpc: "http://localhost:8545".into(),
-            evreth_ws: "ws://localhost:8546".into(),
         }
     }
 }
@@ -201,7 +185,6 @@ impl RpcConfig {
         let celestia_auth_token = env::var("CELESTIA_AUTH_TOKEN").ok();
         let evnode_rpc = env::var("SEQUENCER_RPC_URL").unwrap_or_else(|_| "http://localhost:7331".to_string());
         let evreth_rpc = env::var("RETH_RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string());
-        let evreth_ws = env::var("RETH_WS_URL").unwrap_or_else(|_| "ws://localhost:8546".to_string());
 
         Ok(Self {
             celestia_rpc,
@@ -209,7 +192,6 @@ impl RpcConfig {
             celestia_auth_token,
             evnode_rpc,
             evreth_rpc,
-            evreth_ws,
         })
     }
 }
