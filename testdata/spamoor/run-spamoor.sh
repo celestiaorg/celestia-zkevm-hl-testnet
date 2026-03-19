@@ -24,7 +24,7 @@ fi
 echo "Starting spamoor transaction flooding with config: $CONFIG_FILE"
 
 docker run --rm -it \
-  --network celestia-zkevm-hl-testnet_celestia-zkevm-net \
+  --network celestia-zkevm_celestia-zkevm-net \
   -e RPC_URL=http://reth:8545 \
   -e PRIVATE_KEY="$PRIVATE_KEY" \
   -v "$CONFIG_FILE:/app/config.yaml:ro" \
