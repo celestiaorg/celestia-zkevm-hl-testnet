@@ -23,7 +23,7 @@ use crate::proto::celestia::prover::v1::{
 };
 use crate::prover::chain::ChainContext;
 use crate::server::start_server;
-use ev_zkevm_types::programs::block::State;
+use ev_zkevm_types::block::State;
 use storage::proofs::{ProofStorage, RocksDbProofStorage};
 
 pub mod cli;

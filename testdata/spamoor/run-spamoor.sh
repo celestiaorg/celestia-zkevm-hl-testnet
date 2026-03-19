@@ -2,7 +2,7 @@
 
 # Script to run spamoor transaction flooding against the reth service
 # Uses the PRIVATE_KEY environment variable from .env file and config file
-# Example usage: ./scripts/run-spamoor.sh
+# Example usage: ./testdata/spamoor/run-spamoor.sh
 
 # Check if PRIVATE_KEY is set
 if [ -z "$PRIVATE_KEY" ]; then
@@ -13,7 +13,7 @@ fi
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="$SCRIPT_DIR/../spamoor-config.yaml"
+CONFIG_FILE="$SCRIPT_DIR/spamoor-config.yaml"
 
 # Check if config file exists
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -24,7 +24,7 @@ fi
 echo "Starting spamoor transaction flooding with config: $CONFIG_FILE"
 
 docker run --rm -it \
-  --network celestia-zkevm-hl-testnet_celestia-zkevm-net \
+  --network celestia-zkevm_celestia-zkevm-net \
   -e RPC_URL=http://reth:8545 \
   -e PRIVATE_KEY="$PRIVATE_KEY" \
   -v "$CONFIG_FILE:/app/config.yaml:ro" \

@@ -1,10 +1,3 @@
-use std::str::FromStr;
-
-use crate::hyperlane::HyperlaneMessage;
-use crate::programs::hyperlane::digest_keccak;
-use crate::programs::hyperlane::tree::{MerkleTree, ZERO_BYTES};
-use serde::{Deserialize, Serialize};
-
 use alloy_primitives::{
     Address, Bytes, FixedBytes, U256, Uint,
     hex::{FromHex, ToHexExt},
@@ -13,6 +6,9 @@ use alloy_rlp::encode;
 use alloy_rpc_types::EIP1186AccountProofResponse;
 use alloy_trie::{Nibbles, TrieAccount, proof::verify_proof};
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+
+use super::digest_keccak;
 
 pub type MerkleProof = Vec<Vec<u8>>;
 pub type StoredValue = Vec<u8>;
@@ -101,7 +97,6 @@ impl HyperlaneBranchProof {
 
     /// Verify the branch proof against the execution state root.
     pub fn verify(&self, keys: &[&str], contract: Address, root: &str) -> Result<bool> {
-        // verify the account proof against the execution state root
         if verify_proof(
             FixedBytes::from_hex(root).unwrap(),
             Nibbles::unpack(digest_keccak(contract.as_slice())),
@@ -116,7 +111,6 @@ impl HyperlaneBranchProof {
         for (key, proof) in keys.iter().zip(self.proof.storage_proof.iter()) {
             let key_bytes = alloy_primitives::hex::decode(key)?;
             let key_nibbles = Nibbles::unpack(digest_keccak(&key_bytes));
-            // Verify exclusion proof for empty branch nodes
             if proof.value == Uint::from(0) {
                 if verify_proof(storage_root, key_nibbles, None, &proof.proof).is_err() {
                     println!("Failed to verify exclusion (zero) proof for key: {key}");
@@ -132,7 +126,6 @@ impl HyperlaneBranchProof {
 
     /// Verify a single branch node against the execution state root.
     pub fn verify_single(&self, key: &str, contract: Address, root: &str) -> Result<bool> {
-        // verify the account proof against the execution state root
         if verify_proof(
             FixedBytes::from_hex(root).unwrap(),
             Nibbles::unpack(digest_keccak(contract.as_slice())),
@@ -144,7 +137,6 @@ impl HyperlaneBranchProof {
             return Ok(false);
         }
         let account: TrieAccount = alloy_rlp::decode_exact(self.get_stored_account()?)?;
-        // verify the storage proof against the account root
         if verify_proof(
             account.storage_root,
             Nibbles::unpack(digest_keccak(&alloy_primitives::hex::decode(key)?)),
@@ -225,7 +217,6 @@ impl HyperlaneBranchProofInputs {
             .iter()
             .zip(self.storage_proofs.iter().zip(self.storage_values.iter()))
         {
-            // Skip empty branch nodes as those don't have storage proofs
             if value.as_slice() == U256::from(0).to_be_bytes::<32>().as_slice() {
                 continue;
             }
@@ -245,88 +236,19 @@ impl HyperlaneBranchProofInputs {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-/// Inputs for the hyperlane message circuit.
-pub struct HyperlaneMessageInputs {
-    pub state_root: String,
-    pub contract: String,
-    pub messages: Vec<HyperlaneMessage>,
-    pub branch_proof: HyperlaneBranchProofInputs,
-    pub snapshot: MerkleTree,
-}
+#[cfg(test)]
+mod tests {
+    use super::HyperlaneBranchProofInputs;
 
-/// Implementation of the hyperlane message inputs.
-impl HyperlaneMessageInputs {
-    pub fn new(
-        state_root: String,
-        contract: String,
-        messages: Vec<HyperlaneMessage>,
-        branch_proof: HyperlaneBranchProofInputs,
-        snapshot: MerkleTree,
-    ) -> Self {
-        Self {
-            state_root,
-            contract,
-            messages,
-            branch_proof,
-            snapshot,
-        }
-    }
+    #[test]
+    fn test_get_branch_node_reads_hex_value() {
+        let inputs = HyperlaneBranchProofInputs {
+            account_proof: vec![],
+            storage_proofs: vec![],
+            account_value: vec![],
+            storage_values: vec![vec![0x12, 0x34, 0xab, 0xcd]],
+        };
 
-    /// Verify the hyperlane message inputs against the branch proof and snapshot.
-    pub fn verify(&mut self) {
-        let message_ids: Vec<String> = self.messages.iter().map(|m| m.id()).collect();
-        for message_id in message_ids {
-            self.snapshot
-                .insert(message_id)
-                .expect("Failed to insert message id into snapshot");
-        }
-
-        // sanity check, we can't prove an empty hyperlane tree against state_root
-        if self
-            .snapshot
-            .branch
-            .iter()
-            .all(|_| self.snapshot.branch.iter().all(|b| b == ZERO_BYTES))
-        {
-            println!("Snapshot branch is empty (all zero bytes) before proof verification");
-        }
-
-        for idx in 0..HYPERLANE_MERKLE_TREE_KEYS.len() {
-            // The branch nodes of the snapshot after insert must match the branch nodes of the incremental
-            // tree on the EVM chain.
-            assert_eq!(
-                self.snapshot.branch[idx],
-                self.branch_proof.get_branch_node(idx),
-                "Branch node {idx} does not match"
-            );
-        }
-
-        let verified = self
-            .branch_proof
-            .verify(
-                &HYPERLANE_MERKLE_TREE_KEYS,
-                Address::from_str(&self.contract).unwrap(),
-                &self.state_root,
-            )
-            .expect("Failed to verify branch proof");
-        assert!(verified);
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct HyperlaneMessageOutputs {
-    pub state_root: [u8; 32],
-    pub merkle_tree_address: [u8; 32],
-    pub message_ids: Vec<[u8; 32]>,
-}
-
-impl HyperlaneMessageOutputs {
-    pub fn new(state_root: [u8; 32], merkle_tree_address: [u8; 32], message_ids: Vec<[u8; 32]>) -> Self {
-        Self {
-            state_root,
-            merkle_tree_address,
-            message_ids,
-        }
+        assert_eq!(inputs.get_branch_node(0), "1234abcd");
     }
 }

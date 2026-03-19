@@ -13,7 +13,7 @@ use ev_state_queries::{
     hyperlane::indexer::HyperlaneIndexer, DefaultProvider, MockStateQueryProvider, StateQueryProvider,
 };
 use ev_types::v1::SignedData;
-use ev_zkevm_types::events::Dispatch;
+use ev_zkevm_types::hyperlane::events::Dispatch;
 use prost::Message;
 use reth_chainspec::ChainSpec;
 use rsp_client_executor::io::EthClientExecutorInput;

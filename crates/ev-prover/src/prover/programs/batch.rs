@@ -5,7 +5,7 @@ pub static EV_BATCH_ELF: &[u8] = include_bytes!("../../../../../elfs/ev-batch-el
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
+use ev_zkevm_types::block::{BatchExecInput, BatchExecOutput, BlockExecInput};
 use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
 use storage::hyperlane::message::HyperlaneMessageStore;
 use tokio::{sync::mpsc, time::interval};
@@ -13,7 +13,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::prover::chain::ChainContext;
 use crate::prover::config::{StandardProverConfig, BATCH_SIZE, WARN_DISTANCE};
-use crate::prover::programs::common;
+use crate::prover::programs::common::{self, ProverStatus};
 use crate::prover::{
     prover_from_env, MessageProofRequest, MessageProofSync, ProgramProver, RangeProofCommitted, SP1Prover,
 };
@@ -30,7 +30,7 @@ pub struct BatchExecProver {
 impl ProgramProver for BatchExecProver {
     type Config = StandardProverConfig;
     type Input = BatchExecInput;
-    type Output = BlockRangeExecOutput;
+    type Output = BatchExecOutput;
 
     fn cfg(&self) -> &Self::Config {
         &self.config
@@ -43,9 +43,7 @@ impl ProgramProver for BatchExecProver {
     }
 
     fn post_process(&self, proof: SP1ProofWithPublicValues) -> Result<Self::Output> {
-        Ok(bincode::deserialize::<BlockRangeExecOutput>(
-            proof.public_values.as_slice(),
-        )?)
+        Ok(bincode::deserialize::<BatchExecOutput>(proof.public_values.as_slice())?)
     }
 
     fn prover(&self) -> Arc<SP1Prover> {
@@ -130,7 +128,7 @@ impl BatchExecProver {
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
-            let status = common::load_prover_status(&self.ctx).await?;
+            let status = ProverStatus::load(&self.ctx).await?;
             if scan_head.is_none() {
                 scan_head = Some(status.trusted_celestia_height + 1);
             }

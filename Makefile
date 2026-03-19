@@ -89,8 +89,8 @@ query-balance:
 spamoor:
 	@echo "--> Running spamoor transaction flooding daemon"
 	@echo "Spamoor will be available on localhost:8080"
-	@chmod +x scripts/run-spamoor.sh
-	@scripts/run-spamoor.sh $(ARGS)
+	@chmod +x testdata/spamoor/run-spamoor.sh
+	@testdata/spamoor/run-spamoor.sh $(ARGS)
 .PHONY: spamoor
 
 e2e:

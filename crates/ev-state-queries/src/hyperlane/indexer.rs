@@ -7,9 +7,9 @@ use alloy_provider::{Provider, WsConnect};
 use alloy_rpc_types::{Filter, Log};
 use alloy_sol_types::SolEvent;
 use anyhow::Result;
-use ev_zkevm_types::{
+use ev_zkevm_types::hyperlane::{
+    decode_hyperlane_message,
     events::{Dispatch, DispatchEvent},
-    hyperlane::decode_hyperlane_message,
 };
 use std::{env, str::FromStr, sync::Arc};
 use storage::hyperlane::{StoredHyperlaneMessage, message::HyperlaneMessageStore};

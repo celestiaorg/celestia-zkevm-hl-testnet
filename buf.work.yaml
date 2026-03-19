@@ -1,4 +1,4 @@
 version: v1
 directories:
-  - proto # TODO: move protos currently under proto to ev-prover/proto
   - crates/celestia-grpc-client/proto
+  - crates/ev-prover/proto

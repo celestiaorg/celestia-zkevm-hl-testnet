@@ -37,7 +37,7 @@ The program inputs contain all information required to verify the correct execut
 | namespace | [u8;29] | the Celestia namespace that contains the data blobs which themselves contain EV blocks | |
 | public_key | [u8;32] | the sequencer's public key for verification |
 
-### BlockRangeExecOutput: Circuit outputs used for on-chain verification
+### BatchExecOutput: Circuit outputs used for on-chain verification
 | Name | Type | Description |
 |---|---|---|
 | state_len_bytes | [u8;8] | Little endian encoded bytes of the length of the State |
