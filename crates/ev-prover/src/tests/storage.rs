@@ -75,7 +75,7 @@ mod tests {
     async fn test_store_and_retrieve_range_proof() {
         let (storage, _temp_dir) = create_test_storage();
         let proof = create_mock_proof(SP1ProofMode::Groth16);
-        let output = create_mock_range_output();
+        let output = create_mock_batch_output();
 
         // Store the range proof
         storage.store_range_proof(10, 20, &proof, &output).await.unwrap();
