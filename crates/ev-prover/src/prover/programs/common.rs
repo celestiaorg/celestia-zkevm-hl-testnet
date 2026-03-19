@@ -10,7 +10,7 @@ use celestia_types::{
     Blob,
 };
 use ev_types::v1::SignedData;
-use ev_zkevm_types::programs::block::{BlockExecInput, State};
+use ev_zkevm_types::block::{BlockExecInput, State};
 use prost::Message;
 use rsp_client_executor::io::EthClientExecutorInput;
 use sp1_sdk::SP1ProofWithPublicValues;

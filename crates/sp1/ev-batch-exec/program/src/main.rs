@@ -32,7 +32,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use ev_zkevm_types::programs::block::{BatchExecInput, BlockVerifier};
+use ev_zkevm_types::block::{BatchExecInput, BlockVerifier};
 use tendermint_light_client_verifier::types::LightBlock;
 
 pub fn main() {

@@ -14,9 +14,10 @@ use alloy_primitives::{hex::FromHex, Address, FixedBytes};
 use alloy_provider::{Provider, ProviderBuilder};
 use anyhow::{Context, Result};
 use clap::Parser;
-use ev_zkevm_types::programs::hyperlane::{
-    tree::MerkleTree,
-    types::{HyperlaneBranchProof, HyperlaneBranchProofInputs, HyperlaneMessageInputs, HYPERLANE_MERKLE_TREE_KEYS},
+use ev_zkevm_types::hyperlane::{
+    io::HyperlaneMessageInputs,
+    merkle::MerkleTree,
+    proof::{HyperlaneBranchProof, HyperlaneBranchProofInputs, HYPERLANE_MERKLE_TREE_KEYS},
 };
 use sp1_sdk::{include_elf, ProverClient, SP1Stdin};
 use std::{env, str::FromStr, time::Instant};
@@ -27,7 +28,7 @@ use {
     celestia_grpc_client::{
         types::ClientConfig, CelestiaIsmClient, MsgProcessMessage, MsgSubmitMessages, QueryIsmRequest,
     },
-    ev_zkevm_types::{hyperlane::encode_hyperlane_message, programs::block::State},
+    ev_zkevm_types::{block::State, hyperlane::encode_hyperlane_message},
     storage::hyperlane::snapshot::HyperlaneSnapshotStore,
 };
 
@@ -114,7 +115,7 @@ async fn main() {
                 .expect("failed to execute program");
             println!("Program executed successfully!");
         } else {
-            use ev_zkevm_types::programs::hyperlane::types::HyperlaneMessageOutputs;
+            use ev_zkevm_types::hyperlane::io::HyperlaneMessageOutputs;
             let (pk, vk) = client.setup(EV_HYPERLANE_ELF);
             let start_time = Instant::now();
             let proof = client.prove(&pk, &stdin).run().expect("failed to generate proof");

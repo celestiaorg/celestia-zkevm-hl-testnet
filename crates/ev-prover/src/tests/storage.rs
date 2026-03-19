@@ -2,7 +2,7 @@
 mod tests {
     use crate::prover::programs::batch::EV_BATCH_ELF;
     use celestia_types::nmt::Namespace;
-    use ev_zkevm_types::programs::block::{BlockExecOutput, BlockRangeExecOutput, State};
+    use ev_zkevm_types::block::{BatchExecOutput, BlockExecOutput, State};
     use sp1_sdk::{ProverClient, SP1ProofMode, SP1ProofWithPublicValues, SP1PublicValues, SP1_CIRCUIT_VERSION};
     use storage::proofs::{ProofStorage, ProofStorageError, RocksDbProofStorage};
     use tempfile::TempDir;
@@ -33,8 +33,8 @@ mod tests {
         }
     }
 
-    fn create_mock_range_output() -> BlockRangeExecOutput {
-        BlockRangeExecOutput {
+    fn create_mock_batch_output() -> BatchExecOutput {
+        BatchExecOutput {
             state_len_bytes: [0; 8],
             state: State {
                 state_root: [1; 32],

@@ -3,7 +3,7 @@
 // The snapshots are stored in a column family called "snapshots".
 
 use anyhow::{Context, Result};
-use ev_zkevm_types::programs::hyperlane::tree::{MerkleTree, ZERO_BYTES};
+use ev_zkevm_types::hyperlane::merkle::{MerkleTree, ZERO_BYTES};
 use rocksdb::{ColumnFamilyDescriptor, DB, IteratorMode, Options};
 use serde::{Deserialize, Serialize};
 use std::path::Path;

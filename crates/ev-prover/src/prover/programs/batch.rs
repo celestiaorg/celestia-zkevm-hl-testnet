@@ -5,7 +5,7 @@ pub static EV_BATCH_ELF: &[u8] = include_bytes!("../../../../../elfs/ev-batch-el
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use ev_zkevm_types::programs::block::{BatchExecInput, BlockExecInput, BlockRangeExecOutput};
+use ev_zkevm_types::block::{BatchExecInput, BatchExecOutput, BlockExecInput};
 use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
 use storage::hyperlane::message::HyperlaneMessageStore;
 use tokio::{sync::mpsc, time::interval};
@@ -30,7 +30,7 @@ pub struct BatchExecProver {
 impl ProgramProver for BatchExecProver {
     type Config = StandardProverConfig;
     type Input = BatchExecInput;
-    type Output = BlockRangeExecOutput;
+    type Output = BatchExecOutput;
 
     fn cfg(&self) -> &Self::Config {
         &self.config
@@ -43,9 +43,7 @@ impl ProgramProver for BatchExecProver {
     }
 
     fn post_process(&self, proof: SP1ProofWithPublicValues) -> Result<Self::Output> {
-        Ok(bincode::deserialize::<BlockRangeExecOutput>(
-            proof.public_values.as_slice(),
-        )?)
+        Ok(bincode::deserialize::<BatchExecOutput>(proof.public_values.as_slice())?)
     }
 
     fn prover(&self) -> Arc<SP1Prover> {

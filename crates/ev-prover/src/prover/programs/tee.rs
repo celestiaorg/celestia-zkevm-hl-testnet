@@ -5,7 +5,7 @@ use std::time::{Duration, Instant, SystemTime};
 use alloy_provider::Provider;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use ev_zkevm_types::programs::block::{BlockExecInput, BlockRangeExecOutput};
+use ev_zkevm_types::block::{BatchExecOutput, BlockExecInput};
 use serde::{Deserialize, Serialize};
 use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
 use storage::hyperlane::message::HyperlaneMessageStore;
@@ -39,7 +39,7 @@ pub struct TeeExecProver {
 impl ProgramProver for TeeExecProver {
     type Config = StandardProverConfig;
     type Input = TeeAttestationInput;
-    type Output = BlockRangeExecOutput;
+    type Output = BatchExecOutput;
 
     fn cfg(&self) -> &Self::Config {
         &self.config
@@ -52,9 +52,7 @@ impl ProgramProver for TeeExecProver {
     }
 
     fn post_process(&self, proof: SP1ProofWithPublicValues) -> Result<Self::Output> {
-        Ok(bincode::deserialize::<BlockRangeExecOutput>(
-            proof.public_values.as_slice(),
-        )?)
+        Ok(bincode::deserialize::<BatchExecOutput>(proof.public_values.as_slice())?)
     }
 
     fn prover(&self) -> Arc<SP1Prover> {

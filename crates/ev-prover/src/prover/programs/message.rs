@@ -13,9 +13,9 @@ use anyhow::Result;
 use celestia_grpc_client::{MsgProcessMessage, MsgSubmitMessages};
 use ev_state_queries::StateQueryProvider;
 use ev_zkevm_types::hyperlane::encode_hyperlane_message;
-use ev_zkevm_types::programs::hyperlane::types::{
-    HyperlaneBranchProof, HyperlaneBranchProofInputs, HyperlaneMessageInputs, HyperlaneMessageOutputs,
-    HYPERLANE_MERKLE_TREE_KEYS,
+use ev_zkevm_types::hyperlane::{
+    io::{HyperlaneMessageInputs, HyperlaneMessageOutputs},
+    proof::{HyperlaneBranchProof, HyperlaneBranchProofInputs, HYPERLANE_MERKLE_TREE_KEYS},
 };
 use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
 use std::sync::Arc;
