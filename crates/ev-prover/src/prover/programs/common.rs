@@ -32,6 +32,28 @@ pub struct ProverStatus {
 }
 
 impl ProverStatus {
+    /// Loads the ProverStatus by querying the trusted state from the on-chain ISM and
+    /// the latest header from Celestia.
+    pub async fn load(ctx: &ChainContext) -> Result<ProverStatus> {
+        let resp = ctx
+            .ism_client()
+            .ism(QueryIsmRequest {
+                id: ctx.ism_id().to_string(),
+            })
+            .await?;
+        let ism = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
+        let state: State = bincode::deserialize(&ism.state).unwrap();
+        let trusted_root = FixedBytes::from_slice(&state.state_root);
+        let celestia_head = ctx.celestia_client().header_local_head().await?.height().value();
+
+        Ok(ProverStatus {
+            trusted_height: state.height,
+            trusted_root,
+            trusted_celestia_height: state.celestia_height,
+            celestia_head,
+        })
+    }
+
     /// Returns true if enough new blocks have been produced to start proving a batch.
     pub fn is_batch_ready(&self, batch_size: u64) -> bool {
         self.trusted_celestia_height + batch_size <= self.celestia_head
@@ -46,28 +68,6 @@ impl ProverStatus {
     pub fn distance(&self) -> u64 {
         self.celestia_head.saturating_sub(self.trusted_celestia_height)
     }
-}
-
-/// Loads the ProverStatus by querying the trusted state from the on-chain ISM and
-/// the latest header from Celestia.
-pub async fn load_prover_status(ctx: &ChainContext) -> Result<ProverStatus> {
-    let resp = ctx
-        .ism_client()
-        .ism(QueryIsmRequest {
-            id: ctx.ism_id().to_string(),
-        })
-        .await?;
-    let ism = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
-    let state: State = bincode::deserialize(&ism.state).unwrap();
-    let trusted_root = FixedBytes::from_slice(&state.state_root);
-    let celestia_head = ctx.celestia_client().header_local_head().await?.height().value();
-
-    Ok(ProverStatus {
-        trusted_height: state.height,
-        trusted_root,
-        trusted_celestia_height: state.celestia_height,
-        celestia_head,
-    })
 }
 
 /// Calculates the block prover batch size given the starting height, latest height and trusted height.

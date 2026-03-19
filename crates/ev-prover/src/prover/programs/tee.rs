@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::prover::chain::ChainContext;
 use crate::prover::config::{StandardProverConfig, BATCH_SIZE, WARN_DISTANCE};
-use crate::prover::programs::common;
+use crate::prover::programs::common::{self, ProverStatus};
 use crate::prover::{
     prover_from_env, MessageProofRequest, MessageProofSync, ProgramProver, RangeProofCommitted, SP1Prover,
 };
@@ -97,7 +97,7 @@ impl TeeExecProver {
         loop {
             message_sync.wait_for_idle().await;
             poll.tick().await;
-            let status = common::load_prover_status(&self.ctx).await?;
+            let status = ProverStatus::load(&self.ctx).await?;
             if scan_head.is_none() {
                 scan_head = Some(status.trusted_celestia_height + 1);
             }
