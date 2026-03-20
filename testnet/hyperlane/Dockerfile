@@ -14,8 +14,8 @@ ENV PATH="/root/.foundry/bin:$PATH"
 
 WORKDIR /home/hyperlane
 
-COPY hyperlane/configs /home/hyperlane/configs
-COPY hyperlane/registry /home/hyperlane/registry
-COPY hyperlane/scripts /home/hyperlane/scripts
+COPY testnet/hyperlane/configs /home/hyperlane/configs
+COPY testnet/hyperlane/registry /home/hyperlane/registry
+COPY testnet/hyperlane/scripts /home/hyperlane/scripts
 
 ENTRYPOINT [ "scripts/docker-entrypoint.sh" ]

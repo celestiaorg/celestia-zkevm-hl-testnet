@@ -139,7 +139,7 @@ services:
     image: ghcr.io/celestiaorg/hyperlane-init:local
     container_name: hyperlane-init
     volumes:
-      - ./hyperlane:/home/hyperlane/
+      - ./testnet/hyperlane:/home/hyperlane/
     entrypoint: "scripts/docker-entrypoint.sh"
     depends_on:
       celestia-validator:
@@ -157,7 +157,7 @@ services:
     environment:
       - CONFIG_FILES=/app/config/config.json
     volumes:
-      - ./hyperlane/relayer-config.json:/app/config/config.json
+      - ./testnet/hyperlane/relayer-config.json:/app/config/config.json
     command: "/app/relayer"
     depends_on:
       hyperlane-init:
@@ -168,7 +168,6 @@ services:
 volumes:
   celestia-app:
   celestia-bridge:
-  hyperlane:
   reth:
   evm-single-data:
 

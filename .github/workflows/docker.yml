@@ -6,7 +6,7 @@ on:
     paths:
       - '**/Dockerfile'
       - '.github/workflows/docker.yml'
-      - 'hyperlane/**'
+      - 'testnet/hyperlane/**'
 
 jobs:
   build-and-push:
@@ -39,7 +39,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./hyperlane/Dockerfile
+          file: ./testnet/hyperlane/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/${{ github.repository_owner }}/hyperlane-init:latest
