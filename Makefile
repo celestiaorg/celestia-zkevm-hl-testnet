@@ -50,7 +50,7 @@ transfer:
   		--volume celestia-zkevm_celestia-app:/home/celestia/.celestia-app \
   		ghcr.io/celestiaorg/celestia-app-standalone:feature-zk-execution-ism \
   		tx warp transfer 0x726f757465725f61707000000000000000000000000000010000000000000000 1234 0x000000000000000000000000aF9053bB6c4346381C77C2FeD279B17ABAfCDf4d "10000000" \
-  		--from default --fees 800utia --max-hyperlane-fee 36400utia --node http://celestia-validator:26657 --yes
+  		--from default --fees 1000utia --gas auto --max-hyperlane-fee 36400utia --node http://celestia-validator:26657 --yes
 .PHONY: transfer
 
 ## transfer-back: Transfer tokens back from the EVM roll-up to celestia-app.
@@ -110,5 +110,5 @@ deploy-ism-tee:
 
 update-ism:
 	@echo "--> Updating ISM"
-	@RUST_LOG="ev_prover=info" cargo run -p ev-prover set-token-ism 0x726f757465725f69736d000000000000000000000000002a0000000000000001 0x726f757465725f61707000000000000000000000000000010000000000000000
+	@RUST_LOG="ev_prover=info" cargo run -p ev-prover set-token-ism 0x726f757465725f69736d000000000000000000000000002a0000000000000002 0x726f757465725f61707000000000000000000000000000010000000000000000
 .PHONY: update-ism

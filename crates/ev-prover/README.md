@@ -128,7 +128,7 @@ cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -
 
 Example with values:
 ```bash
-cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --contract 0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5 --rpc-url http://127.0.0.1:8545
+cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --contract 0x6007cE81D2FD7b9b7f22e71cE9896e00d6017ba8 --rpc-url http://127.0.0.1:8545
 ```
 
 Assuming that there is an unfinalized snapshot at index `N` in the database and that the latest snapshot is >`N`, the correct snapshot-index to pass is `N-1`.

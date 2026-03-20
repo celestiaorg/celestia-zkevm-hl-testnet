@@ -230,8 +230,8 @@ impl EvmHyperlaneConfig {
 impl Default for EvmHyperlaneConfig {
     fn default() -> Self {
         Self {
-            mailbox_address: "0xb1c938f5ba4b3593377f399e12175e8db0c787ff".into(),
-            merkle_tree_address: "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5".into(),
+            mailbox_address: "0xa05915fd6e32a1aa7e67d800164cacb12487142d".into(),
+            merkle_tree_address: "0x6007cE81D2FD7b9b7f22e71cE9896e00d6017ba8".into(),
         }
     }
 }
@@ -249,7 +249,7 @@ pub struct CelestiaHyperlaneConfig {
 impl CelestiaHyperlaneConfig {
     pub fn from_env() -> Result<Self> {
         let ism_id = env::var("CELESTIA_ISM_ID")
-            .unwrap_or_else(|_| "0x726f757465725f69736d000000000000000000000000002a0000000000000001".to_string());
+            .unwrap_or_else(|_| "0x726f757465725f69736d000000000000000000000000002a0000000000000002".to_string());
         let mailbox_id = env::var("CELESTIA_MAILBOX_ADDRESS")
             .unwrap_or_else(|_| "0x68797065726c616e650000000000000000000000000000000000000000000000".to_string());
         Ok(Self { ism_id, mailbox_id })
@@ -259,7 +259,7 @@ impl CelestiaHyperlaneConfig {
 impl Default for CelestiaHyperlaneConfig {
     fn default() -> Self {
         Self {
-            ism_id: "0x726f757465725f69736d000000000000000000000000002a0000000000000001".to_string(),
+            ism_id: "0x726f757465725f69736d000000000000000000000000002a0000000000000002".to_string(),
             mailbox_id: "0x68797065726c616e650000000000000000000000000000000000000000000000".to_string(),
         }
     }
