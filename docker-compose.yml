@@ -136,7 +136,8 @@ services:
       - celestia-zkevm-net
 
   hyperlane-init:
-    image: ghcr.io/celestiaorg/hyperlane-init:local
+    image: ghcr.io/celestiaorg/hyperlane-init:main
+    platform: linux/amd64
     container_name: hyperlane-init
     volumes:
       - ./testnet/hyperlane:/home/hyperlane/
