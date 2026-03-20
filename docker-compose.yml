@@ -136,11 +136,10 @@ services:
       - celestia-zkevm-net
 
   hyperlane-init:
-    image: ghcr.io/celestiaorg/hyperlane-init:latest
+    image: ghcr.io/celestiaorg/hyperlane-init:local
     container_name: hyperlane-init
     volumes:
-      - hyperlane:/home/hyperlane/
-      - ./testdata/vkeys:/home/hyperlane/testdata/vkeys:ro
+      - ./hyperlane:/home/hyperlane/
     entrypoint: "scripts/docker-entrypoint.sh"
     depends_on:
       celestia-validator:

@@ -1,16 +1,16 @@
 {
     "chains": {
-        "rethlocal": {
+        "evolve": {
             "blocks": {
                 "confirmations": 1,
                 "estimateBlockTime": 3,
                 "reorgPeriod": 0
             },
             "chainId": 1234,
-            "displayName": "Reth",
+            "displayName": "Evolve",
             "domainId": 1234,
             "isTestnet": true,
-            "name": "rethlocal",
+            "name": "evolve",
             "nativeToken": {
                 "decimals": 18,
                 "name": "Ether",
@@ -29,15 +29,14 @@
             "aggregationHook": "0xe53275A1FcA119e1c5eeB32E7a72e54835A63936",
             "domainRoutingIsm": "0xE2c1756b8825C54638f98425c113b51730cc47f6",
             "fallbackRoutingHook": "0xE2c1756b8825C54638f98425c113b51730cc47f6",
-            "interchainGasPaymaster": "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5",
-            "interchainSecurityModule": "0xa05915fD6E32A1AA7E67d800164CaCB12487142d",
-            "mailbox": "0xb1c938F5BA4B3593377F399e12175e8db0C787Ff",
-            "merkleTreeHook": "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5",
-            "protocolFee": "0xFCb1d485ef46344029D9E8A7925925e146B3430E",
-            "proxyAdmin": "0x7e7aD18Adc99b94d4c728fDf13D4dE97B926A0D8",
-            "storageGasOracle": "0x457cCf29090fe5A24c19c1bc95F492168C0EaFdb",
-            "testRecipient": "0x6253964a75a5ae755a05C8460E690AF5914f93b2",
-            "validatorAnnounce": "0x67cff9B0F9F25c00C71bd8300c3f38553088e234"
+            "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+            "interchainSecurityModule": "0xFCb1d485ef46344029D9E8A7925925e146B3430E",
+            "mailbox": "0xa05915fD6E32A1AA7E67d800164CaCB12487142d",
+            "merkleTreeHook": "0x6007cE81D2FD7b9b7f22e71cE9896e00d6017ba8",
+            "protocolFee": "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5",
+            "proxyAdmin": "0x48fd1226D797400779bBfAf1706F5Fb8da04Ae91",
+            "testRecipient": "0x67CfAAf6df84AEA78c4dcb7409162D1CF3105387",
+            "validatorAnnounce": "0x6253964a75a5ae755a05C8460E690AF5914f93b2"
         },
         "celestiadev": {
             "bech32Prefix": "celestia",
@@ -92,9 +91,9 @@
             "transactionOverrides": {
                 "gasPrice": "0.0"
             },
-            "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000000000000000000000",
+            "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000001",
             "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
-            "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000000000000000000000",
+            "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
             "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
             "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
             "grpcUrls": [
@@ -105,5 +104,5 @@
         }
     },
     "defaultRpcConsensusType": "fallback",
-    "relayChains": "rethlocal,celestiadev"
+    "relayChains": "evolve,celestiadev"
 }
