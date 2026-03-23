@@ -70,7 +70,7 @@ impl HyperlaneIndexer {
 
 impl Default for HyperlaneIndexer {
     fn default() -> Self {
-        let contract_address = Address::from_str("0xb1c938f5ba4b3593377f399e12175e8db0c787ff").unwrap();
+        let contract_address = Address::from_str("0xa05915fd6e32a1aa7e67d800164cacb12487142d").unwrap();
         let filter = Filter::new()
             .address(contract_address)
             .event(&Dispatch::id())

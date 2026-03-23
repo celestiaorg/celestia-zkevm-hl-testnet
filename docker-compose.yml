@@ -136,11 +136,11 @@ services:
       - celestia-zkevm-net
 
   hyperlane-init:
-    image: ghcr.io/celestiaorg/hyperlane-init:latest
+    image: ghcr.io/celestiaorg/hyperlane-init:main
+    platform: linux/amd64
     container_name: hyperlane-init
     volumes:
-      - hyperlane:/home/hyperlane/
-      - ./testdata/vkeys:/home/hyperlane/testdata/vkeys:ro
+      - ./testnet/hyperlane:/home/hyperlane/
     entrypoint: "scripts/docker-entrypoint.sh"
     depends_on:
       celestia-validator:
@@ -158,7 +158,7 @@ services:
     environment:
       - CONFIG_FILES=/app/config/config.json
     volumes:
-      - ./hyperlane/relayer-config.json:/app/config/config.json
+      - ./testnet/hyperlane/relayer-config.json:/app/config/config.json
     command: "/app/relayer"
     depends_on:
       hyperlane-init:
@@ -169,7 +169,6 @@ services:
 volumes:
   celestia-app:
   celestia-bridge:
-  hyperlane:
   reth:
   evm-single-data:
 

@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/v15.2.0/chains/schema.json
 chainId: 1234
-displayName: Rethlocal
+displayName: Evolve
 domainId: 1234
 isTestnet: true
-name: rethlocal
+name: evolve
 nativeToken:
   decimals: 18
   name: Ether
