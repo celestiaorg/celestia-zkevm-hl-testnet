@@ -24,7 +24,7 @@ pub type SP1Prover = dyn Prover<CpuProverComponents>;
 /// Associated types let each program pick its own Input and Output context.
 #[async_trait]
 pub trait ProgramProver {
-    /// Config implements the the BaseProverConfig trait while allowing per implementation extensions.
+    /// Config implements the BaseProverConfig trait while allowing per implementation extensions.
     type Config: ProverConfig + Send + Sync + 'static;
     /// Context needed to build the stdin for this program.
     type Input: Send + 'static;
