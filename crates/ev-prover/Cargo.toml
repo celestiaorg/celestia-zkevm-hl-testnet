@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 
 [features]
-batch_mode = []
+tee_mode = []
 
 [dependencies]
 alloy = { workspace = true, features = ["sol-types", "contract"] }
@@ -20,7 +20,9 @@ bytes = { workspace = true }
 celestia-grpc-client = { workspace = true }
 celestia-rpc = { workspace = true }
 celestia-types = { workspace = true }
+chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
+dcap-qvl = { workspace = true }
 dirs = { workspace = true }
 dotenvy = { workspace = true }
 ev-state-queries = { workspace = true }
@@ -47,6 +49,7 @@ sha3 = { workspace = true }
 sp1-prover = { workspace = true }
 sp1-sdk = { workspace = true }
 storage = { workspace = true }
+tee-attestation-types = { workspace = true }
 tendermint = { workspace = true }
 tendermint-light-client-verifier = { workspace = true }
 tendermint-proto = { workspace = true }

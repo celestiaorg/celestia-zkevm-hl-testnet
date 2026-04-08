@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use ev_zkevm_types::programs::{
-    block::{BlockExecOutput, BlockRangeExecOutput},
-    hyperlane::types::HyperlaneMessageOutputs,
+use ev_zkevm_types::{
+    block::{BatchExecOutput, BlockExecOutput},
+    hyperlane::io::HyperlaneMessageOutputs,
 };
 use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, DB, Options};
 use serde::{Deserialize, Serialize};
@@ -66,7 +66,7 @@ pub trait ProofStorage: Send + Sync {
         start_height: u64,
         end_height: u64,
         proof: &SP1ProofWithPublicValues,
-        output: &BlockRangeExecOutput,
+        output: &BatchExecOutput,
     ) -> Result<(), ProofStorageError>;
 
     #[allow(dead_code)]
@@ -199,7 +199,7 @@ impl ProofStorage for RocksDbProofStorage {
         start_height: u64,
         end_height: u64,
         proof: &SP1ProofWithPublicValues,
-        _output: &BlockRangeExecOutput,
+        _output: &BatchExecOutput,
     ) -> Result<(), ProofStorageError> {
         let cf = self.get_cf(CF_RANGE_PROOFS)?;
 
@@ -463,7 +463,7 @@ pub mod testing {
             start_height: u64,
             end_height: u64,
             _proof: &SP1ProofWithPublicValues,
-            _output: &BlockRangeExecOutput,
+            _output: &BatchExecOutput,
         ) -> Result<(), ProofStorageError> {
             let stored_proof = StoredRangeProof {
                 start_height,

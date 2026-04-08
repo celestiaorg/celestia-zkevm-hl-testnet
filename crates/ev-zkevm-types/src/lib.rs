@@ -1,3 +1,2 @@
-pub mod events;
+pub mod block;
 pub mod hyperlane;
-pub mod programs;

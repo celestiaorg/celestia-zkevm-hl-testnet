@@ -28,15 +28,6 @@ pub struct Config {
 
     /// Sequencer’s public key in hex.
     pub pub_key: String,
-
-    /// Capacity for internal proof event queue.
-    pub queue_capacity: usize,
-
-    /// Maximum concurrent proof tasks.
-    pub concurrency: usize,
-
-    /// Number of blocks per range proof.
-    pub batch_size: usize,
 }
 
 impl Default for Config {
@@ -47,9 +38,6 @@ impl Default for Config {
             hyperlane: HyperlaneConfig::default(),
             namespace: Namespace::new_v0(&hex::decode(DEFAULT_NAMESPACE).unwrap()).unwrap(),
             pub_key: DEFAULT_PUB_KEY_HEX.into(),
-            queue_capacity: 256,
-            concurrency: 16,
-            batch_size: 10,
         }
     }
 }
@@ -176,9 +164,6 @@ pub struct RpcConfig {
 
     /// RPC endpoint for the EVM node.
     pub evreth_rpc: String,
-
-    /// Websocket endpoint for the EVM node.
-    pub evreth_ws: String,
 }
 
 impl Default for RpcConfig {
@@ -189,8 +174,25 @@ impl Default for RpcConfig {
             celestia_auth_token: None,
             evnode_rpc: "http://localhost:7331".into(),
             evreth_rpc: "http://localhost:8545".into(),
-            evreth_ws: "ws://localhost:8546".into(),
         }
+    }
+}
+
+impl RpcConfig {
+    pub fn from_env() -> Result<Self> {
+        let celestia_rpc = env::var("CELESTIA_RPC_URL").unwrap_or_else(|_| "http://localhost:26658".to_string());
+        let tendermint_rpc = env::var("TENDERMINT_RPC_URL").unwrap_or_else(|_| "http://localhost:26657".to_string());
+        let celestia_auth_token = env::var("CELESTIA_AUTH_TOKEN").ok();
+        let evnode_rpc = env::var("SEQUENCER_RPC_URL").unwrap_or_else(|_| "http://localhost:7331".to_string());
+        let evreth_rpc = env::var("RETH_RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string());
+
+        Ok(Self {
+            celestia_rpc,
+            tendermint_rpc,
+            celestia_auth_token,
+            evnode_rpc,
+            evreth_rpc,
+        })
     }
 }
 
@@ -228,8 +230,8 @@ impl EvmHyperlaneConfig {
 impl Default for EvmHyperlaneConfig {
     fn default() -> Self {
         Self {
-            mailbox_address: "0xb1c938f5ba4b3593377f399e12175e8db0c787ff".into(),
-            merkle_tree_address: "0x1D957dA7A6988f5a9d2D2454637B4B7fea0Aeea5".into(),
+            mailbox_address: "0xa05915fd6e32a1aa7e67d800164cacb12487142d".into(),
+            merkle_tree_address: "0x6007cE81D2FD7b9b7f22e71cE9896e00d6017ba8".into(),
         }
     }
 }
@@ -244,10 +246,20 @@ pub struct CelestiaHyperlaneConfig {
     pub mailbox_id: String,
 }
 
+impl CelestiaHyperlaneConfig {
+    pub fn from_env() -> Result<Self> {
+        let ism_id = env::var("CELESTIA_ISM_ID")
+            .unwrap_or_else(|_| "0x726f757465725f69736d000000000000000000000000002a0000000000000002".to_string());
+        let mailbox_id = env::var("CELESTIA_MAILBOX_ADDRESS")
+            .unwrap_or_else(|_| "0x68797065726c616e650000000000000000000000000000000000000000000000".to_string());
+        Ok(Self { ism_id, mailbox_id })
+    }
+}
+
 impl Default for CelestiaHyperlaneConfig {
     fn default() -> Self {
         Self {
-            ism_id: "0x726f757465725f69736d000000000000000000000000002a0000000000000001".to_string(),
+            ism_id: "0x726f757465725f69736d000000000000000000000000002a0000000000000002".to_string(),
             mailbox_id: "0x68797065726c616e650000000000000000000000000000000000000000000000".to_string(),
         }
     }

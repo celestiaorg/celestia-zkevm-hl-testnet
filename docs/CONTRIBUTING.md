@@ -10,8 +10,8 @@ We welcome all contributions, whether it's fixing bugs, improving documentation,
 We encourage contributors to maintain their own fork of the repository. 
 
    ```bash
-   git clone https://github.com/{owner}/celestia-zkevm-hl-testnet.git
-   cd celestia-zkevm-hl-testnet
+   git clone https://github.com/{owner}/celestia-zkevm.git
+   cd celestia-zkevm
    ```
 
 2. **Install prerequisites from README.md**
@@ -29,7 +29,7 @@ When opening a PR:
 
 ## Reporting Issues
 
-If you encounter bugs or have feature suggestions, please [open an issue](https://github.com/celestiaorg/celestia-zkevm-hl-testnet/issues) with a clear description and reproduction steps if applicable.
+If you encounter bugs or have feature suggestions, please [open an issue](https://github.com/celestiaorg/celestia-zkevm/issues) with a clear description and reproduction steps if applicable.
 
 ## Community
 

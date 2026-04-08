@@ -2,9 +2,8 @@
 The `ev-prover` service is a simple gRPC service designed to serve ZK proofs to clients.
 It encapsulates the SP1 programs maintained under `sp1`, and uses the `sp1_sdk::ProverClient` in order to interface with them.
 
-## Running the ev-prover service in `batch_mode` mode for a private or public testnet
-The batch mode aggregates a range of blocks and proves them in one go, using a single GPU instance. This mode is better than default
-when using the succinct prover network, because in default mode the base fee will accumulate and cause huge costs.
+## Running the ev-prover service for a private or public testnet
+The default mode (batch) aggregates a range of blocks and proves them in one go, using a single GPU instance.
 
 ### Setup
 1. Start the docker network locally
@@ -26,7 +25,7 @@ Run the following commands from the root of the repository.
 
 1. Install the binary to Cargo binary directory ~/.cargo/bin
     ```shell
-    cargo install --path ./crates/ev-prover --features batch_mode
+    cargo install --path ./crates/ev-prover
     ```
 
 2. Initialize a new `ev-prover` home directory and configuration file with defaults:
@@ -59,39 +58,6 @@ Run the following commands from the root of the repository.
     ```
 
 The service will join the tasks in `src/prover/programs/batch.rs` and `src/prover/programs/message.rs`.
-
-## Running the ev-prover service using the `ev-exec` and `ev-range-exec` circuits
-The default mode, without the `batch_mode` feature enabled, will prove every single blocks and recursively verify block proofs in a
-range circuit. This is ideal for minimum latency, but expensive when running on Succinct's prover network / when paying for every prover instance
-launch. 
-
-Run the following commands from the root of the repository.
-
-1. Install the binary to local Cargo binary directory `~/.cargo/bin`:
-
-    ```shell
-    cargo install --path ./crates/ev-prover
-    ```
-
-2. Initialise a new `ev-prover` home directory and configuration file with defaults:
-
-    ```shell
-    ev-prover init
-    ```
-
-3. Start the `ev-prover` application binary using:
-
-    ```shell
-    RUST_LOG="ev_prover=debug" ev-prover start
-    ```
-
-4. Verify the service is up and running using `grpcurl`:
-
-    ```shell
-    grpcurl -plaintext localhost:50052 list
-    ```
-
-The service will join the tasks in `src/prover/programs/range.rs`, `src/prover/programs/block.rs` and `src/prover/programs/message.rs`.
 
 ## Build system
 
@@ -162,7 +128,7 @@ cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -
 
 Example with values:
 ```bash
-cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --contract 0xfcb1d485ef46344029d9e8a7925925e146b3430e --rpc-url http://127.0.0.1:8545
+cargo run --release --features retry -p ev-hyperlane-script --bin ev-hyperlane -- --snapshot-index 0 --mailbox-id 0x68797065726c616e650000000000000000000000000000000000000000000000 --contract 0x6007cE81D2FD7b9b7f22e71cE9896e00d6017ba8 --rpc-url http://127.0.0.1:8545
 ```
 
 Assuming that there is an unfinalized snapshot at index `N` in the database and that the latest snapshot is >`N`, the correct snapshot-index to pass is `N-1`.

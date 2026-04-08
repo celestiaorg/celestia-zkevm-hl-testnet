@@ -1,8 +1,0 @@
-# yaml-language-server: $schema=../schema.json
-tokens:
-  - addressOrDenom: "0x345a583028762De4d733852c9D4f419077093A48"
-    chainName: rethlocal
-    decimals: 6
-    name: wTIA
-    standard: EvmHypSynthetic
-    symbol: TIA

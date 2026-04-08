@@ -87,21 +87,6 @@ pub fn prover_from_env() -> Arc<SP1Prover> {
     prover
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BlockProofCommitted(pub u64);
-
-impl BlockProofCommitted {
-    pub fn height(&self) -> u64 {
-        self.0
-    }
-}
-
-impl Display for BlockProofCommitted {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RangeProofCommitted {
     pub trusted_height: u64,

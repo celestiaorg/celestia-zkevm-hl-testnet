@@ -7,9 +7,9 @@ use alloy_provider::{Provider, WsConnect};
 use alloy_rpc_types::{Filter, Log};
 use alloy_sol_types::SolEvent;
 use anyhow::Result;
-use ev_zkevm_types::{
+use ev_zkevm_types::hyperlane::{
+    decode_hyperlane_message,
     events::{Dispatch, DispatchEvent},
-    hyperlane::decode_hyperlane_message,
 };
 use std::{env, str::FromStr, sync::Arc};
 use storage::hyperlane::{StoredHyperlaneMessage, message::HyperlaneMessageStore};
@@ -70,7 +70,7 @@ impl HyperlaneIndexer {
 
 impl Default for HyperlaneIndexer {
     fn default() -> Self {
-        let contract_address = Address::from_str("0xb1c938f5ba4b3593377f399e12175e8db0c787ff").unwrap();
+        let contract_address = Address::from_str("0xa05915fd6e32a1aa7e67d800164cacb12487142d").unwrap();
         let filter = Filter::new()
             .address(contract_address)
             .event(&Dispatch::id())

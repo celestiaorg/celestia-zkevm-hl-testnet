@@ -29,7 +29,7 @@ NETWORK_PRIVATE_KEY="PRIVATE_KEY" to the SP1 prover network private key from Cel
 1. Clone this repository.
 
     ```shell
-    git clone git@github.com:celestiaorg/celestia-zkevm-hl-testnet.git
+    git clone git@github.com:celestiaorg/celestia-zkevm.git
     ```
 
 2. Source the provided `.env` file in this repository.
@@ -80,67 +80,13 @@ NETWORK_PRIVATE_KEY="PRIVATE_KEY" to the SP1 prover network private key from Cel
     make stop
     ```
 
-## Running the E2E test
-1. Clone this repository.
-
-    ```shell
-    git clone git@github.com:celestiaorg/celestia-zkevm-hl-testnet.git
-    ```
-
-2. Source the provided `.env` file in this repository.
-
-    ```shell
-    cp .env.example .env
-
-    set -a
-    source .env
-    set +a
-    ```
-
-3. Select a prover mode other than `mock`. Valid choices are `network`, `cuda`, `cpu`.
-    in `.env`:
-    ```shell
-    SP1_PROVER=cpu #network, cuda
-    ```
-
-5. Use the prover service binary to generate config files locally.
-    ```
-    cargo run --bin ev-prover init
-    ```
-    Alternatively, install the client binary and run init:
-    ```
-    cargo install --path ./crates/ev-prover
-    ev-prover init
-    ```
-
-6. Initialize the Docker network
-    Start all services (ev-reth, ev sequencer, celestia)
-    ```shell
-    # Run `make start` or `docker compose up` from the root of the repository
-    make start 
-    ```
-    Wait for all containers to finish their initialization sequence.
-
-    Next, deploy and update the ZKISM:
-
-    ```shell
-    make deploy-ism
-    ```
-
-    ```shell
-    make update-ism
-    ```
-
-7. Run the e2e
-    ```shell
-    RUST_LOG="e2e=info" make e2e
-    ```
-
-    Note that depending on your hardware it can take a while for the e2e to run,
-    as it will prove a series of EVM blocks leading up to a target height, as well as state inclusion of a Hyperlane deposit message at the target height.
-
 ### Start the Prover Service 
+
 You will find detailed documentation on how to run the joint hyperlane message and block prover service `ev-prover` [here](crates/ev-prover/README.md).
+
+### TEE Deployment
+
+For deploying the testnet with Phala TEE instance, see the [TEE deployment guide](crates/ev-prover/TEE.md).
 
 ## Architecture
 

@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/v15.2.0/chains/schema.json
+# NOTE: The following chain spec is unused by the official Hyperlane CLI until cosmosnative support is added
+bech32Prefix: celestia
+blocks:
+  confirmations: 1
+  estimateBlockTime: 6
+  reorgPeriod: 1
+chainId: celestia-zkevm-testnet
+displayName: Celestia
+domainId: 69420
+gasPrice:
+  amount: "0.1"
+  denom: utia
+grpcUrls:
+  - http: http://celestia-validator:9090
+isTestnet: true
+name: celestiadev
+nativeToken:
+  decimals: 6
+  denom: utia
+  name: Tia
+  symbol: TIA
+protocol: cosmosnative
+restUrls:
+  - http: http://celestia-validator:1317
+rpcUrls:
+  - http: http://celestia-validator:26657
+slip44: 118
+technicalStack: other
+transactionOverrides:
+  gasPrice: "0.005"

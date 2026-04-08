@@ -18,6 +18,38 @@ pub trait ProverConfig {
     fn proof_mode(&self) -> SP1ProofMode;
 }
 
+/// StandardProverConfig is the default implementation of ProverConfig shared by most provers.
+#[derive(Clone)]
+pub struct StandardProverConfig {
+    pub pk: Arc<SP1ProvingKey>,
+    pub vk: Arc<SP1VerifyingKey>,
+    pub proof_mode: SP1ProofMode,
+}
+
+impl StandardProverConfig {
+    pub fn new(pk: SP1ProvingKey, vk: SP1VerifyingKey, mode: SP1ProofMode) -> Self {
+        Self {
+            pk: Arc::new(pk),
+            vk: Arc::new(vk),
+            proof_mode: mode,
+        }
+    }
+}
+
+impl ProverConfig for StandardProverConfig {
+    fn pk(&self) -> Arc<SP1ProvingKey> {
+        Arc::clone(&self.pk)
+    }
+
+    fn vk(&self) -> Arc<SP1VerifyingKey> {
+        Arc::clone(&self.vk)
+    }
+
+    fn proof_mode(&self) -> SP1ProofMode {
+        self.proof_mode
+    }
+}
+
 /// ProverMode defines the backend used for proving: [Mock, CPU, Cuda, Network].
 #[derive(Debug, Clone, Copy)]
 pub enum ProverMode {
