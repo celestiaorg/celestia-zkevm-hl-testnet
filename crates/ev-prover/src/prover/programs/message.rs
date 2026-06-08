@@ -230,13 +230,6 @@ impl HyperlaneMessageProver {
             return Err(anyhow::anyhow!("Failed to submit Hyperlane tree proof to ZKISM"));
         }
 
-        write("/home/chef/Desktop/message.bin", message_proof.0.bytes()).unwrap();
-        write(
-            "/home/chef/Desktop/message_pub.bin",
-            message_proof.0.public_values.clone(),
-        )
-        .unwrap();
-
         info!("ZKISM was updated successfully");
         self.proof_store
             .store_membership_proof(committed_height, &message_proof.0, &message_proof.1)

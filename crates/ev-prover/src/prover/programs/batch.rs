@@ -170,9 +170,6 @@ impl BatchExecProver {
             // Generate the proof
             let start_time = Instant::now();
             let (proof, output) = self.prove(input).await?;
-            write("/home/chef/Desktop/batch.bin", proof.bytes()).unwrap();
-            // write public values
-            write("/home/chef/Desktop/batch_pub.bin", proof.public_values.clone()).unwrap();
             info!("Proof generation time: {}", start_time.elapsed().as_millis());
 
             // Index if new ev blocks were included.
