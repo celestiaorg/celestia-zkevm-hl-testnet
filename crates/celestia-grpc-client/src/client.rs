@@ -112,9 +112,7 @@ impl CelestiaIsmClient {
             Ok(tx_info) => {
                 info!(
                     "Successfully submitted {} message: tx_hash={}, height={}",
-                    message_type,
-                    tx_info.hash,
-                    tx_info.height
+                    message_type, tx_info.hash, tx_info.height
                 );
 
                 Ok(TxResponse {
