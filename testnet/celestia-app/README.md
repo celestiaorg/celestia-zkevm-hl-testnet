@@ -57,7 +57,7 @@ make docker-push-celestia                  # optional: push the image (after `do
 ```
 
 `docker-compose.yml` pins the two celestia services to `CELESTIA_IMAGE`
-(`ghcr.io/celestiaorg/celestia-app-standalone:v9-zkism-v6`), so once
+(`ghcr.io/celestiaorg/celestia-app-standalone:local`), so once
 built (or pushed) `make start` uses it without rebuilding. Build from a fork or
 different branch with `--build-arg`:
 

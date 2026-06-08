@@ -2,8 +2,8 @@ PROJECT_NAME=$(shell basename "$(PWD)")
 
 # Patched celestia-app image (x/zkism Groth16 verifier updated for SP1 v6 proofs).
 # Override to push under a different registry/namespace, e.g.
-#   make docker-push-celestia CELESTIA_IMAGE=ghcr.io/<you>/celestia-app-standalone:v9-zkism-v6
-CELESTIA_IMAGE ?= ghcr.io/celestiaorg/celestia-app-standalone:v9-zkism-v6
+#   make docker-push-celestia CELESTIA_IMAGE=ghcr.io/<you>/celestia-app-standalone:local
+CELESTIA_IMAGE ?= ghcr.io/celestiaorg/celestia-app-standalone:local
 
 ## help: Get more info on make commands.
 help: Makefile
