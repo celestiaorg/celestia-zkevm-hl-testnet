@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use ev_zkevm_types::block::{BatchExecOutput, BlockExecInput};
 use serde::{Deserialize, Serialize};
-use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{Elf, Prover, ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
 use storage::hyperlane::message::HyperlaneMessageStore;
 use tee_attestation_types::{AttestationResponse, Inputs as TeeAttestationInput};
 use tokio::{sync::mpsc, time::interval};
@@ -62,13 +62,13 @@ impl ProgramProver for TeeExecProver {
 
 impl TeeExecProver {
     /// Creates a new prover instance.
-    pub fn new(
+    pub async fn new(
         ctx: Arc<ChainContext>,
         range_tx: mpsc::Sender<MessageProofRequest>,
         hyperlane_message_store: Arc<HyperlaneMessageStore>,
     ) -> Result<Self> {
-        let prover = prover_from_env();
-        let config = TeeExecProver::default_config(prover.as_ref());
+        let prover = prover_from_env().await;
+        let config = TeeExecProver::default_config(prover.as_ref()).await?;
 
         Ok(Self {
             ctx,
@@ -80,10 +80,12 @@ impl TeeExecProver {
     }
 
     /// Returns the prover config.
-    pub fn default_config(prover: &SP1Prover) -> StandardProverConfig {
-        let elf_bytes = include_bytes!("../../../../../elfs/tee-attestation-elf");
-        let (pk, vk) = prover.setup(elf_bytes);
-        StandardProverConfig::new(pk, vk, SP1ProofMode::Groth16)
+    pub async fn default_config(prover: &SP1Prover) -> Result<StandardProverConfig> {
+        let elf_bytes: &[u8] = include_bytes!("../../../../../elfs/tee-attestation-elf");
+        let elf = Elf::Static(elf_bytes);
+        let pk = prover.setup(elf.clone()).await?;
+        let vk = pk.verifying_key().clone();
+        Ok(StandardProverConfig::new(pk, vk, elf, SP1ProofMode::Groth16))
     }
 
     /// Starts the TEE prover loop.

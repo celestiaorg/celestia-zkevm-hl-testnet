@@ -1,7 +1,9 @@
 services:
   celestia-init:
-    # Branch: feature/zk-execution-ism
-    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:4e7e3c1defb0058ba41f1c76f02ec716295f7d7cd9e791564f40b44234083360
+    # celestia-app main (v9) + SP1 v6 zkism verifier (celestia-app branch
+    # jonas/update-sp1-v6). Built via `make docker-build-celestia`, which
+    # fetches that branch and builds it (testnet/celestia-app/Dockerfile).
+    image: ghcr.io/celestiaorg/celestia-app-standalone:v9-zkism-v6
     container_name: celestia-init
     entrypoint: /scripts/init.sh
     volumes:
@@ -10,8 +12,10 @@ services:
     restart: "no"
 
   celestia-validator:
-    # Branch: feature/zk-execution-ism
-    image: ghcr.io/celestiaorg/celestia-app-standalone@sha256:4e7e3c1defb0058ba41f1c76f02ec716295f7d7cd9e791564f40b44234083360
+    # celestia-app main (v9) + SP1 v6 zkism verifier (celestia-app branch
+    # jonas/update-sp1-v6). Built via `make docker-build-celestia`, which
+    # fetches that branch and builds it (testnet/celestia-app/Dockerfile).
+    image: ghcr.io/celestiaorg/celestia-app-standalone:v9-zkism-v6
     container_name: celestia-validator
     ports:
       - "26656:26656"

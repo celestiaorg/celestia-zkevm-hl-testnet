@@ -3,8 +3,8 @@ use std::{fmt::Display, result::Result::Ok};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use sp1_prover::components::CpuProverComponents;
-use sp1_sdk::{network::NetworkMode, Prover, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::env::EnvProver;
+use sp1_sdk::{ProveRequest, Prover, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 use tracing::debug;
 
 pub mod abi;
@@ -17,7 +17,7 @@ pub mod sync;
 pub use config::{ProverConfig, ProverMode};
 pub use sync::{MessageProofPermit, MessageProofRequest, MessageProofSync};
 
-pub type SP1Prover = dyn Prover<CpuProverComponents>;
+pub type SP1Prover = EnvProver;
 
 /// ProgramProver is a trait implemented per SP1 program*.
 ///
@@ -42,8 +42,18 @@ pub trait ProgramProver {
     async fn prove(&self, input: Self::Input) -> Result<(SP1ProofWithPublicValues, Self::Output)> {
         let cfg = self.cfg();
         let stdin = self.build_stdin(input)?;
+        let prover = self.prover();
 
-        let proof = self.prover().prove(&cfg.pk(), &stdin, cfg.proof_mode())?;
+        // The single-GPU CUDA pipeline must be re-initialized with a fresh `setup()`
+        // before every proof; reusing a proving key from a prior setup confuses it.
+        // For all other backends we reuse the proving key computed once at construction.
+        let proof = if ProverMode::is_cuda() {
+            let pk = prover.setup(cfg.elf()).await?;
+            prover.prove(&pk, stdin).mode(cfg.proof_mode()).await?
+        } else {
+            let pk = cfg.pk();
+            prover.prove(pk.as_ref(), stdin).mode(cfg.proof_mode()).await?
+        };
 
         let output = self.post_process(proof.clone())?;
         Ok((proof, output))
@@ -57,34 +67,17 @@ pub trait ProgramProver {
 }
 
 /// Construct a prover based on the SP1_PROVER environment variable.
-pub fn prover_from_env() -> Arc<SP1Prover> {
+///
+/// In SP1 v6 the [`EnvProver`] returned by [`ProverClient::from_env`] internally
+/// dispatches to the mock/cpu/cuda/network backend based on the `SP1_PROVER`
+/// environment variable (network mode is configured via `NETWORK_RPC_URL` and
+/// `NETWORK_PRIVATE_KEY`), so a single concrete type replaces the old
+/// `Arc<dyn Prover>` trait object.
+pub async fn prover_from_env() -> Arc<SP1Prover> {
     let mode: ProverMode = ProverMode::from_env();
+    debug!("Using {mode:?} prover backend");
 
-    let prover: Arc<SP1Prover> = match mode {
-        ProverMode::Mock => {
-            debug!("Using mock prover backend");
-            Arc::new(ProverClient::builder().mock().build())
-        }
-        ProverMode::Cpu => {
-            debug!("Using CPU prover backend");
-            Arc::new(ProverClient::builder().cpu().build())
-        }
-        ProverMode::Cuda => {
-            debug!("Using CUDA prover backend");
-            Arc::new(ProverClient::builder().cuda().build())
-        }
-        ProverMode::Network => {
-            debug!("Using network prover backend");
-            Arc::new(
-                ProverClient::builder()
-                    .network_for(NetworkMode::Mainnet)
-                    .rpc_url("https://rpc.mainnet.succinct.xyz")
-                    .build(),
-            )
-        }
-    };
-
-    prover
+    Arc::new(ProverClient::from_env().await)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
