@@ -18,7 +18,6 @@ use ev_zkevm_types::hyperlane::{
     proof::{HyperlaneBranchProof, HyperlaneBranchProofInputs, HYPERLANE_MERKLE_TREE_KEYS},
 };
 use sp1_sdk::{Elf, Prover, ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
-use std::fs::write;
 use std::sync::Arc;
 use storage::hyperlane::StoredHyperlaneMessage;
 use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore};
