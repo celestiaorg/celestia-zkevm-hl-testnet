@@ -1,9 +1,8 @@
 PROJECT_NAME=$(shell basename "$(PWD)")
 
-# Patched celestia-app image (x/zkism Groth16 verifier updated for SP1 v6 proofs).
-# Override to push under a different registry/namespace, e.g.
-#   make docker-push-celestia CELESTIA_IMAGE=ghcr.io/<you>/celestia-app-standalone:local
-CELESTIA_IMAGE ?= ghcr.io/celestiaorg/celestia-app-standalone:local
+# Pinned celestia-app image (x/zkism Groth16 verifier patched for SP1 v6 proofs).
+# Must match the digest referenced in docker-compose.yml.
+CELESTIA_IMAGE ?= docker.io/celestiaorg/celestia-app-standalone@sha256:82abe4e4985f6a37de8fc38a08f2587681d201c1721a25b2c29094359db06b23
 
 ## help: Get more info on make commands.
 help: Makefile
@@ -103,19 +102,7 @@ docker-build-hyperlane:
 	@docker build --platform linux/amd64 -t ghcr.io/celestiaorg/hyperlane-init:local -f testnet/hyperlane/Dockerfile .
 .PHONY: docker-build-hyperlane
 
-## docker-build-celestia: Build the celestia-app image with the SP1 v6 zkism verifier patch.
-docker-build-celestia:
-	@echo "--> Building patched celestia-app image (SP1 v6 zkism verifier): $(CELESTIA_IMAGE)"
-	@docker build --platform linux/amd64 -t $(CELESTIA_IMAGE) -f testnet/celestia-app/Dockerfile testnet/celestia-app
-.PHONY: docker-build-celestia
-
-## docker-push-celestia: Push the patched celestia-app image (requires docker login to the registry).
-docker-push-celestia:
-	@echo "--> Pushing $(CELESTIA_IMAGE)"
-	@docker push $(CELESTIA_IMAGE)
-.PHONY: docker-push-celestia
-
-deploy-ism: 
+deploy-ism:
 	@echo "--> Deploying ISM"
 	@RUST_LOG="ev_prover=info" cargo run -p ev-prover create-ism
 .PHONY: deploy-ism
