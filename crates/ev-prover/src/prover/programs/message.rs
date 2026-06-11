@@ -17,7 +17,7 @@ use ev_zkevm_types::hyperlane::{
     io::{HyperlaneMessageInputs, HyperlaneMessageOutputs},
     proof::{HyperlaneBranchProof, HyperlaneBranchProofInputs, HYPERLANE_MERKLE_TREE_KEYS},
 };
-use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{Elf, Prover, ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
 use std::sync::Arc;
 use storage::hyperlane::StoredHyperlaneMessage;
 use storage::hyperlane::{message::HyperlaneMessageStore, snapshot::HyperlaneSnapshotStore};
@@ -79,15 +79,15 @@ impl ProgramProver for HyperlaneMessageProver {
 }
 
 impl HyperlaneMessageProver {
-    pub fn new(
+    pub async fn new(
         ctx: Arc<ChainContext>,
         message_store: Arc<HyperlaneMessageStore>,
         snapshot_store: Arc<HyperlaneSnapshotStore>,
         proof_store: Arc<dyn ProofStorage>,
         state_query_provider: Arc<dyn StateQueryProvider>,
     ) -> Result<Self> {
-        let prover = prover_from_env();
-        let config = HyperlaneMessageProver::default_config(prover.as_ref());
+        let prover = prover_from_env().await;
+        let config = HyperlaneMessageProver::default_config(prover.as_ref()).await?;
 
         Ok(Self {
             ctx,
@@ -101,10 +101,12 @@ impl HyperlaneMessageProver {
     }
 
     /// Returns the default prover configuration for the block execution program.
-    pub fn default_config(prover: &SP1Prover) -> StandardProverConfig {
-        let ev_hyperlane_elf = include_bytes!("../../../../../elfs/ev-hyperlane-elf");
-        let (pk, vk) = prover.setup(ev_hyperlane_elf);
-        StandardProverConfig::new(pk, vk, SP1ProofMode::Groth16)
+    pub async fn default_config(prover: &SP1Prover) -> Result<StandardProverConfig> {
+        let ev_hyperlane_elf: &[u8] = include_bytes!("../../../../../elfs/ev-hyperlane-elf");
+        let elf = Elf::Static(ev_hyperlane_elf);
+        let pk = prover.setup(elf.clone()).await?;
+        let vk = pk.verifying_key().clone();
+        Ok(StandardProverConfig::new(pk, vk, elf, SP1ProofMode::Groth16))
     }
 
     pub async fn run(
@@ -139,22 +141,12 @@ impl HyperlaneMessageProver {
             if let Err(e) = self
                 .run_inner(
                     committed_height,
-                    merkle_proof.clone(),
+                    merkle_proof,
                     FixedBytes::from_slice(&committed_state_root),
                 )
                 .await
             {
-                error!(
-                    "Failed to generate proof, Stored Value: {}, error: {e:?}",
-                    hex::encode(
-                        merkle_proof
-                            .storage_proof
-                            .last()
-                            .ok_or(anyhow::anyhow!("No storage proof for Hyperlane Branch"))?
-                            .value
-                            .to_be_bytes::<32>()
-                    )
-                );
+                error!("Hyperlane proof submission for committed height {committed_height} failed: {e:?}");
             }
         }
         Ok(())

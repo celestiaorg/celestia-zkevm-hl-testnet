@@ -115,18 +115,21 @@ pub async fn start_server(config: Config) -> Result<()> {
         tokio::spawn(async move {
             loop {
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-                let batch_prover = match BatchExecProver::new(ctx.clone(), tx_range, hyperlane_message_store.clone()) {
-                    Ok(prover) => prover,
-                    Err(e) => {
-                        error!("Failed to create batch prover: {e:?}");
-                        continue;
-                    }
-                };
+                let batch_prover =
+                    match BatchExecProver::new(ctx.clone(), tx_range, hyperlane_message_store.clone()).await {
+                        Ok(prover) => prover,
+                        Err(e) => {
+                            error!("Failed to create batch prover: {e:?}");
+                            continue;
+                        }
+                    };
                 let message_prover = match prepare_message_prover(
                     ctx.clone(),
                     hyperlane_message_store.clone(),
                     proof_store_clone.clone(),
-                ) {
+                )
+                .await
+                {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create message prover: {e:?}");
@@ -173,7 +176,8 @@ pub async fn start_server(config: Config) -> Result<()> {
         tokio::spawn(async move {
             loop {
                 let (tx_range, rx_range) = mpsc::channel::<MessageProofRequest>(256);
-                let tee_prover = match TeeExecProver::new(ctx.clone(), tx_range, hyperlane_message_store.clone()) {
+                let tee_prover = match TeeExecProver::new(ctx.clone(), tx_range, hyperlane_message_store.clone()).await
+                {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create TEE prover: {e:?}");
@@ -184,7 +188,9 @@ pub async fn start_server(config: Config) -> Result<()> {
                     ctx.clone(),
                     hyperlane_message_store.clone(),
                     proof_store_clone.clone(),
-                ) {
+                )
+                .await
+                {
                     Ok(prover) => prover,
                     Err(e) => {
                         error!("Failed to create message prover: {e:?}");
@@ -253,7 +259,7 @@ pub async fn start_server(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn prepare_message_prover(
+async fn prepare_message_prover(
     ctx: Arc<ChainContext>,
     hyperlane_message_store: Arc<HyperlaneMessageStore>,
     proof_store: Arc<dyn ProofStorage>,
@@ -268,6 +274,7 @@ fn prepare_message_prover(
         proof_store.clone(),
         Arc::new(MockStateQueryProvider::new(ctx.evm_provider())),
     )
+    .await
 }
 
 // TODO: Use from config file when we can have a reproducible key in docker-compose.

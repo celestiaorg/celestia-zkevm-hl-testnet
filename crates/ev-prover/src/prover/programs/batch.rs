@@ -6,7 +6,7 @@ pub static EV_BATCH_ELF: &[u8] = include_bytes!("../../../../../elfs/ev-batch-el
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use ev_zkevm_types::block::{BatchExecInput, BatchExecOutput, BlockExecInput};
-use sp1_sdk::{SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{Elf, Prover, ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin};
 use storage::hyperlane::message::HyperlaneMessageStore;
 use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
@@ -53,13 +53,13 @@ impl ProgramProver for BatchExecProver {
 
 impl BatchExecProver {
     /// Creates a new prover instance.
-    pub fn new(
+    pub async fn new(
         ctx: Arc<ChainContext>,
         range_tx: mpsc::Sender<MessageProofRequest>,
         hyperlane_message_store: Arc<HyperlaneMessageStore>,
     ) -> Result<Self> {
-        let prover = prover_from_env();
-        let config = BatchExecProver::default_config(prover.as_ref());
+        let prover = prover_from_env().await;
+        let config = BatchExecProver::default_config(prover.as_ref()).await?;
 
         Ok(Self {
             ctx,
@@ -71,9 +71,11 @@ impl BatchExecProver {
     }
 
     /// Returns the prover config.
-    pub fn default_config(prover: &SP1Prover) -> StandardProverConfig {
-        let (pk, vk) = prover.setup(EV_BATCH_ELF);
-        StandardProverConfig::new(pk, vk, SP1ProofMode::Groth16)
+    pub async fn default_config(prover: &SP1Prover) -> Result<StandardProverConfig> {
+        let elf = Elf::Static(EV_BATCH_ELF);
+        let pk = prover.setup(elf.clone()).await?;
+        let vk = pk.verifying_key().clone();
+        Ok(StandardProverConfig::new(pk, vk, elf, SP1ProofMode::Groth16))
     }
 
     /// Builds the proof input structure for the given batch size starting from the provided height.

@@ -3,7 +3,10 @@ mod tests {
     use crate::prover::programs::batch::EV_BATCH_ELF;
     use celestia_types::nmt::Namespace;
     use ev_zkevm_types::block::{BatchExecOutput, BlockExecOutput, State};
-    use sp1_sdk::{ProverClient, SP1ProofMode, SP1ProofWithPublicValues, SP1PublicValues, SP1_CIRCUIT_VERSION};
+    use sp1_sdk::{
+        Elf, Prover, ProverClient, ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, SP1PublicValues,
+        SP1_CIRCUIT_VERSION,
+    };
     use storage::proofs::{ProofStorage, ProofStorageError, RocksDbProofStorage};
     use tempfile::TempDir;
 
@@ -13,10 +16,11 @@ mod tests {
         (storage, temp_dir)
     }
 
-    fn create_mock_proof(mode: SP1ProofMode) -> SP1ProofWithPublicValues {
-        let (pk, _vk) = ProverClient::from_env().setup(EV_BATCH_ELF);
+    async fn create_mock_proof(mode: SP1ProofMode) -> SP1ProofWithPublicValues {
+        let prover = ProverClient::from_env().await;
+        let pk = prover.setup(Elf::Static(EV_BATCH_ELF)).await.expect("setup failed");
         let public_values = SP1PublicValues::from(&[10, 20, 30, 40, 50]);
-        SP1ProofWithPublicValues::create_mock_proof(&pk, public_values, mode, SP1_CIRCUIT_VERSION)
+        SP1ProofWithPublicValues::create_mock_proof(pk.verifying_key(), public_values, mode, SP1_CIRCUIT_VERSION)
     }
 
     fn create_mock_block_output() -> BlockExecOutput {
@@ -59,7 +63,7 @@ mod tests {
     #[tokio::test]
     async fn test_store_and_retrieve_block_proof() {
         let (storage, _temp_dir) = create_test_storage();
-        let proof = create_mock_proof(SP1ProofMode::Compressed);
+        let proof = create_mock_proof(SP1ProofMode::Compressed).await;
         let output = create_mock_block_output();
 
         // Store the proof
@@ -74,7 +78,7 @@ mod tests {
     #[tokio::test]
     async fn test_store_and_retrieve_range_proof() {
         let (storage, _temp_dir) = create_test_storage();
-        let proof = create_mock_proof(SP1ProofMode::Groth16);
+        let proof = create_mock_proof(SP1ProofMode::Groth16).await;
         let output = create_mock_batch_output();
 
         // Store the range proof
@@ -92,7 +96,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_block_proofs_in_range() {
         let (storage, _temp_dir) = create_test_storage();
-        let proof = create_mock_proof(SP1ProofMode::Compressed);
+        let proof = create_mock_proof(SP1ProofMode::Compressed).await;
         let output = create_mock_block_output();
 
         // Store multiple block proofs
@@ -111,7 +115,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_latest_block_proof() {
         let (storage, _temp_dir) = create_test_storage();
-        let proof = create_mock_proof(SP1ProofMode::Compressed);
+        let proof = create_mock_proof(SP1ProofMode::Compressed).await;
         let output = create_mock_block_output();
 
         // Initially should return None

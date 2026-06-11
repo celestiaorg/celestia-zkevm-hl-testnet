@@ -44,7 +44,7 @@ impl ProverStatus {
         let ism = resp.ism.ok_or_else(|| anyhow!("ZKISM not found"))?;
         let state: State = bincode::deserialize(&ism.state).unwrap();
         let trusted_root = FixedBytes::from_slice(&state.state_root);
-        let celestia_head = ctx.celestia_client().header_local_head().await?.height().value();
+        let celestia_head = ctx.celestia_client().header_local_head().await?.height();
 
         Ok(ProverStatus {
             trusted_height: state.height,
@@ -172,10 +172,10 @@ pub async fn build_block_input(
     let extended_header = ctx.celestia_client().header_get_by_height(height).await?;
     let namespace_data = ctx
         .celestia_client()
-        .share_get_namespace_data(&extended_header, namespace)
+        .share_get_namespace_data(height, namespace)
         .await?;
     let mut proofs: Vec<NamespaceProof> = Vec::new();
-    for row in namespace_data.rows {
+    for row in namespace_data.into_inner() {
         proofs.push(row.proof);
     }
     debug!("Got NamespaceProofs, total: {}", proofs.len());

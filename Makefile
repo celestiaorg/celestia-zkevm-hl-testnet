@@ -1,5 +1,9 @@
 PROJECT_NAME=$(shell basename "$(PWD)")
 
+# Pinned celestia-app image (x/zkism Groth16 verifier patched for SP1 v6 proofs).
+# Must match the digest referenced in docker-compose.yml.
+CELESTIA_IMAGE ?= docker.io/celestiaorg/celestia-app-standalone@sha256:82abe4e4985f6a37de8fc38a08f2587681d201c1721a25b2c29094359db06b23
+
 ## help: Get more info on make commands.
 help: Makefile
 	@echo " Choose a command run in "$(PROJECT_NAME)":"
@@ -48,7 +52,7 @@ transfer:
 	@docker run --rm \
   		--network celestia-zkevm_celestia-zkevm-net \
   		--volume celestia-zkevm_celestia-app:/home/celestia/.celestia-app \
-  		ghcr.io/celestiaorg/celestia-app-standalone:feature-zk-execution-ism \
+  		$(CELESTIA_IMAGE) \
   		tx warp transfer 0x726f757465725f61707000000000000000000000000000010000000000000000 1234 0x000000000000000000000000aF9053bB6c4346381C77C2FeD279B17ABAfCDf4d "10000000" \
   		--from default --fees 1000utia --gas auto --max-hyperlane-fee 36400utia --node http://celestia-validator:26657 --yes
 .PHONY: transfer
@@ -98,7 +102,7 @@ docker-build-hyperlane:
 	@docker build --platform linux/amd64 -t ghcr.io/celestiaorg/hyperlane-init:local -f testnet/hyperlane/Dockerfile .
 .PHONY: docker-build-hyperlane
 
-deploy-ism: 
+deploy-ism:
 	@echo "--> Deploying ISM"
 	@RUST_LOG="ev_prover=info" cargo run -p ev-prover create-ism
 .PHONY: deploy-ism

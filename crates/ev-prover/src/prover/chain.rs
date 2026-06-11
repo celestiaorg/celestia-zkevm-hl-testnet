@@ -71,7 +71,7 @@ impl ChainContext {
         let chain_spec = Self::load_chain_spec_from_genesis(&genesis)?;
 
         let auth_token = config.rpc.celestia_auth_token.as_deref();
-        let celestia_client = Arc::new(Client::new(&config.rpc.celestia_rpc, auth_token).await?);
+        let celestia_client = Arc::new(Client::new(&config.rpc.celestia_rpc, auth_token, None, None).await?);
         let evm_provider =
             ProviderBuilder::new().connect_http(Url::parse(&config.rpc.evreth_rpc).context("invalid evm rpc url")?);
 

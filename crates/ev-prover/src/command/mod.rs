@@ -10,7 +10,7 @@ use celestia_grpc_client::proto::hyperlane::warp::v1::MsgSetToken;
 use celestia_grpc_client::types::ClientConfig;
 use celestia_grpc_client::CelestiaIsmClient;
 use celestia_rpc::HeaderClient;
-use sp1_sdk::{HashableKey, Prover, ProverClient};
+use sp1_sdk::{Elf, HashableKey, Prover, ProverClient, ProvingKey};
 use tracing::info;
 
 use crate::command::cli::{QueryCommands, VERSION};
@@ -61,7 +61,7 @@ pub async fn create_ism() -> Result<()> {
     let namespace = chain_ctx.namespace();
 
     // Find the most recent Celestia height with a blob and retrieve the associated EVM block height.
-    let mut search_height: u64 = celestia_client.header_local_head().await?.height().value();
+    let mut search_height: u64 = celestia_client.header_local_head().await?.height();
     let (header, ev_block_height) = loop {
         let header = celestia_client.header_get_by_height(search_height).await?;
         if let Some(block_height) = chain_ctx.latest_block_for_height(search_height).await? {
@@ -74,7 +74,7 @@ pub async fn create_ism() -> Result<()> {
         search_height -= 1;
     };
 
-    let height: u64 = header.height().value();
+    let height: u64 = header.height();
     let block_hash = header.hash().as_bytes().to_vec();
 
     let block = chain_ctx
@@ -89,7 +89,7 @@ pub async fn create_ism() -> Result<()> {
     let pub_key = get_sequencer_pubkey(config.rpc.evnode_rpc).await?;
 
     let groth16_vkey = Config::groth16_vkey();
-    let (state_transition_vkey, state_membership_vkey) = setup_state_vkeys();
+    let (state_transition_vkey, state_membership_vkey) = setup_state_vkeys().await?;
 
     let initial_state = State {
         state_root: ev_state_root.0,
@@ -124,26 +124,28 @@ pub async fn create_ism() -> Result<()> {
     Ok(())
 }
 
-fn setup_state_vkeys() -> (Vec<u8>, Vec<u8>) {
+async fn setup_state_vkeys() -> Result<(Vec<u8>, Vec<u8>)> {
     info!("Setting up ELF for state proofs");
-    let prover = ProverClient::builder().cpu().build();
+    let prover = ProverClient::builder().cpu().build().await;
 
     #[cfg(feature = "tee_mode")]
-    let state_transition_elf = include_bytes!("../../../../elfs/tee-attestation-elf");
+    let state_transition_elf: &[u8] = include_bytes!("../../../../elfs/tee-attestation-elf");
 
     #[cfg(not(feature = "tee_mode"))]
-    let state_transition_elf = include_bytes!("../../../../elfs/ev-batch-elf");
+    let state_transition_elf: &[u8] = include_bytes!("../../../../elfs/ev-batch-elf");
 
-    let (_, state_transition_vkey) = prover.setup(state_transition_elf);
+    let state_transition_pk = prover.setup(Elf::Static(state_transition_elf)).await?;
+    let state_transition_vkey = state_transition_pk.verifying_key();
 
-    let ev_hyperlane_elf = include_bytes!("../../../../elfs/ev-hyperlane-elf");
+    let ev_hyperlane_elf: &[u8] = include_bytes!("../../../../elfs/ev-hyperlane-elf");
     info!("Setting up ELF for membership proofs");
-    let (_, state_membership_vkey) = prover.setup(ev_hyperlane_elf);
+    let state_membership_pk = prover.setup(Elf::Static(ev_hyperlane_elf)).await?;
+    let state_membership_vkey = state_membership_pk.verifying_key();
 
-    (
+    Ok((
         state_transition_vkey.bytes32_raw().to_vec(),
         state_membership_vkey.bytes32_raw().to_vec(),
-    )
+    ))
 }
 
 pub async fn set_token_ism(ism_id: String, token_id: String) -> Result<()> {

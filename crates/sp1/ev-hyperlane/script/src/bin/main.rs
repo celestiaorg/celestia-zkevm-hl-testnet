@@ -19,7 +19,11 @@ use ev_zkevm_types::hyperlane::{
     merkle::MerkleTree,
     proof::{HyperlaneBranchProof, HyperlaneBranchProofInputs, HYPERLANE_MERKLE_TREE_KEYS},
 };
-use sp1_sdk::{include_elf, ProverClient, SP1Stdin};
+#[cfg(feature = "retry")]
+use sp1_sdk::ProveRequest;
+#[cfg(not(feature = "retry"))]
+use sp1_sdk::ProvingKey;
+use sp1_sdk::{include_elf, Elf, Prover, ProverClient, SP1Stdin};
 use std::{env, str::FromStr, time::Instant};
 use storage::hyperlane::message::HyperlaneMessageStore;
 use url::Url;
@@ -33,7 +37,7 @@ use {
 };
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const EV_HYPERLANE_ELF: &[u8] = include_elf!("ev-hyperlane-program");
+pub const EV_HYPERLANE_ELF: Elf = include_elf!("ev-hyperlane-program");
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -82,7 +86,7 @@ async fn main() {
     sp1_sdk::utils::setup_logger();
     let args = Args::parse();
 
-    let client = ProverClient::from_env();
+    let client = ProverClient::from_env().await;
     let message_storage_path = dirs::home_dir()
         .expect("cannot find home directory")
         .join(".ev-prover")
@@ -110,18 +114,22 @@ async fn main() {
 
         if args.execute {
             client
-                .execute(EV_HYPERLANE_ELF, &stdin)
-                .run()
+                .execute(EV_HYPERLANE_ELF.clone(), stdin)
+                .await
                 .expect("failed to execute program");
             println!("Program executed successfully!");
         } else {
             use ev_zkevm_types::hyperlane::io::HyperlaneMessageOutputs;
-            let (pk, vk) = client.setup(EV_HYPERLANE_ELF);
+            let pk = client
+                .setup(EV_HYPERLANE_ELF.clone())
+                .await
+                .expect("failed to setup prover");
+            let vk = pk.verifying_key();
             let start_time = Instant::now();
-            let proof = client.prove(&pk, &stdin).run().expect("failed to generate proof");
+            let proof = client.prove(&pk, stdin).await.expect("failed to generate proof");
             println!("Proof generation time: {:?}", Instant::now() - start_time);
             println!("Successfully generated proof!");
-            client.verify(&proof, &vk).expect("failed to verify proof");
+            client.verify(&proof, vk, None).expect("failed to verify proof");
             println!("Successfully verified proof!");
             let proof_outputs: HyperlaneMessageOutputs =
                 bincode::deserialize(proof.public_values.as_slice()).expect("Failed to deserialize proof outputs");
@@ -162,13 +170,16 @@ async fn main() {
         .await
         .unwrap();
 
-        let (pk, _) = client.setup(EV_HYPERLANE_ELF);
+        let pk = client
+            .setup(EV_HYPERLANE_ELF.clone())
+            .await
+            .expect("failed to setup prover");
         let start_time = Instant::now();
 
         let proof = client
-            .prove(&pk, &stdin)
+            .prove(&pk, stdin)
             .groth16()
-            .run()
+            .await
             .expect("failed to generate proof");
         println!("Proof generation time: {:?}", Instant::now() - start_time);
 

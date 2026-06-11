@@ -48,6 +48,7 @@ async fn test_run_message_prover() {
             proof_store,
             Arc::new(MockStateQueryProvider::new(ctx.evm_provider())),
         )
+        .await
         .unwrap(),
     );
     prover.run(rx, MessageProofSync::shared()).await.unwrap();
